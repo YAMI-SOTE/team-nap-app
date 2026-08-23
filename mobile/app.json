@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Sleep Nap",
+    "slug": "sleep-nap",
+    "version": "1.0.0",
+    "scheme": "sleepnap",
+    "plugins": ["expo-router"]
+  }
+}
