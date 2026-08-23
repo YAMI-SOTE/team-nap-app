@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://teamnap:teamnap_dev@db:5432/teamnap
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - db
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: teamnap
+      POSTGRES_USER: teamnap
+      POSTGRES_PASSWORD: teamnap_dev
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
