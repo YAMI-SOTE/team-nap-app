@@ -2,15 +2,14 @@ import cors from "cors";
 import express from "express";
 
 import apiRouter from "./routes/index.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import { notFound } from "./middleware/notFound.js";
 
-import aiRoutes from "./routes/ai.routes.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+
+import { notFound } from "./middleware/notFound.js";
 
 const app = express();
 
 app.use(cors());
-
 app.use(express.json());
 
 app.get("/", (_req, res) => {
@@ -19,13 +18,9 @@ app.get("/", (_req, res) => {
   });
 });
 
-// AI API
-app.use("/api/ai", aiRoutes);
-
 app.use("/api/v1", apiRouter);
 
 app.use(notFound);
-
 app.use(errorHandler);
 
 export default app;
