@@ -141,3 +141,6 @@ const styles = StyleSheet.create({
 //     </View>
 //   );
 // }
+
+return <Redirect href="/home" />;
+*/
