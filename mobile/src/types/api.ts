@@ -58,3 +58,25 @@ export interface TeamSummaryResponse {
   };
   achievement: string;
 }
+
+export interface MemberDetailResponse {
+  id: string;
+  name: string;
+  label: string;
+  status: HomeMemberStatus;
+  /** "仮眠の状況" card — present while the member is resting. */
+  nap: {
+    /** Scheduled wake time, e.g. "14:47". */
+    wakeAt: string;
+    /** Minutes left until the scheduled wake time. */
+    minutesRemaining: number;
+  } | null;
+  /** "起床サポート" card. */
+  wakeSupport: {
+    /**
+     * Whether the member opted in to being woken by teammates.
+     * When false, the "起きて〜" action is disabled.
+     */
+    wakeAssistEnabled: boolean;
+  };
+}

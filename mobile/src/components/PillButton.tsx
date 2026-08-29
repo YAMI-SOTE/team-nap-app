@@ -22,6 +22,8 @@ type PillButtonProps = {
   icon?: ReactNode;
   disabled?: boolean;
   loading?: boolean;
+  /** Drop shadow on the "primary" variant. Default true. */
+  elevated?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
 };
@@ -40,6 +42,7 @@ export default function PillButton({
   icon,
   disabled = false,
   loading = false,
+  elevated = true,
   style,
   textStyle,
 }: PillButtonProps) {
@@ -63,6 +66,7 @@ export default function PillButton({
       style={({ pressed }) => [
         styles.base,
         variantStyle,
+        isPrimary && elevated && styles.elevated,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style,
@@ -107,6 +111,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     minHeight: 58,
     paddingVertical: 10,
+  },
+  elevated: {
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
