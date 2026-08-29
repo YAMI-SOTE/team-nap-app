@@ -1,9 +1,6 @@
-const OLLAMA_URL =
-  process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 
-const OLLAMA_MODEL =
-  process.env.OLLAMA_MODEL || "gemma4:e2b";
-
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:e2b";
 
 // ========================================
 // REST終了後：個人データ
@@ -27,7 +24,6 @@ export type PersonalRestData = {
   selfInitiatedEvaluation: "self" | "notification";
 };
 
-
 // ========================================
 // TEAM画面：チーム集計データ
 // ========================================
@@ -41,24 +37,17 @@ export type TeamRestData = {
   encouragementCount: number;
 
   // ロジック側で判定済みの評価
-  teamRestEvaluation:
-    | "good"
-    | "normal"
-    | "needs_improvement";
+  teamRestEvaluation: "good" | "normal" | "needs_improvement";
 
-  encouragementEvaluation:
-    | "active"
-    | "normal"
-    | "low";
+  encouragementEvaluation: "active" | "normal" | "low";
 };
-
 
 // ========================================
 // REST終了後：個人コメント生成
 // ========================================
 
 export async function generatePersonalRestComment(
-  data: PersonalRestData
+  data: PersonalRestData,
 ): Promise<string> {
   const prompt = `
 あなたは休息支援アプリのREST終了後に表示する
@@ -122,13 +111,12 @@ ${JSON.stringify(data, null, 2)}
   return callGemma(prompt);
 }
 
-
 // ========================================
 // TEAM画面：チームコメント生成
 // ========================================
 
 export async function generateTeamRestComment(
-  data: TeamRestData
+  data: TeamRestData,
 ): Promise<string> {
   const prompt = `
 あなたは休息支援アプリのTEAM画面に表示する
@@ -178,54 +166,56 @@ teamRestEvaluation と encouragementEvaluation の意味を変えず、
   return callGemma(prompt);
 }
 
-
 // ========================================
 // Ollama / Gemmaとの通信
 // ========================================
 
-async function callGemma(
-  prompt: string
-): Promise<string> {
-  const response = await fetch(
-    `${OLLAMA_URL}/api/generate`,
-    {
-      method: "POST",
+async function callGemma(prompt: string): Promise<string> {
+  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
+    headers: {
+      "Content-Type": "application/json",
+    },
+
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      stream: false,
+
+      // 出力のばらつきを抑える
+      options: {
+        temperature: 0.2,
       },
-
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt,
-        stream: false,
-
-        // 出力のばらつきを抑える
-        options: {
-          temperature: 0.2,
-        },
-      }),
-    }
-  );
+    }),
+  });
 
   if (!response.ok) {
-    throw new Error(
-      `Ollama request failed: ${response.status}`
-    );
+    throw new Error(`Ollama request failed: ${response.status}`);
   }
 
   const result = (await response.json()) as {
     response?: string;
   };
 
-  if (
-    !result.response ||
-    result.response.trim() === ""
-  ) {
-    throw new Error(
-      "Ollama returned an empty response"
-    );
+  const cleanedResponse = sanitizeModelOutput(result.response);
+
+  if (!cleanedResponse) {
+    throw new Error("Ollama returned an empty response");
   }
 
-  return result.response.trim();
+  return cleanedResponse;
+}
+
+function sanitizeModelOutput(response?: string): string {
+  if (!response) {
+    return "";
+  }
+
+  return response
+    .replace(/<unused\d+>/g, " ")
+    .replace(/<\/?tool_call>/g, " ")
+    .replace(/<\/?tool_response>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
