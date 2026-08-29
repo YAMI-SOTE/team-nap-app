@@ -3,12 +3,20 @@ import { Tabs } from "expo-router";
 import { colors } from "@/theme/colors";
 import {
   CalendarIcon,
+  ChartBarIcon,
   GearIcon,
   HouseIcon,
-  MoonStarsIcon,
   UsersThreeIcon,
 } from "@/components/icons";
 
+/**
+ * Bottom tab bar — mirrors the Figma "MenuBar" (node 321:2210):
+ * ホーム · スケジュール · チーム · 統計 · 設定, in that order.
+ *
+ * `rest` (仮眠) is intentionally NOT a tab in the design — it is reached
+ * from the "仮眠を開始" button on Home — so it stays routable but hidden
+ * from the bar via `href: null`.
+ */
 export default function TabsLayout() {
   return (
     <Tabs
@@ -21,6 +29,7 @@ export default function TabsLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderStrong,
           borderTopWidth: 1,
+          paddingTop: 8,
         },
       }}
     >
@@ -30,16 +39,6 @@ export default function TabsLayout() {
           title: "ホーム",
           tabBarIcon: ({ color, size }) => (
             <HouseIcon color={color} size={size} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="rest"
-        options={{
-          title: "仮眠",
-          tabBarIcon: ({ color, size }) => (
-            <MoonStarsIcon color={color} size={size} />
           ),
         }}
       />
@@ -65,6 +64,16 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="stats"
+        options={{
+          title: "統計",
+          tabBarIcon: ({ color, size }) => (
+            <ChartBarIcon color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="settings"
         options={{
           title: "設定",
@@ -73,6 +82,9 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* Not in the Figma tab bar — reachable via the Home "仮眠を開始" button. */}
+      <Tabs.Screen name="rest" options={{ href: null }} />
     </Tabs>
   );
 }

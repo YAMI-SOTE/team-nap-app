@@ -1,9 +1,9 @@
 {
   "expo": {
     "name": "Team Nap",
-    "slug": "sleep-nap",
+    "slug": "team-nap",
     "version": "1.0.0",
-    "scheme": "sleepnap",
+    "scheme": "teamnap",
     "plugins": ["expo-router"]
   }
 }

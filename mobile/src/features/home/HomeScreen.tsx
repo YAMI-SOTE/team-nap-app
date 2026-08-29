@@ -1,9 +1,17 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { colors } from "@/theme/colors";
+import { TEAM_SCORE_MAX } from "@/constants/home";
+import { useHomeSummary } from "@/hooks/useHomeSummary";
 import Logo from "@/components/Logo";
 import Hairline from "@/components/Hairline";
 import ProgressBar from "@/components/ProgressBar";
@@ -18,34 +26,9 @@ import {
 
 const SCREEN_PADDING = 28;
 
-type Member = {
-  id: string;
-  label: string;
-  status: MemberStatus;
-};
-
-// TODO: replace with real data from the backend / a `useHomeSummary` hook.
-const TODAY_LABEL = "6月12日 (水)";
-const TEAM_HEADLINE = ["今日のチームは", "いい調子です"];
-const TEAM_SCORE = 82;
-const TEAM_SCORE_MAX = 100;
-const AI_ADVICE_PLACEHOLDER = "AIアドバイスを表示する場所";
-const MEMBER_STATUS_SUMMARY = "仮眠中 2人 ・ 作業中 3人";
-const NEXT_FREE_CONTEXT = "次の空き時間 ・ 次の予定まで30分";
-const NEXT_FREE_RANGE = "14:30〜15:00";
-const NEXT_FREE_DETAIL = "6人中5人が予定なし";
-
-const MEMBERS: Member[] = [
-  { id: "a", label: "A", status: "resting" },
-  { id: "b", label: "B", status: "working" },
-  { id: "c", label: "C", status: "resting" },
-  { id: "d", label: "D", status: "working" },
-  { id: "e", label: "E", status: "offline" },
-  { id: "f", label: "F", status: "working" },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
+  const { data, loading, error } = useHomeSummary();
 
   const handleOpenNotifications = () => {
     console.log("TODO: open notifications screen");
@@ -57,14 +40,27 @@ export default function HomeScreen() {
     // TODO: wire to the "suggest a nap to everyone" backend action.
   };
 
+  const memberStatusSummary = data
+    ? formatMemberStatusSummary(data.memberStatusCounts)
+    : "";
+
+  const nextFreeContext = data
+    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(data.nextFree.hoursUntilStart, data.nextFree.minutesUntilStartRemainder)}`
+    : "次の空き時間";
+
+  const nextFreeRange = data
+    ? `${data.nextFree.start}〜${data.nextFree.end}`
+    : "--:--〜--:--";
+
+  const nextFreeDetail = data
+    ? `${data.memberCount}人中${data.nextFree.availableMemberCount}人が予定なし`
+    : "";
+
   return (
     <View style={styles.root}>
       <Aura />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
@@ -80,10 +76,14 @@ export default function HomeScreen() {
 
           {/* Hero */}
           <View style={styles.hero}>
-            <Text style={styles.dateLabel}>{TODAY_LABEL}</Text>
+            <Text style={styles.dateLabel}>
+              {data?.todayLabel ?? "読み込み中"}
+            </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroTextCol}>
-                <Text style={styles.heroTitle}>{TEAM_HEADLINE.join("\n")}</Text>
+                <Text style={styles.heroTitle}>
+                  {(data?.headline ?? ["今日のチームは", "確認中です"]).join("\n")}
+                </Text>
               </View>
               <CharacterSlot size={84} />
             </View>
@@ -96,13 +96,17 @@ export default function HomeScreen() {
               <View style={styles.metricText}>
                 <Text style={styles.sectionLabel}>チームの状態</Text>
                 <View style={styles.metricNumberRow}>
-                  <Text style={styles.metricNumber}>{TEAM_SCORE}</Text>
+                  <Text style={styles.metricNumber}>
+                    {data?.teamScore ?? "--"}
+                  </Text>
                   <Text style={styles.metricUnit}>/{TEAM_SCORE_MAX}</Text>
                 </View>
               </View>
             </View>
-            <ProgressBar value={TEAM_SCORE} max={TEAM_SCORE_MAX} />
-            <Text style={styles.sectionLabel}>{AI_ADVICE_PLACEHOLDER}</Text>
+            <ProgressBar value={data?.teamScore ?? 0} max={TEAM_SCORE_MAX} />
+            <Text style={styles.sectionLabel}>
+              {data?.aiAdvice ?? "AIアドバイスを読み込み中"}
+            </Text>
           </View>
 
           {/* メンバー */}
@@ -110,16 +114,14 @@ export default function HomeScreen() {
             <Hairline />
             <View style={styles.rowBetween}>
               <Text style={styles.sectionLabel}>メンバーのようす</Text>
-              <Text style={styles.sectionSubLabel}>
-                {MEMBER_STATUS_SUMMARY}
-              </Text>
+              <Text style={styles.sectionSubLabel}>{memberStatusSummary}</Text>
             </View>
             <View style={styles.membersRow}>
-              {MEMBERS.map((member) => (
+              {(data?.members ?? []).map((member) => (
                 <MemberAvatar
                   key={member.id}
                   label={member.label}
-                  status={member.status}
+                  status={member.status as MemberStatus}
                   onPress={() => router.push(`/members/${member.id}`)}
                 />
               ))}
@@ -139,31 +141,56 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <Hairline />
             <View style={styles.nextFreeText}>
-              <Text style={styles.sectionLabel}>{NEXT_FREE_CONTEXT}</Text>
-              <Text style={styles.nextFreeRange}>{NEXT_FREE_RANGE}</Text>
-              <Text style={styles.sectionSubLabel}>{NEXT_FREE_DETAIL}</Text>
+              <Text style={styles.sectionLabel}>{nextFreeContext}</Text>
+              <Text style={styles.nextFreeRange}>{nextFreeRange}</Text>
+              <Text style={styles.sectionSubLabel}>{nextFreeDetail}</Text>
             </View>
+          </View>
+
+          <View style={styles.bottomActions}>
             <PillButton
               variant="outline"
               label="みんなに仮眠を提案"
               onPress={handleSuggestTeamNap}
               icon={<MoonStarsIcon size={24} color={colors.primary} />}
+              style={styles.actionButton}
             />
+
+            <PillButton
+              variant="primary"
+              label="仮眠を開始"
+              onPress={() => router.push("/rest")}
+              icon={<MoonStarsIcon size={22} color={colors.white} />}
+              style={styles.actionButton}
+            />
+
+            <View style={styles.sectionFooter}>
+              {loading ? <ActivityIndicator color={colors.primary} /> : null}
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            </View>
           </View>
-
-          <View style={styles.spacer} />
-
-          {/* 仮眠を開始 */}
-          <PillButton
-            variant="primary"
-            label="仮眠を開始"
-            onPress={() => router.push("/rest")}
-            icon={<MoonStarsIcon size={22} color={colors.white} />}
-          />
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
+}
+
+function formatMemberStatusSummary(
+  counts: Record<MemberStatus, number>,
+): string {
+  return [`仮眠中 ${counts.resting}人`, `作業中 ${counts.working}人`].join(" ・ ");
+}
+
+function formatTimeUntilNextFree(hours: number, minutes: number): string {
+  if (hours > 0 && minutes > 0) {
+    return `${hours}時間${minutes}分`;
+  }
+
+  if (hours > 0) {
+    return `${hours}時間`;
+  }
+
+  return `${minutes}分`;
 }
 
 /**
@@ -199,11 +226,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flexGrow: 1,
+    flex: 1,
     paddingTop: 16,
     paddingHorizontal: SCREEN_PADDING,
     paddingBottom: 12,
-    gap: 20,
+    gap: 16,
   },
   header: {
     flexDirection: "row",
@@ -291,8 +318,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
   },
-  spacer: {
-    flex: 1,
-    minHeight: 5,
+  bottomActions: {
+    marginTop: "auto",
+    gap: 10,
+    paddingTop: 4,
+  },
+  actionButton: {
+    minHeight: 58,
+  },
+  sectionFooter: {
+    minHeight: 20,
+    justifyContent: "center",
+    gap: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
   },
 });
