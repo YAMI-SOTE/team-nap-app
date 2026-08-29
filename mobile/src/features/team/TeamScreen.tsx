@@ -33,6 +33,8 @@ const SCREEN_PADDING = 24;
 export default function TeamScreen() {
   const router = useRouter();
   const { data, loading, error } = useTeamSummary();
+  const summary = data?.summary;
+  const memberStatus = data?.memberStatus;
 
   const handleOpenNotifications = () => {
     console.log("TODO: open notifications screen");
@@ -50,15 +52,15 @@ export default function TeamScreen() {
     console.log("TODO: open the full member list");
   };
 
-  const rate = data ? `${data.weekly.ratePercent}` : "--";
-  const deltaText = data
-    ? `先週より ${data.weekly.deltaPercent >= 0 ? "+" : ""}${data.weekly.deltaPercent}% ↑`
+  const rate = summary ? `${summary.weekly.ratePercent}` : "--";
+  const deltaText = summary
+    ? `先週より ${summary.weekly.deltaPercent >= 0 ? "+" : ""}${summary.weekly.deltaPercent}% ↑`
     : "";
-  const restingCount = data?.statusCounts.resting ?? 0;
-  const workingCount = data?.statusCounts.working ?? 0;
-  const napMinutes = data?.suggestion.napMinutes ?? 15;
+  const restingCount = memberStatus?.memberStatusCounts.resting ?? 0;
+  const workingCount = memberStatus?.memberStatusCounts.working ?? 0;
+  const napMinutes = summary?.suggestion.napMinutes ?? 15;
   const suggestionHeadline = (
-    data?.suggestion.headline ?? ["チームは長時間", "がんばっています"]
+    summary?.suggestion.headline ?? ["チームは長時間", "がんばっています"]
   ).join("\n");
 
   return (
@@ -97,13 +99,13 @@ export default function TeamScreen() {
                   <Text style={styles.heroPercent}>%</Text>
                 </View>
               </View>
-              {data ? (
+              {summary ? (
                 <View style={styles.deltaPill}>
                   <Text style={styles.deltaText}>{deltaText}</Text>
                 </View>
               ) : null}
             </View>
-            {data ? <WeeklyBarChart days={data.weekly.bars} /> : null}
+            {summary ? <WeeklyBarChart days={summary.weekly.bars} /> : null}
           </GradientCard>
 
           {/* 現在の状態 */}
@@ -148,7 +150,7 @@ export default function TeamScreen() {
               <View style={styles.suggestionTextCol}>
                 <Text style={styles.suggestionTitle}>{suggestionHeadline}</Text>
                 <Text style={styles.suggestionBody}>
-                  {data?.suggestion.body ?? ""}
+                  {summary?.suggestion.body ?? ""}
                 </Text>
               </View>
             </View>
@@ -163,13 +165,13 @@ export default function TeamScreen() {
           </GradientCard>
 
           {/* 今週の達成 */}
-          {data ? (
+          {summary ? (
             <IconPill
               icon={<TrophyIcon size={22} />}
               backgroundColor={colors.brandSubtle}
               gap={10}
             >
-              <Text style={styles.achievementText}>{data.achievement}</Text>
+              <Text style={styles.achievementText}>{summary.achievement}</Text>
             </IconPill>
           ) : null}
 
@@ -177,7 +179,7 @@ export default function TeamScreen() {
           <View style={styles.membersSection}>
             <Text style={styles.membersHeading}>メンバーのようす</Text>
             <View style={styles.membersRow}>
-              {(data?.members ?? []).map((member) => (
+              {(memberStatus?.members ?? []).map((member) => (
                 <MemberAvatar
                   key={member.id}
                   label={member.label}

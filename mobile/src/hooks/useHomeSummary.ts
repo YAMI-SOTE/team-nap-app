@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 
-import { getHomeSummary } from "@/services/home";
+import {
+  getHomeMemberStatus,
+  getHomeSummary,
+} from "@/services/home";
 
-import type { HomeSummaryResponse } from "@/types/api";
+import type {
+  HomeMemberStatusResponse,
+  HomeSummaryResponse,
+} from "@/types/api";
+
+type HomeScreenData = {
+  summary: HomeSummaryResponse;
+  memberStatus: HomeMemberStatusResponse;
+};
 
 export function useHomeSummary() {
-  const [data, setData] = useState<HomeSummaryResponse | null>(null);
+  const [data, setData] = useState<HomeScreenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,13 +25,19 @@ export function useHomeSummary() {
 
     async function loadHomeSummary() {
       try {
-        const result = await getHomeSummary();
+        const [summary, memberStatus] = await Promise.all([
+          getHomeSummary(),
+          getHomeMemberStatus(),
+        ]);
 
         if (!active) {
           return;
         }
 
-        setData(result);
+        setData({
+          summary,
+          memberStatus,
+        });
       } catch (err) {
         if (!active) {
           return;

@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 
-import { getTeamSummary } from "@/services/team";
+import {
+  getSharedMemberStatus,
+  getTeamSummary,
+} from "@/services/team";
 
-import type { TeamSummaryResponse } from "@/types/api";
+import type {
+  HomeMemberStatusResponse,
+  TeamSummaryResponse,
+} from "@/types/api";
+
+type TeamScreenData = {
+  summary: TeamSummaryResponse;
+  memberStatus: HomeMemberStatusResponse;
+};
 
 export function useTeamSummary() {
-  const [data, setData] = useState<TeamSummaryResponse | null>(null);
+  const [data, setData] = useState<TeamScreenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,13 +25,19 @@ export function useTeamSummary() {
 
     async function loadTeamSummary() {
       try {
-        const result = await getTeamSummary();
+        const [summary, memberStatus] = await Promise.all([
+          getTeamSummary(),
+          getSharedMemberStatus(),
+        ]);
 
         if (!active) {
           return;
         }
 
-        setData(result);
+        setData({
+          summary,
+          memberStatus,
+        });
       } catch (err) {
         if (!active) {
           return;

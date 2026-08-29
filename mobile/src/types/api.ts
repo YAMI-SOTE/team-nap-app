@@ -19,8 +19,6 @@ export interface HomeSummaryResponse {
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
-  memberCount: number;
-  memberStatusCounts: Record<HomeMemberStatus, number>;
   nextFree: {
     start: string;
     end: string;
@@ -28,6 +26,11 @@ export interface HomeSummaryResponse {
     minutesUntilStartRemainder: number;
     availableMemberCount: number;
   };
+}
+
+export interface HomeMemberStatusResponse {
+  memberCount: number;
+  memberStatusCounts: Record<HomeMemberStatus, number>;
   members: HomeMember[];
 }
 
@@ -48,13 +51,10 @@ export interface TeamSummaryResponse {
     deltaPercent: number;
     bars: TeamWeeklyBar[];
   };
-  statusCounts: Record<HomeMemberStatus, number>;
   suggestion: {
     headline: [string, string];
     body: string;
     napMinutes: number;
   };
   achievement: string;
-  memberCount: number;
-  members: HomeMember[];
 }
