@@ -1,33 +1,33 @@
 import { useEffect, useState } from "react";
 
 import {
-  getHomeMemberStatus,
-  getHomeSummary,
-} from "@/services/home";
+  getSharedMemberStatus,
+  getTeamSummary,
+} from "@/services/team";
 
 import type {
   HomeMemberStatusResponse,
-  HomeSummaryResponse,
+  TeamSummaryResponse,
 } from "@/types/api";
 
-type HomeScreenData = {
-  summary: HomeSummaryResponse;
+type TeamScreenData = {
+  summary: TeamSummaryResponse;
   memberStatus: HomeMemberStatusResponse;
 };
 
-export function useHomeSummary() {
-  const [data, setData] = useState<HomeScreenData | null>(null);
+export function useTeamSummary() {
+  const [data, setData] = useState<TeamScreenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function loadHomeSummary() {
+    async function loadTeamSummary() {
       try {
         const [summary, memberStatus] = await Promise.all([
-          getHomeSummary(),
-          getHomeMemberStatus(),
+          getTeamSummary(),
+          getSharedMemberStatus(),
         ]);
 
         if (!active) {
@@ -51,7 +51,7 @@ export function useHomeSummary() {
       }
     }
 
-    loadHomeSummary();
+    loadTeamSummary();
 
     return () => {
       active = false;
