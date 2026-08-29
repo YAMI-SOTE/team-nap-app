@@ -21,6 +21,5 @@ export default router;
 /*
 router.use("/auth", authRouter);
 router.use("/users", userRouter);
-router.use("/rests", restRouter);
 router.use("/schedules", scheduleRouter);
 */
