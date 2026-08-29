@@ -36,3 +36,12 @@ export function toISODate(date: Date): string {
   const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/** Parse "2024-06-12" as a local date (avoids the UTC shift of `new Date(str)`). */
+export function fromISODate(value: string): Date {
+  const [y, m, d] = value.split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return new Date();
+  }
+  return new Date(y, m - 1, d);
+}

@@ -1,6 +1,6 @@
-import { addDays, startOfWeek } from "@/utils/date";
+import { addDays, startOfWeek, toISODate } from "@/utils/date";
 
-import type { DayScheduleResponse } from "@/types/api";
+import type { DayScheduleResponse, EventDraft } from "@/types/api";
 
 /**
  * Day schedule.
@@ -40,4 +40,26 @@ export async function getDaySchedule(
     ...SAMPLE_DAY,
     weekEventDays,
   };
+}
+
+/** Load an existing event for the edit screen (mock lookup by id). */
+export async function getEvent(id: string): Promise<EventDraft> {
+  const task = SAMPLE_DAY.tasks.find((t) => t.id === id);
+  return {
+    title: task?.title ?? "",
+    date: toISODate(new Date()),
+    start: task?.start ?? "10:00",
+    end: task?.end ?? "11:00",
+    allDay: false,
+  };
+}
+
+export async function saveEvent(
+  _draft: EventDraft & { id?: string },
+): Promise<void> {
+  // TODO: POST /schedules (create) or PATCH /schedules/:id (update).
+}
+
+export async function deleteEvent(_id: string): Promise<void> {
+  // TODO: DELETE /schedules/:id.
 }

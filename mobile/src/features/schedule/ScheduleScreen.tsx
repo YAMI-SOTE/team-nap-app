@@ -85,7 +85,12 @@ export default function ScheduleScreen() {
                 time={`${task.start}〜${task.end}`}
                 subtitle={task.title}
                 showCaret
-                onPress={logTodo(`open task ${task.id}`)}
+                onPress={() =>
+                  router.push({
+                    pathname: "/schedule/event",
+                    params: { id: task.id },
+                  })
+                }
               />
             ))}
           </View>
@@ -105,7 +110,7 @@ export default function ScheduleScreen() {
               icon={<NotePencilIcon size={20} color={colors.textBrand} />}
               textStyle={styles.actionText}
               style={styles.actionButton}
-              onPress={logTodo("add an event")}
+              onPress={() => router.push("/schedule/event")}
             />
           </View>
 

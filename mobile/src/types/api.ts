@@ -133,3 +133,14 @@ export interface DayScheduleResponse {
   /** Day-of-month numbers within the shown week that have events. */
   weekEventDays: number[];
 }
+
+export interface EventDraft {
+  title: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" */
+  end: string;
+  allDay: boolean;
+}
