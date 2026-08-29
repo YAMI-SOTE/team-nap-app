@@ -1,9 +1,13 @@
 import { Router } from "express";
 
-import { getHealth } from "../controllers/health.controller.js";
+import {
+  getHealth,
+  notifyFrontendBootController,
+} from "../controllers/health.controller.js";
 
 const router = Router();
 
 router.get("/", getHealth);
+router.post("/frontend-boot", notifyFrontendBootController);
 
 export default router;
