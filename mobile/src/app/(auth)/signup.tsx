@@ -18,35 +18,26 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { spacing, radius } from "@/theme/spacing";
-import { useLogin } from "@/hooks/useLogin";
+import { useSignUp } from "@/hooks/useSignUp";
+import type { LoginResult } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
-import OrDivider from "@/components/OrDivider";
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
   const router = useRouter();
   const {
     email,
     password,
+    confirmPassword,
     isSubmitting,
-    isGoogleSubmitting,
     errorMessage,
     setEmail,
     setPassword,
+    setConfirmPassword,
     submit,
-    submitWithGoogle,
-  } = useLogin();
-
-  const isBusy = isSubmitting || isGoogleSubmitting;
+  } = useSignUp();
 
   const handleSubmit = async () => {
-    const result = await submit();
-    if (result) {
-      router.replace("/home");
-    }
-  };
-
-  const handleGoogleSubmit = async () => {
-    const result = await submitWithGoogle();
+    const result: LoginResult | null = await submit();
     if (result) {
       router.replace("/home");
     }
@@ -71,9 +62,9 @@ export default function LoginScreen() {
                 resizeMode="contain"
               />
 
-              <Text style={styles.heading}>おかえりなさい</Text>
+              <Text style={styles.heading}>はじめまして</Text>
               <Text style={styles.subtitle}>
-                メールアドレスでログインしてください
+                アカウントを作成してください
               </Text>
 
               <View style={styles.formArea}>
@@ -87,82 +78,66 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isBusy}
-                  testID="login-email-input"
+                  editable={!isSubmitting}
+                  testID="signup-email-input"
                 />
 
                 <Text style={styles.label}>パスワード</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="パスワードを入力"
+                  placeholder="8文字以上で入力"
                   placeholderTextColor={colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
-                  editable={!isBusy}
-                  testID="login-password-input"
+                  editable={!isSubmitting}
+                  testID="signup-password-input"
                 />
 
-                <TouchableOpacity style={styles.forgotLink} disabled={isBusy}>
-                  <Text style={styles.forgotLinkText}>
-                    パスワードをお忘れですか？
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleSubmit}
-                  activeOpacity={0.85}
-                  disabled={isBusy}
-                  testID="login-submit-button"
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={colors.white} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>ログイン</Text>
-                  )}
-                </TouchableOpacity>
-
-                <OrDivider />
-
-                <TouchableOpacity
-                  style={[styles.googleButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleGoogleSubmit}
-                  activeOpacity={0.85}
-                  disabled={isBusy}
-                  testID="login-google-button"
-                >
-                  {isGoogleSubmitting ? (
-                    <ActivityIndicator color={colors.textPrimary} />
-                  ) : (
-                    <>
-                      <Image
-                        source={require("../../../assets/google-icon.png")}
-                        style={styles.googleIcon}
-                        resizeMode="contain"
-                      />
-                      <Text style={styles.googleButtonText}>
-                        Googleでログイン
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <Text style={styles.label}>パスワード（確認用）</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="もう一度入力してください"
+                  placeholderTextColor={colors.placeholder}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  editable={!isSubmitting}
+                  testID="signup-confirm-password-input"
+                />
 
                 {errorMessage ? (
-                  <Text style={styles.errorText} testID="login-error-text">
+                  <Text style={styles.errorText} testID="signup-error-text">
                     {errorMessage}
                   </Text>
                 ) : null}
 
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    isSubmitting && styles.buttonDisabled,
+                  ]}
+                  onPress={handleSubmit}
+                  activeOpacity={0.85}
+                  disabled={isSubmitting}
+                  testID="signup-submit-button"
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>登録する</Text>
+                  )}
+                </TouchableOpacity>
+
                 <View style={styles.bottomRow}>
                   <Text style={styles.bottomText}>
-                    アカウントをお持ちでない方は{" "}
+                    すでにアカウントをお持ちの方は{" "}
                   </Text>
                   <TouchableOpacity
-                    onPress={() => router.push("/signup")}
-                    disabled={isBusy}
+                    onPress={() => router.push("/login")}
+                    disabled={isSubmitting}
                   >
-                    <Text style={styles.bottomLink}>新規登録</Text>
+                    <Text style={styles.bottomLink}>ログイン</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -223,21 +198,10 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: spacing.lg,
   },
-  forgotLink: {
-    alignSelf: "flex-end",
-    marginTop: -spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  forgotLinkText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
   errorText: {
     color: colors.error,
     fontSize: 13,
-    marginTop: spacing.md,
-    textAlign: "center",
+    marginBottom: spacing.md,
   },
   primaryButton: {
     backgroundColor: colors.primary,
@@ -246,6 +210,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 54,
+    marginTop: spacing.xs,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -256,27 +221,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: "bold",
-  },
-  googleButton: {
-    flexDirection: "row",
-    backgroundColor: colors.white,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 54,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: spacing.sm,
-  },
-  googleButtonText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
   },
   buttonDisabled: {
     opacity: 0.7,
