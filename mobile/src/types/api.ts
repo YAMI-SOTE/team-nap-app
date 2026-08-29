@@ -59,6 +59,42 @@ export interface TeamSummaryResponse {
   achievement: string;
 }
 
+export interface NotificationSettingsResponse {
+  napSuggestion: boolean;
+  napEnd: boolean;
+  teamNapSuggestion: boolean;
+  wakeSupport: boolean;
+}
+
+export interface AccountSettingsResponse {
+  username: string;
+  email: string;
+}
+
+export interface SleepScheduleResponse {
+  bedtime: string;
+  wakeTime: string;
+  napCutoffHour: number;
+}
+
+export interface CalendarIntegrationResponse {
+  google: {
+    connected: boolean;
+    email: string | null;
+    lastSyncedLabel: string | null;
+  };
+  device: {
+    connected: boolean;
+  };
+}
+
+export interface TeamSettingsResponse {
+  teamName: string;
+  memberCount: number;
+  inviteCode: string;
+  members: HomeMember[];
+}
+
 export interface MemberDetailResponse {
   id: string;
   name: string;
