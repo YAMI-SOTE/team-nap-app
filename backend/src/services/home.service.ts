@@ -22,8 +22,6 @@ export type HomeSummaryResponse = {
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
-  memberCount: number;
-  memberStatusCounts: Record<MemberStatus, number>;
   nextFree: {
     start: string;
     end: string;
@@ -31,6 +29,11 @@ export type HomeSummaryResponse = {
     minutesUntilStartRemainder: number;
     availableMemberCount: number;
   };
+};
+
+export type HomeMemberStatusResponse = {
+  memberCount: number;
+  memberStatusCounts: Record<MemberStatus, number>;
   members: HomeMember[];
 };
 
@@ -64,8 +67,6 @@ export function getHomeSummary(): HomeSummaryResponse {
     teamScore: homeSnapshot.teamScore,
     aiAdvice: homeSnapshot.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
-    memberCount: homeSnapshot.members.length,
-    memberStatusCounts: countMemberStatuses(homeSnapshot.members),
     nextFree: {
       start: homeSnapshot.nextFreeStart,
       end: homeSnapshot.nextFreeEnd,
@@ -73,6 +74,13 @@ export function getHomeSummary(): HomeSummaryResponse {
       minutesUntilStartRemainder: timeUntilStart.minutes,
       availableMemberCount: homeSnapshot.availableMemberCount,
     },
+  };
+}
+
+export function getHomeMemberStatus(): HomeMemberStatusResponse {
+  return {
+    memberCount: homeSnapshot.members.length,
+    memberStatusCounts: countMemberStatuses(homeSnapshot.members),
     members: homeSnapshot.members,
   };
 }

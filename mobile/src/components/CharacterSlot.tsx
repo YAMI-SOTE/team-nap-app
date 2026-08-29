@@ -12,11 +12,13 @@ type CharacterSlotProps = {
   /** Width & height in px. */
   size?: number;
   /**
-   * Character illustration. While empty, the slot shows a dashed brand
-   * outline (matches the Figma component: remove the dashed stroke once
-   * the artwork is supplied).
+   * Character illustration. While empty, the slot shows a dashed outline
+   * (matches the Figma component: remove the dashed stroke once the
+   * artwork is supplied).
    */
   source?: ImageSourcePropType;
+  /** Dashed outline color while empty. Defaults to the brand color. */
+  borderColor?: string;
   style?: ViewStyle;
 };
 
@@ -27,6 +29,7 @@ type CharacterSlotProps = {
 export default function CharacterSlot({
   size = 84,
   source,
+  borderColor,
   style,
 }: CharacterSlotProps) {
   return (
@@ -35,6 +38,7 @@ export default function CharacterSlot({
         styles.slot,
         { width: size, height: size },
         source ? styles.filled : styles.empty,
+        !source && borderColor ? { borderColor } : null,
         style,
       ]}
     >

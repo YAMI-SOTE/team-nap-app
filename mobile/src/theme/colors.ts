@@ -24,4 +24,10 @@ export const colors = {
   statusWorking: "#009CA0", // --tn-status-working
   statusOffline: "#A3B2B4", // --tn-status-offline
   accentCoral: "#FF6B4A", // --tn-bg-coral
+  brandStrong: "#00868A", // --tn-bg-brand-strong
+  textSuccess: "#1F8058", // --tn-text-success
+  accentGold: "#E0A82F", // trophy / crown accent (Phosphor gold)
+  mintVeil: "#E3F6F5", // Gradient / Mint Veil (light end)
+  brandGradientFrom: "#26B2B6", // "チームへの提案" card gradient start
+  brandGradientTo: "#00B9C0", // "チームへの提案" card gradient end
 } as const;
