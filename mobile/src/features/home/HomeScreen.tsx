@@ -33,8 +33,7 @@ export default function HomeScreen() {
   const memberStatus = data?.memberStatus;
 
   const handleOpenNotifications = () => {
-    console.log("TODO: open notifications screen");
-    // TODO: no notifications screen exists yet.
+    router.push("/notifications");
   };
 
   const handleSuggestTeamNap = () => {
