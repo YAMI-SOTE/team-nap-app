@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useMemberDetail } from "@/hooks/useMemberDetail";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import MenuBar from "@/components/MenuBar";
 import ScreenHeader from "@/components/ScreenHeader";
 import MemberProfileHeader from "@/components/MemberProfileHeader";
 import StatCard from "@/components/StatCard";
@@ -102,6 +103,9 @@ export default function MemberScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+      <SafeAreaView edges={["bottom"]} style={styles.menuSafeArea}>
+        <MenuBar activeTab="team" />
+      </SafeAreaView>
     </View>
   );
 }
@@ -119,6 +123,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
     gap: 20,
+  },
+  menuSafeArea: {
+    backgroundColor: colors.surface,
   },
   stateBlock: {
     flex: 1,
