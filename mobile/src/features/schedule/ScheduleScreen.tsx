@@ -44,7 +44,7 @@ export default function ScheduleScreen() {
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
             <Pressable
-              onPress={logTodo("open notifications")}
+              onPress={() => router.push("/notifications")}
               accessibilityRole="button"
               accessibilityLabel="通知"
               hitSlop={8}

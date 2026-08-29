@@ -37,7 +37,7 @@ export default function TeamScreen() {
   const memberStatus = data?.memberStatus;
 
   const handleOpenNotifications = () => {
-    console.log("TODO: open notifications screen");
+    router.push("/notifications");
   };
 
   const handleSuggestNap = () => {

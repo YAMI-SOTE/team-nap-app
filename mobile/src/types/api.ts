@@ -144,3 +144,22 @@ export interface EventDraft {
   end: string;
   allDay: boolean;
 }
+
+export type NotificationKind =
+  | "team_nap_suggestion"
+  | "wake_request"
+  | "nap_ended"
+  | "weekly_review"
+  | "member_joined";
+
+export interface NotificationItem {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** Relative time label, e.g. "2分前". */
+  timestamp: string;
+  read: boolean;
+  /** Which section it belongs to. */
+  group: "today" | "earlier";
+}
