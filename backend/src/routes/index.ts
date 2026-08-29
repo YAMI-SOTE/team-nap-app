@@ -16,7 +16,6 @@ router.use("/rest", restRoutes);
 export default router;
 router.use("/teams", teamRoutes);
 
-export default router;
 /*
 router.use("/auth", authRouter);
 router.use("/users", userRouter);
