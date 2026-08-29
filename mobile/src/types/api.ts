@@ -116,3 +116,20 @@ export interface MemberDetailResponse {
     wakeAssistEnabled: boolean;
   };
 }
+
+export interface ScheduleTask {
+  id: string;
+  /** Start time, e.g. "10:00". */
+  start: string;
+  /** End time, e.g. "11:00". */
+  end: string;
+  title: string;
+}
+
+export interface DayScheduleResponse {
+  /** The team's next open slot, or null when there is none. */
+  freeSlot: { start: string; end: string; note: string } | null;
+  tasks: ScheduleTask[];
+  /** Day-of-month numbers within the shown week that have events. */
+  weekEventDays: number[];
+}

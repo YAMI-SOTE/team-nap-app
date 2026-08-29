@@ -20,6 +20,7 @@ export const colors = {
   brandSubtle: "#E6F6F6", // --tn-bg-brand-subtle
   borderBrand: "#009CA0", // --tn-border-brand
   borderSubtle: "#E1E9EA", // --tn-border-subtle
+  borderDefault: "#C9D5D6", // --tn-border-default
   borderStrong: "#A3B2B4", // --tn-border-strong
   statusWorking: "#009CA0", // --tn-status-working
   statusOffline: "#A3B2B4", // --tn-status-offline
