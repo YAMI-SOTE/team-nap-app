@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -9,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { useCalendarSettings } from "@/hooks/useCalendarSettings";
 import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -17,27 +19,10 @@ import Hairline from "@/components/Hairline";
 import PillButton from "@/components/PillButton";
 import { CalendarIcon, CheckCircleIcon } from "@/components/icons";
 
-// UI-only for now — no calendar backend / OAuth wired up yet.
-// TODO: back with a `useCalendarIntegrations` hook once the endpoint exists.
-const GOOGLE_CALENDAR = {
-  email: "user@example.com",
-  lastSyncedLabel: "5分前",
-};
-
 export default function CalendarSettingsScreen() {
   const router = useRouter();
-
-  const handleSyncNow = () => {
-    console.log("TODO: trigger a Google Calendar sync");
-  };
-
-  const handleDisconnectGoogle = () => {
-    console.log("TODO: disconnect Google Calendar");
-  };
-
-  const handleConnectDevice = () => {
-    console.log("TODO: connect the device calendar (expo-calendar)");
-  };
+  const { data, loading, saving, error, syncNow, disconnectGoogle, connectDevice } =
+    useCalendarSettings();
 
   return (
     <View style={styles.root}>
@@ -66,22 +51,26 @@ export default function CalendarSettingsScreen() {
               />
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Google カレンダー</Text>
-                <Text style={styles.rowSub}>{GOOGLE_CALENDAR.email}</Text>
+                <Text style={styles.rowSub}>
+                  {data?.google.email ?? "未連携"}
+                </Text>
               </View>
-              <View style={styles.badge}>
-                <CheckCircleIcon size={14} color={colors.textBrand} />
-                <Text style={styles.badgeText}>連携済み</Text>
-              </View>
+              {data?.google.connected ? (
+                <View style={styles.badge}>
+                  <CheckCircleIcon size={14} color={colors.textBrand} />
+                  <Text style={styles.badgeText}>連携済み</Text>
+                </View>
+              ) : null}
             </View>
 
             <Hairline />
 
             <View style={styles.syncRow}>
               <Text style={styles.syncMeta}>
-                最終更新: {GOOGLE_CALENDAR.lastSyncedLabel}
+                最終更新: {data?.google.lastSyncedLabel ?? "未同期"}
               </Text>
               <Pressable
-                onPress={handleSyncNow}
+                onPress={syncNow}
                 accessibilityRole="button"
                 hitSlop={6}
               >
@@ -90,7 +79,7 @@ export default function CalendarSettingsScreen() {
             </View>
 
             <Pressable
-              onPress={handleDisconnectGoogle}
+              onPress={disconnectGoogle}
               accessibilityRole="button"
               hitSlop={6}
             >
@@ -104,18 +93,26 @@ export default function CalendarSettingsScreen() {
               <CalendarIcon size={26} />
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>端末のカレンダー</Text>
-                <Text style={styles.rowSub}>未連携</Text>
+                <Text style={styles.rowSub}>
+                  {data?.device.connected ? "連携済み" : "未連携"}
+                </Text>
               </View>
             </View>
 
             <PillButton
               variant="outline"
               label="連携する"
-              onPress={handleConnectDevice}
+              onPress={connectDevice}
+              loading={saving}
               textStyle={styles.connectText}
               style={styles.connectButton}
             />
           </Card>
+
+          <View style={styles.footer}>
+            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -211,5 +208,16 @@ const styles = StyleSheet.create({
   },
   connectText: {
     fontSize: 14,
+  },
+  footer: {
+    minHeight: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
 });

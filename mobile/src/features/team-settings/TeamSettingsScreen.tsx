@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { useTeamSettings } from "@/hooks/useTeamSettings";
 import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -21,28 +23,20 @@ import {
   UsersThreeIcon,
 } from "@/components/icons";
 
-// UI-only for now — no team-settings endpoint yet.
-// TODO: back with a `useTeamSettings` hook once the backend contract exists.
-const TEAM_NAME = "TEAM NAP 開発チーム";
-const MEMBER_COUNT = 11;
-const INVITE_CODE = "NAP-4821";
-const MEMBERS: MemberRowMember[] = [
-  { id: "a", label: "A", status: "resting" },
-  { id: "b", label: "B", status: "working" },
-  { id: "c", label: "C", status: "working" },
-  { id: "d", label: "D", status: "working" },
-  { id: "e", label: "E", status: "resting" },
-  { id: "f", label: "F", status: "offline" },
-];
-
 export default function TeamSettingsScreen() {
   const router = useRouter();
+  const { data, loading, saving, error, leave } = useTeamSettings();
 
   const handleEditName = () => console.log("TODO: edit the team name");
   const handleManageMembers = () => console.log("TODO: open member management");
   const handleCopyCode = () => console.log("TODO: copy the invite code");
   const handleShareInvite = () => console.log("TODO: share the invite link");
-  const handleLeaveTeam = () => console.log("TODO: leave the team");
+  const handleLeaveTeam = async () => {
+    const success = await leave();
+    if (success) {
+      router.replace("/settings");
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -58,7 +52,9 @@ export default function TeamSettingsScreen() {
           <Card style={styles.rowCard}>
             <View style={styles.rowCardText}>
               <Text style={styles.caption}>チーム名</Text>
-              <Text style={styles.teamName}>{TEAM_NAME}</Text>
+              <Text style={styles.teamName}>
+                {data?.teamName ?? "読み込み中"}
+              </Text>
             </View>
             <Pressable
               onPress={handleEditName}
@@ -74,10 +70,10 @@ export default function TeamSettingsScreen() {
           <Card>
             <View style={styles.head}>
               <Text style={styles.headTitle}>メンバー</Text>
-              <Text style={styles.headMeta}>{MEMBER_COUNT}人</Text>
+              <Text style={styles.headMeta}>{data?.memberCount ?? 0}人</Text>
             </View>
             <MemberRow
-              members={MEMBERS}
+              members={(data?.members ?? []) as MemberRowMember[]}
               onMemberPress={(id) => router.push(`/members/${id}`)}
               onMorePress={handleManageMembers}
             />
@@ -95,7 +91,7 @@ export default function TeamSettingsScreen() {
           <Card style={styles.inviteCard}>
             <Text style={styles.inviteLabel}>招待コード</Text>
             <View style={styles.codeBox}>
-              <Text style={styles.code}>{INVITE_CODE}</Text>
+              <Text style={styles.code}>{data?.inviteCode ?? "----"}</Text>
               <Pressable
                 onPress={handleCopyCode}
                 accessibilityRole="button"
@@ -123,6 +119,11 @@ export default function TeamSettingsScreen() {
           >
             <Text style={styles.leaveText}>チームを退出する</Text>
           </Pressable>
+
+          <View style={styles.footer}>
+            {loading || saving ? <ActivityIndicator color={colors.primary} /> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -231,5 +232,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     color: colors.textDanger,
+  },
+  footer: {
+    minHeight: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
 });

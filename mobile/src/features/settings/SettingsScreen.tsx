@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
@@ -11,29 +11,9 @@ import SettingsRow from "@/components/SettingsRow";
 import Toggle from "@/components/Toggle";
 import { BellIcon } from "@/components/icons";
 
-type NotificationKey =
-  | "napSuggestion"
-  | "napEnd"
-  | "teamNapSuggestion"
-  | "wakeSupport";
-
-// Defaults match the Figma design (all on). TODO: load + persist via a
-// settings endpoint once the backend contract exists.
-const INITIAL_NOTIFICATIONS: Record<NotificationKey, boolean> = {
-  napSuggestion: true,
-  napEnd: true,
-  teamNapSuggestion: true,
-  wakeSupport: true,
-};
-
 export default function SettingsScreen() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
-
-  const setNotification = (key: NotificationKey) => (value: boolean) => {
-    setNotifications((prev) => ({ ...prev, [key]: value }));
-    // TODO: persist the change.
-  };
+  const { data, loading, error, setNotification } = useNotificationSettings();
 
   const openTodo = (label: string) => () => {
     console.log(`TODO: open "${label}" screen`);
@@ -84,8 +64,8 @@ export default function SettingsScreen() {
               label="仮眠の提案"
               trailing={
                 <Toggle
-                  value={notifications.napSuggestion}
-                  onValueChange={setNotification("napSuggestion")}
+                  value={data?.napSuggestion ?? false}
+                  onValueChange={(value) => setNotification("napSuggestion", value)}
                 />
               }
             />
@@ -93,8 +73,8 @@ export default function SettingsScreen() {
               label="仮眠の終了"
               trailing={
                 <Toggle
-                  value={notifications.napEnd}
-                  onValueChange={setNotification("napEnd")}
+                  value={data?.napEnd ?? false}
+                  onValueChange={(value) => setNotification("napEnd", value)}
                 />
               }
             />
@@ -102,8 +82,10 @@ export default function SettingsScreen() {
               label="チームからの仮眠提案"
               trailing={
                 <Toggle
-                  value={notifications.teamNapSuggestion}
-                  onValueChange={setNotification("teamNapSuggestion")}
+                  value={data?.teamNapSuggestion ?? false}
+                  onValueChange={(value) =>
+                    setNotification("teamNapSuggestion", value)
+                  }
                 />
               }
             />
@@ -111,8 +93,8 @@ export default function SettingsScreen() {
               label="メンバーからの起床サポート"
               trailing={
                 <Toggle
-                  value={notifications.wakeSupport}
-                  onValueChange={setNotification("wakeSupport")}
+                  value={data?.wakeSupport ?? false}
+                  onValueChange={(value) => setNotification("wakeSupport", value)}
                 />
               }
             />
@@ -125,6 +107,11 @@ export default function SettingsScreen() {
             />
             <SettingsRow label="ログアウト" danger onPress={handleLogout} />
           </SettingsSection>
+
+          <View style={styles.footer}>
+            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -151,5 +138,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingLeft: 4,
+  },
+  footer: {
+    minHeight: 20,
+    justifyContent: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
 });

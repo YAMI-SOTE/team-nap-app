@@ -1,7 +1,9 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { useSleepSchedule } from "@/hooks/useSleepSchedule";
 import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -9,46 +11,61 @@ import Card from "@/components/Card";
 import Hairline from "@/components/Hairline";
 import IconPill from "@/components/IconPill";
 import PillButton from "@/components/PillButton";
-import SettingsValueRow from "@/components/SettingsValueRow";
+import TimeField from "@/components/TimeField";
 import { InfoIcon, MoonStarsIcon, TimerIcon } from "@/components/icons";
 
-// UI-only for now — no time-picker library or sleep-schedule endpoint yet.
-// TODO: back with a `useSleepSchedule` hook + a time picker.
-const BEDTIME = "23:30";
-const WAKE_TIME = "07:30";
-const NAP_CUTOFF_HOUR = 15;
+const DEFAULT_BEDTIME = "23:30";
+const DEFAULT_WAKE_TIME = "07:30";
+const MINUTES_PER_DAY = 24 * 60;
+/** Longer than this and the two times were almost certainly entered in the wrong order. */
+const MAX_SLEEP_MINUTES = 16 * 60;
 
 function toMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
+  const [h, m] = time.split(":").map((part) => Number.parseInt(part, 10));
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
-function sleepHours(bedtime: string, wake: string): number {
-  let mins = toMinutes(wake) - toMinutes(bedtime);
-  if (mins <= 0) {
-    mins += 24 * 60;
-  }
-  return Math.round(mins / 60);
+/** Minutes from bedtime to wake time, wrapping past midnight. */
+function overnightDurationMinutes(bedtime: string, wakeTime: string): number {
+  return ((toMinutes(wakeTime) - toMinutes(bedtime)) % MINUTES_PER_DAY + MINUTES_PER_DAY) %
+    MINUTES_PER_DAY;
+}
+
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}時間` : `${h}時間${m}分`;
 }
 
 export default function SleepScheduleScreen() {
   const router = useRouter();
+  const { data, loading, saving, error, save } = useSleepSchedule();
 
-  const noteText = `平均の睡眠時間は${sleepHours(
-    BEDTIME,
-    WAKE_TIME,
-  )}時間です。${NAP_CUTOFF_HOUR}時以降の仮眠は提案しません。`;
+  const [bedtime, setBedtime] = useState(DEFAULT_BEDTIME);
+  const [wakeTime, setWakeTime] = useState(DEFAULT_WAKE_TIME);
+  const seeded = useRef(false);
 
-  const handleEditBedtime = () => {
-    console.log("TODO: open a time picker for 就寝時間");
-  };
+  useEffect(() => {
+    if (data && !seeded.current) {
+      setBedtime(data.bedtime);
+      setWakeTime(data.wakeTime);
+      seeded.current = true;
+    }
+  }, [data]);
 
-  const handleEditWake = () => {
-    console.log("TODO: open a time picker for 起床時間");
-  };
+  const napCutoffHour = data?.napCutoffHour ?? 15;
+  const durationMinutes = overnightDurationMinutes(bedtime, wakeTime);
+  const isValid = durationMinutes > 0 && durationMinutes <= MAX_SLEEP_MINUTES;
+
+  const noteText = isValid
+    ? `平均の睡眠時間は${formatDuration(durationMinutes)}です。${napCutoffHour}時以降の仮眠は提案しません。`
+    : `${napCutoffHour}時以降の仮眠は提案しません。`;
 
   const handleSave = () => {
-    console.log("TODO: persist the sleep schedule");
+    if (!isValid) {
+      return;
+    }
+    void save({ bedtime, wakeTime });
   };
 
   return (
@@ -69,20 +86,26 @@ export default function SleepScheduleScreen() {
           </Text>
 
           <Card style={styles.timeCard}>
-            <SettingsValueRow
+            <TimeField
               icon={<MoonStarsIcon size={20} color={colors.primary} />}
               label="就寝時間"
-              value={BEDTIME}
-              onPress={handleEditBedtime}
+              value={bedtime}
+              onChange={setBedtime}
             />
             <Hairline />
-            <SettingsValueRow
+            <TimeField
               icon={<TimerIcon size={20} color={colors.primary} />}
               label="起床時間"
-              value={WAKE_TIME}
-              onPress={handleEditWake}
+              value={wakeTime}
+              onChange={setWakeTime}
             />
           </Card>
+
+          {!isValid ? (
+            <Text style={styles.validationText}>
+              起床時間は就寝時間より後になるように設定してください。
+            </Text>
+          ) : null}
 
           <IconPill
             icon={<InfoIcon size={18} color={colors.borderBrand} />}
@@ -99,7 +122,14 @@ export default function SleepScheduleScreen() {
             label="保存する"
             elevated={false}
             onPress={handleSave}
+            loading={saving}
+            disabled={!isValid}
           />
+
+          <View style={styles.footer}>
+            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -130,6 +160,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 0,
   },
+  validationText: {
+    marginTop: -8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+  },
   note: {
     borderRadius: 16,
     paddingVertical: 12,
@@ -143,5 +179,16 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
     minHeight: 24,
+  },
+  footer: {
+    minHeight: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
 });

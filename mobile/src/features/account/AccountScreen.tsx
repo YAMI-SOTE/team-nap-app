@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { useAccountSettings } from "@/hooks/useAccountSettings";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
@@ -16,17 +18,27 @@ import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
 
-// UI-only for now — no account endpoint / stored user yet.
-// TODO: back with a `useAccount` hook once the backend contract exists.
-const INITIAL_EMAIL = "user@example.com";
-
 export default function AccountScreen() {
   const router = useRouter();
+  const { data, loading, saving, error, save } = useAccountSettings();
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState(INITIAL_EMAIL);
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    setUsername(data.username);
+    setEmail(data.email);
+  }, [data]);
 
   const handleChangePhoto = () => console.log("TODO: change profile photo");
-  const handleSave = () => console.log("TODO: save the account profile");
+  const handleSave = () =>
+    save({
+      username,
+      email,
+    });
   const handleLogout = () => {
     // No auth token to clear in the current mock auth — just return to login.
     router.replace("/login");
@@ -83,9 +95,15 @@ export default function AccountScreen() {
             label="保存する"
             elevated={false}
             onPress={handleSave}
+            loading={saving}
           />
 
           <View style={styles.spacer} />
+
+          <View style={styles.statusBlock}>
+            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
 
           <View style={styles.danger}>
             <Pressable
@@ -157,6 +175,17 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     gap: 14,
+  },
+  statusBlock: {
+    minHeight: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
   logoutText: {
     fontSize: 14,

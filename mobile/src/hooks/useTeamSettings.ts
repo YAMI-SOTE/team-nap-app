@@ -1,0 +1,65 @@
+import { useEffect, useState } from "react";
+
+import {
+  getTeamSettings,
+  leaveTeam,
+} from "@/services/settings";
+
+import type { TeamSettingsResponse } from "@/types/api";
+
+export function useTeamSettings() {
+  const [data, setData] = useState<TeamSettingsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      try {
+        const result = await getTeamSettings();
+        if (active) {
+          setData(result);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function leave() {
+    setSaving(true);
+    setError(null);
+
+    try {
+      await leaveTeam();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return {
+    data,
+    loading,
+    saving,
+    error,
+    leave,
+  };
+}
