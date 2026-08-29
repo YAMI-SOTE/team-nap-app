@@ -1,4 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Pressable } from "react-native";
+import { router } from "expo-router";
 
 import { useHealth } from "@/hooks/useHealth";
 
@@ -20,6 +22,18 @@ export default function HomeScreen() {
           {data.service}: {data.status}
         </Text>
       )}
+
+      <Pressable
+        onPress={() => {
+          router.push("/ai-test");
+        }}
+        style={({ pressed }) => [
+          styles.devButton,
+          pressed && styles.devButtonPressed,
+        ]}
+      >
+        <Text style={styles.devButtonText}>Open AI Test</Text>
+      </Pressable>
     </View>
   );
 }
@@ -49,5 +63,23 @@ const styles = StyleSheet.create({
 
   error: {
     fontSize: 16,
+  },
+
+  devButton: {
+    marginTop: 24,
+    backgroundColor: "#111827",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+
+  devButtonPressed: {
+    opacity: 0.85,
+  },
+
+  devButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
