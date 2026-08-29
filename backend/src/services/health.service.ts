@@ -1,3 +1,4 @@
+// To simply check the backend service is up or not.
 export function getHealthStatus() {
   return {
     status: "ok" as const,
