@@ -4,6 +4,9 @@
     "slug": "team-nap",
     "version": "1.0.0",
     "scheme": "teamnap",
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ]
   }
 }
