@@ -21,6 +21,7 @@ import { spacing, radius } from "@/theme/spacing";
 import { useLogin } from "@/hooks/useLogin";
 import SkyBackground from "@/components/SkyBackground";
 import OrDivider from "@/components/OrDivider";
+import Logo from "@/components/Logo";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -65,11 +66,7 @@ export default function LoginScreen() {
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
             >
-              <Image
-                source={require("../../../assets/logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              <Logo width={110} color={colors.primary} style={styles.logo} />
 
               <Text style={styles.heading}>おかえりなさい</Text>
               <Text style={styles.subtitle}>

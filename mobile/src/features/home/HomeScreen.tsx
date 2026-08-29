@@ -7,11 +7,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
 import { useHomeSummary } from "@/hooks/useHomeSummary";
+import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
 import Hairline from "@/components/Hairline";
 import ProgressBar from "@/components/ProgressBar";
@@ -58,7 +58,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <Aura />
+      <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.content}>
           {/* Header */}
@@ -193,34 +193,10 @@ function formatTimeUntilNextFree(hours: number, minutes: number): string {
   return `${minutes}分`;
 }
 
-/**
- * Soft brand-tinted glow behind the hero (Figma "Aura", a 48px blur).
- * Approximated with a radial gradient — react-native-svg blur filters
- * are not reliably supported across platforms.
- */
-function Aura() {
-  return (
-    <Svg style={styles.aura} width={360} height={360} pointerEvents="none">
-      <Defs>
-        <RadialGradient id="aura" cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={colors.brandSubtle} stopOpacity={0.9} />
-          <Stop offset="1" stopColor={colors.brandSubtle} stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Circle cx={180} cy={180} r={180} fill="url(#aura)" />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surface,
-  },
-  aura: {
-    position: "absolute",
-    top: -70,
-    right: -110,
   },
   safeArea: {
     flex: 1,

@@ -1,7 +1,6 @@
 import {
   View,
   Text,
-  Image,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -21,6 +20,7 @@ import { spacing, radius } from "@/theme/spacing";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
+import Logo from "@/components/Logo";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -56,11 +56,7 @@ export default function SignUpScreen() {
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
             >
-              <Image
-                source={require("../../../assets/logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              <Logo width={110} color={colors.primary} style={styles.logo} />
 
               <Text style={styles.heading}>はじめまして</Text>
               <Text style={styles.subtitle}>

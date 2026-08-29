@@ -12,7 +12,7 @@ import {
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 
-type PillButtonVariant = "primary" | "outline";
+type PillButtonVariant = "primary" | "outline" | "onColor";
 
 type PillButtonProps = {
   label: string;
@@ -27,9 +27,11 @@ type PillButtonProps = {
 };
 
 /**
- * Pill-shaped action button. Covers the two Home-screen buttons:
- * "primary" = filled brand CTA ("仮眠を開始"), "outline" = bordered
- * secondary ("みんなに仮眠を提案").
+ * Pill-shaped action button.
+ * - "primary": filled brand CTA (e.g. "仮眠を開始")
+ * - "outline": white fill, brand border + text (e.g. "みんなに仮眠を提案")
+ * - "onColor": white fill, no border, brand text — for use on a colored
+ *   surface (e.g. the "15分仮眠を提案" button inside the teal card)
  */
 export default function PillButton({
   label,
@@ -44,6 +46,13 @@ export default function PillButton({
   const isPrimary = variant === "primary";
   const isDisabled = disabled || loading;
 
+  const variantStyle =
+    variant === "primary"
+      ? styles.primary
+      : variant === "onColor"
+        ? styles.onColor
+        : styles.outline;
+
   return (
     <Pressable
       onPress={onPress}
@@ -53,7 +62,7 @@ export default function PillButton({
       accessibilityState={{ disabled: isDisabled }}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.outline,
+        variantStyle,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style,
@@ -69,7 +78,7 @@ export default function PillButton({
           <Text
             style={[
               styles.label,
-              isPrimary ? styles.labelPrimary : styles.labelOutline,
+              isPrimary ? styles.labelPrimary : styles.labelBrand,
               textStyle,
             ]}
           >
@@ -110,6 +119,10 @@ const styles = StyleSheet.create({
     borderColor: colors.borderBrand,
     paddingVertical: 10,
   },
+  onColor: {
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+  },
   pressed: {
     opacity: 0.85,
   },
@@ -123,7 +136,7 @@ const styles = StyleSheet.create({
   labelPrimary: {
     color: colors.white,
   },
-  labelOutline: {
+  labelBrand: {
     color: colors.textBrand,
   },
 });
