@@ -7,11 +7,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
 import { useHomeSummary } from "@/hooks/useHomeSummary";
+import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
 import Hairline from "@/components/Hairline";
 import ProgressBar from "@/components/ProgressBar";
@@ -29,6 +29,8 @@ const SCREEN_PADDING = 28;
 export default function HomeScreen() {
   const router = useRouter();
   const { data, loading, error } = useHomeSummary();
+  const summary = data?.summary;
+  const memberStatus = data?.memberStatus;
 
   const handleOpenNotifications = () => {
     console.log("TODO: open notifications screen");
@@ -40,25 +42,25 @@ export default function HomeScreen() {
     // TODO: wire to the "suggest a nap to everyone" backend action.
   };
 
-  const memberStatusSummary = data
-    ? formatMemberStatusSummary(data.memberStatusCounts)
+  const memberStatusSummary = memberStatus
+    ? formatMemberStatusSummary(memberStatus.memberStatusCounts)
     : "";
 
-  const nextFreeContext = data
-    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(data.nextFree.hoursUntilStart, data.nextFree.minutesUntilStartRemainder)}`
+  const nextFreeContext = summary
+    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(summary.nextFree.hoursUntilStart, summary.nextFree.minutesUntilStartRemainder)}`
     : "次の空き時間";
 
-  const nextFreeRange = data
-    ? `${data.nextFree.start}〜${data.nextFree.end}`
+  const nextFreeRange = summary
+    ? `${summary.nextFree.start}〜${summary.nextFree.end}`
     : "--:--〜--:--";
 
-  const nextFreeDetail = data
-    ? `${data.memberCount}人中${data.nextFree.availableMemberCount}人が予定なし`
+  const nextFreeDetail = summary && memberStatus
+    ? `${memberStatus.memberCount}人中${summary.nextFree.availableMemberCount}人が予定なし`
     : "";
 
   return (
     <View style={styles.root}>
-      <Aura />
+      <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.content}>
           {/* Header */}
@@ -77,12 +79,12 @@ export default function HomeScreen() {
           {/* Hero */}
           <View style={styles.hero}>
             <Text style={styles.dateLabel}>
-              {data?.todayLabel ?? "読み込み中"}
+              {summary?.todayLabel ?? "読み込み中"}
             </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroTextCol}>
                 <Text style={styles.heroTitle}>
-                  {(data?.headline ?? ["今日のチームは", "確認中です"]).join("\n")}
+                  {(summary?.headline ?? ["今日のチームは", "確認中です"]).join("\n")}
                 </Text>
               </View>
               <CharacterSlot size={84} />
@@ -97,15 +99,15 @@ export default function HomeScreen() {
                 <Text style={styles.sectionLabel}>チームの状態</Text>
                 <View style={styles.metricNumberRow}>
                   <Text style={styles.metricNumber}>
-                    {data?.teamScore ?? "--"}
+                    {summary?.teamScore ?? "--"}
                   </Text>
                   <Text style={styles.metricUnit}>/{TEAM_SCORE_MAX}</Text>
                 </View>
               </View>
             </View>
-            <ProgressBar value={data?.teamScore ?? 0} max={TEAM_SCORE_MAX} />
+            <ProgressBar value={summary?.teamScore ?? 0} max={TEAM_SCORE_MAX} />
             <Text style={styles.sectionLabel}>
-              {data?.aiAdvice ?? "AIアドバイスを読み込み中"}
+              {summary?.aiAdvice ?? "AIアドバイスを読み込み中"}
             </Text>
           </View>
 
@@ -117,7 +119,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionSubLabel}>{memberStatusSummary}</Text>
             </View>
             <View style={styles.membersRow}>
-              {(data?.members ?? []).map((member) => (
+              {(memberStatus?.members ?? []).map((member) => (
                 <MemberAvatar
                   key={member.id}
                   label={member.label}
@@ -193,34 +195,10 @@ function formatTimeUntilNextFree(hours: number, minutes: number): string {
   return `${minutes}分`;
 }
 
-/**
- * Soft brand-tinted glow behind the hero (Figma "Aura", a 48px blur).
- * Approximated with a radial gradient — react-native-svg blur filters
- * are not reliably supported across platforms.
- */
-function Aura() {
-  return (
-    <Svg style={styles.aura} width={360} height={360} pointerEvents="none">
-      <Defs>
-        <RadialGradient id="aura" cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={colors.brandSubtle} stopOpacity={0.9} />
-          <Stop offset="1" stopColor={colors.brandSubtle} stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Circle cx={180} cy={180} r={180} fill="url(#aura)" />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surface,
-  },
-  aura: {
-    position: "absolute",
-    top: -70,
-    right: -110,
   },
   safeArea: {
     flex: 1,

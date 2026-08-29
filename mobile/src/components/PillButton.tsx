@@ -12,7 +12,7 @@ import {
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 
-type PillButtonVariant = "primary" | "outline";
+type PillButtonVariant = "primary" | "outline" | "onColor";
 
 type PillButtonProps = {
   label: string;
@@ -22,14 +22,18 @@ type PillButtonProps = {
   icon?: ReactNode;
   disabled?: boolean;
   loading?: boolean;
+  /** Drop shadow on the "primary" variant. Default true. */
+  elevated?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
 };
 
 /**
- * Pill-shaped action button. Covers the two Home-screen buttons:
- * "primary" = filled brand CTA ("仮眠を開始"), "outline" = bordered
- * secondary ("みんなに仮眠を提案").
+ * Pill-shaped action button.
+ * - "primary": filled brand CTA (e.g. "仮眠を開始")
+ * - "outline": white fill, brand border + text (e.g. "みんなに仮眠を提案")
+ * - "onColor": white fill, no border, brand text — for use on a colored
+ *   surface (e.g. the "15分仮眠を提案" button inside the teal card)
  */
 export default function PillButton({
   label,
@@ -38,11 +42,19 @@ export default function PillButton({
   icon,
   disabled = false,
   loading = false,
+  elevated = true,
   style,
   textStyle,
 }: PillButtonProps) {
   const isPrimary = variant === "primary";
   const isDisabled = disabled || loading;
+
+  const variantStyle =
+    variant === "primary"
+      ? styles.primary
+      : variant === "onColor"
+        ? styles.onColor
+        : styles.outline;
 
   return (
     <Pressable
@@ -53,7 +65,8 @@ export default function PillButton({
       accessibilityState={{ disabled: isDisabled }}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.outline,
+        variantStyle,
+        isPrimary && elevated && styles.elevated,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style,
@@ -69,7 +82,7 @@ export default function PillButton({
           <Text
             style={[
               styles.label,
-              isPrimary ? styles.labelPrimary : styles.labelOutline,
+              isPrimary ? styles.labelPrimary : styles.labelBrand,
               textStyle,
             ]}
           >
@@ -98,6 +111,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     minHeight: 58,
     paddingVertical: 10,
+  },
+  elevated: {
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
@@ -108,6 +123,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderBrand,
+    paddingVertical: 10,
+  },
+  onColor: {
+    backgroundColor: colors.surface,
     paddingVertical: 10,
   },
   pressed: {
@@ -123,7 +142,7 @@ const styles = StyleSheet.create({
   labelPrimary: {
     color: colors.white,
   },
-  labelOutline: {
+  labelBrand: {
     color: colors.textBrand,
   },
 });
