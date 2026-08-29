@@ -64,18 +64,18 @@ export default function SettingsScreen() {
           <SettingsSection title="アカウント">
             <SettingsRow
               label="アカウント情報"
-              onPress={openTodo("アカウント情報")}
+              onPress={() => router.push("/settings/account")}
             />
             <SettingsRow
               label="睡眠スケジュール"
-              onPress={openTodo("睡眠スケジュール")}
+              onPress={() => router.push("/settings/sleep-schedule")}
             />
           </SettingsSection>
 
           <SettingsSection title="連携">
             <SettingsRow
               label="カレンダー連携"
-              onPress={openTodo("カレンダー連携")}
+              onPress={() => router.push("/settings/calendar")}
             />
           </SettingsSection>
 
@@ -119,7 +119,10 @@ export default function SettingsScreen() {
           </SettingsSection>
 
           <SettingsSection title="チーム">
-            <SettingsRow label="チーム設定" onPress={openTodo("チーム設定")} />
+            <SettingsRow
+              label="チーム設定"
+              onPress={() => router.push("/settings/team")}
+            />
             <SettingsRow label="ログアウト" danger onPress={handleLogout} />
           </SettingsSection>
         </View>
