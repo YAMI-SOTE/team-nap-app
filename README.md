@@ -66,6 +66,7 @@ team-nap-app/
 ├── llm/                  # llama.cpp / Gemma関連
 │
 ├── docs/                 # 設計資料
+│   ├── setup.md          # セットアップ手順
 │
 ├── compose.yaml          # Docker Compose設定
 ├── .env.example
@@ -245,6 +246,14 @@ docker compose logs
 ```bash
 docker compose down
 ```
+
+---
+
+# Docs
+
+- [docs/setup.md](docs/setup.md)
+- [docs/ai-development.md](docs/ai-development.md)
+- [docs/db.md](docs/db.md)
 
 ---
 
