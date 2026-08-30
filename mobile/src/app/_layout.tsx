@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { Stack } from "expo-router";
 
 import { notifyFrontendBoot } from "@/services/appBoot";
+import { NotificationsProvider } from "@/features/notifications/NotificationsProvider";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -25,10 +26,12 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    />
+    <NotificationsProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      />
+    </NotificationsProvider>
   );
 }

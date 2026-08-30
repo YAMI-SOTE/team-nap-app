@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
@@ -9,7 +9,7 @@ import Logo from "@/components/Logo";
 import SettingsSection from "@/components/SettingsSection";
 import SettingsRow from "@/components/SettingsRow";
 import Toggle from "@/components/Toggle";
-import { BellIcon } from "@/components/icons";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -27,14 +27,7 @@ export default function SettingsScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={() => router.push("/notifications")}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={24} color={colors.primary} />
-            </Pressable>
+            <NotificationBell />
           </View>
 
           <SettingsSection title="アカウント">

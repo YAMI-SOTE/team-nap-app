@@ -18,11 +18,8 @@ import ProgressBar from "@/components/ProgressBar";
 import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
-import {
-  BellIcon,
-  DotsThreeCircleIcon,
-  MoonStarsIcon,
-} from "@/components/icons";
+import NotificationBell from "@/components/NotificationBell";
+import { DotsThreeCircleIcon, MoonStarsIcon } from "@/components/icons";
 
 const SCREEN_PADDING = 28;
 
@@ -31,10 +28,6 @@ export default function HomeScreen() {
   const { data, loading, error } = useHomeSummary();
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
-
-  const handleOpenNotifications = () => {
-    router.push("/notifications");
-  };
 
   const handleSuggestTeamNap = () => {
     console.log("TODO: suggest a nap to everyone");
@@ -65,14 +58,7 @@ export default function HomeScreen() {
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={handleOpenNotifications}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={26} color={colors.primary} showDot />
-            </Pressable>
+            <NotificationBell size={26} />
           </View>
 
           {/* Hero */}
