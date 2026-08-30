@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,6 +8,10 @@ import { useTeamSettings } from "@/hooks/useTeamSettings";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import CharacterSlot from "@/components/CharacterSlot";
 import InviteCodeCard from "@/components/InviteCodeCard";
+import PillButton from "@/components/PillButton";
+
+/** The "ホームに戻る" button appears this long after the screen mounts. */
+const HOME_BUTTON_DELAY_MS = 5000;
 
 /**
  * "チームができました！" — shown right after a team is created
@@ -16,6 +21,15 @@ import InviteCodeCard from "@/components/InviteCodeCard";
 export default function TeamInviteScreen() {
   const router = useRouter();
   const { data, loading } = useTeamSettings();
+  const [showHomeButton, setShowHomeButton] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setShowHomeButton(true),
+      HOME_BUTTON_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -40,6 +54,17 @@ export default function TeamInviteScreen() {
           >
             <Text style={styles.later}>あとで招待する</Text>
           </Pressable>
+
+          {showHomeButton ? (
+            <View style={styles.homeButton}>
+              <PillButton
+                variant="outline"
+                label="ホームに戻る"
+                elevated={false}
+                onPress={() => router.replace("/home")}
+              />
+            </View>
+          ) : null}
         </View>
       </SafeAreaView>
     </View>
@@ -84,5 +109,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     color: colors.textTertiary,
+  },
+  homeButton: {
+    alignSelf: "stretch",
+    marginTop: 8,
   },
 });
