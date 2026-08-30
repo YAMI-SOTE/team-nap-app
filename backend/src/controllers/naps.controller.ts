@@ -1,6 +1,12 @@
 import type { Request, Response } from "express";
 
-import { getNapSummary, listNaps, type NapEntry } from "../services/naps.service.js";
+import {
+  createNap,
+  getNapSummary,
+  listNaps,
+  type NapEntry,
+  type NapInput,
+} from "../services/naps.service.js";
 
 const STARS = (n: number) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
 
@@ -39,4 +45,8 @@ export function getNapHistoryController(_req: Request, res: Response) {
     },
     days,
   });
+}
+
+export function createNapController(req: Request, res: Response) {
+  res.status(201).json(createNap(req.body as NapInput));
 }

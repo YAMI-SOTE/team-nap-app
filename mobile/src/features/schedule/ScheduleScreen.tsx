@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,9 +16,9 @@ import Logo from "@/components/Logo";
 import DatePicker from "@/components/DatePicker";
 import TaskCard from "@/components/TaskCard";
 import PillButton from "@/components/PillButton";
+import NotificationBell from "@/components/NotificationBell";
 import {
   AlarmBadgeIcon,
-  BellIcon,
   CalendarIcon,
   ClockUserBadgeIcon,
   MoonStarsIcon,
@@ -43,20 +42,14 @@ export default function ScheduleScreen() {
         >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={() => router.push("/notifications")}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={24} color={colors.primary} />
-            </Pressable>
+            <NotificationBell />
           </View>
 
           <DatePicker
             selectedDate={selectedDate}
             onChangeDate={setSelectedDate}
-            eventDays={data?.weekEventDays ?? []}
+            eventCounts={data?.weekEventCounts ?? {}}
+            napDays={data?.weekNapDays ?? []}
           />
 
           {data?.freeSlot ? (

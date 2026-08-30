@@ -4,6 +4,25 @@
  * the same events the CRUD endpoints mutate.
  */
 
+import { isoDateOffset } from "../lib/datetime.js";
+import { listNaps } from "./naps.service.js";
+
+/**
+ * The team's next open slot. Single source of truth — `home.service`
+ * reads this too, so the Home "次の空き時間" and the Schedule free-slot
+ * card always agree.
+ */
+const nextFreeSlot = {
+  start: "14:30",
+  end: "15:00",
+  availableMemberCount: 5,
+  teamSize: 6,
+};
+
+export function getNextFreeSlot() {
+  return nextFreeSlot;
+}
+
 export type ScheduleEvent = {
   id: string;
   title: string;
@@ -17,17 +36,6 @@ export type ScheduleEvent = {
 };
 
 export type EventDraft = Omit<ScheduleEvent, "id">;
-
-const TIMEZONE = "Asia/Tokyo";
-
-function isoOffsetFromToday(days: number): string {
-  const now = new Date();
-  now.setDate(now.getDate() + days);
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, "0");
-  const d = `${now.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function seedEvents(): ScheduleEvent[] {
   const templates: Array<Omit<ScheduleEvent, "id" | "date">> = [
@@ -45,7 +53,7 @@ function seedEvents(): ScheduleEvent[] {
     if ((offset + 5) % 4 === 0) {
       continue;
     }
-    const date = isoOffsetFromToday(offset);
+    const date = isoDateOffset(offset);
     const count = offset === 0 ? 3 : 1 + ((offset + 5) % 2);
     for (let i = 0; i < count; i += 1) {
       const template = templates[(seq + i) % templates.length];
@@ -81,22 +89,38 @@ export function getDaySchedule(dateISO: string) {
     .map((e) => ({ id: e.id, start: e.start, end: e.end, title: e.title }));
 
   const { start, end } = weekRange(dateISO);
-  const weekEventDays = [
+  const inWeek = (iso: string) => iso >= start && iso <= end;
+
+  // day-of-month -> number of events on that day (the calendar strip
+  // renders one dot per event, capped at 3).
+  const weekEventCounts: Record<number, number> = {};
+  for (const event of events) {
+    if (!inWeek(event.date)) continue;
+    const day = dayOfMonth(event.date);
+    weekEventCounts[day] = (weekEventCounts[day] ?? 0) + 1;
+  }
+
+  // days this week that have a recorded nap (green ring on the strip).
+  const weekNapDays = [
     ...new Set(
-      events
-        .filter((e) => e.date >= start && e.date <= end)
-        .map((e) => dayOfMonth(e.date)),
+      listNaps()
+        .filter((nap) => inWeek(nap.date))
+        .map((nap) => dayOfMonth(nap.date)),
     ),
   ];
 
+  const { start: freeStart, end: freeEnd, availableMemberCount, teamSize } =
+    nextFreeSlot;
+
   return {
     freeSlot: {
-      start: "14:30",
-      end: "15:00",
-      note: "次の空き時間 ・ 6人中5人が予定なし",
+      start: freeStart,
+      end: freeEnd,
+      note: `次の空き時間 ・ ${teamSize}人中${availableMemberCount}人が予定なし`,
     },
     tasks,
-    weekEventDays,
+    weekEventCounts,
+    weekNapDays,
   };
 }
 
@@ -132,5 +156,3 @@ export function deleteEvent(id: string): boolean {
   events = events.filter((e) => e.id !== id);
   return events.length < before;
 }
-
-export { TIMEZONE };

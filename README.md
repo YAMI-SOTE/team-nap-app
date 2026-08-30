@@ -2,7 +2,7 @@
 
 チームメンバーの休息・睡眠・スケジュール情報をもとに、最適な休息タイミングを提案するモバイルアプリケーションです。
 
-本プロジェクトでは、React Native / Expo によるモバイルアプリ、Node.js / Express によるバックエンドAPI、PostgreSQL によるデータ保存、Gemma + llama.cpp によるAI休息提案を組み合わせて開発します。
+本プロジェクトでは、React Native / Expo によるモバイルアプリ、Node.js / Express によるバックエンドAPI、PostgreSQL によるデータ保存、Ollama 上で動く Gemma によるAI休息提案を組み合わせて開発します。
 
 ---
 
@@ -36,8 +36,8 @@ Node.js + Express + TypeScript
         +-------------------+
         |                   |
         v                   v
-PostgreSQL             llama.cpp
-Prisma                 Gemma 3 1B
+PostgreSQL             Ollama
+Prisma                 Gemma
 ```
 
 モバイルアプリからPostgreSQLやLLMへ直接アクセスせず、すべてBackend APIを経由します。
@@ -61,9 +61,11 @@ team-nap-app/
 │   ├── prisma.config.ts
 │   ├── Dockerfile
 │   ├── package.json
-│   └── tsconfig.json
+│   ├── tsconfig.json
+│   ├── README.md         # バックエンド詳細（英語）
+│   └── README.ja.md      # バックエンド詳細（日本語）
 │
-├── llm/                  # llama.cpp / Gemma関連
+├── llm/                  # Ollama / Gemma関連（プロンプト等）
 │
 ├── docs/                 # 設計資料
 │   ├── setup.md          # セットアップ手順
@@ -203,12 +205,14 @@ cp .env.example .env
 DB_PASSWORD=teamnap_dev
 ```
 
-Backend用の環境変数は以下のようになります。
+Backend用の環境変数は以下のようになります（検証は `backend/src/config/env.ts`）。
 
 ```env
 DATABASE_URL=postgresql://teamnap:teamnap_dev@db:5432/teamnap
-LLM_URL=http://llm:8080
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=gemma4:e2b
 PORT=3000
+HOST=0.0.0.0
 ```
 
 `.env` はGitにcommitしないでください。
@@ -304,31 +308,39 @@ Migrationはチーム全体で同じDatabase Schemaを再現するために必�
 
 # Backend
 
+詳細は [backend/README.ja.md](backend/README.ja.md)（英語版: [backend/README.md](backend/README.md)）を参照してください。
+
 Backendは以下の構造を基本とします。
 
 ```text
 src/
-├── app.ts
-├── server.ts
-├── routes/
-├── controllers/
-├── services/
-├── middleware/
-├── schemas/
-└── lib/
+├── server.ts       エントリポイント（ポートのバインドのみ）
+├── app.ts          Express アプリ（ミドルウェア + ルーターのマウント）
+├── config/         process.env を読むのはここだけ（env.ts）
+├── routes/         <feature>.routes.ts — パス + validate() + コントローラ接続
+│   └── index.ts    全ルーターを /api/v1 にマウント
+├── controllers/    HTTP の入出力のみ。ロジックは持たない
+├── services/       （現在はモックの）データとドメインロジック
+├── schemas/        zod のリクエストスキーマ
+├── middleware/     エラーハンドラ / 404 / validate / リクエストログ
+├── lib/            フレームワーク非依存のヘルパー（http-error, params, datetime）
+└── types/          共有ドメイン型（domain.ts）
 ```
 
 基本的な処理フロー:
 
 ```text
 Route
-  ↓
-Controller
+  ↓ validate({ body?, params?, query? })   ← zod。不正な入力は 400
+Controller                                  ← <動詞><名詞>Controller
   ↓
 Service
   ↓
-Prisma / LLM
+（将来）Prisma / LLM
 ```
+
+エラーはどこからでも `HttpError` を throw し、`errorHandler` が
+適切なステータスで `{ error }` を返します。
 
 ---
 
@@ -337,7 +349,7 @@ Prisma / LLM
 Backend起動後:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3000/api/v1/health
 ```
 
 正常な場合:
@@ -345,7 +357,8 @@ curl http://localhost:3000/health
 ```json
 {
   "status": "ok",
-  "service": "team-nap-backend"
+  "service": "team-nap-api",
+  "timestamp": "2026-08-30T06:10:41.398Z"
 }
 ```
 
@@ -400,19 +413,19 @@ Backend API
 
 # AI
 
-AIによる休息提案には以下を使用する予定です。
+AIによる休息提案・コメント生成には以下を使用します。
 
-- Gemma 3 1B
-- llama.cpp
+- Ollama（`ollama/ollama` イメージ）
+- Gemma（モデルは `OLLAMA_MODEL` で指定。`compose.yaml` の既定は `gemma4:e2b` ※タグ要確認）
 
-LLMはDocker上で動作させ、BackendからHTTP API経由で呼び出します。
+LLMはDocker上で動作させ、Backendから `OLLAMA_URL`（既定 `http://localhost:11434`）経由で呼び出します。
 
 ```text
 Mobile
   ↓
 Backend
   ↓
-llama.cpp
+Ollama
   ↓
 Gemma
 ```

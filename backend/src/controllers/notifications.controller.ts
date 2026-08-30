@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 
+import { firstParam } from "../lib/params.js";
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -11,11 +12,12 @@ export function getNotificationsController(_req: Request, res: Response) {
 }
 
 export function markNotificationReadController(req: Request, res: Response) {
-  const rawId = req.params.id;
-  const id = Array.isArray(rawId) ? rawId[0] : rawId;
-  res.status(200).json(markNotificationRead(id));
+  res.status(200).json(markNotificationRead(firstParam(req, "id")));
 }
 
-export function markAllNotificationsReadController(_req: Request, res: Response) {
+export function markAllNotificationsReadController(
+  _req: Request,
+  res: Response,
+) {
   res.status(200).json(markAllNotificationsRead());
 }

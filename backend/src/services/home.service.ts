@@ -1,19 +1,12 @@
-type MemberStatus = "working" | "resting" | "offline";
-
-type HomeMember = {
-  id: string;
-  label: string;
-  status: MemberStatus;
-};
+import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
+import type { Member, MemberStatus } from "../types/domain.js";
+import { getNextFreeSlot } from "./schedule.service.js";
 
 type HomeSnapshot = {
   headline: [string, string];
   teamScore: number;
   aiAdvice: string;
-  nextFreeStart: string;
-  nextFreeEnd: string;
-  availableMemberCount: number;
-  members: HomeMember[];
+  members: Member[];
 };
 
 export type HomeSummaryResponse = {
@@ -34,20 +27,15 @@ export type HomeSummaryResponse = {
 export type HomeMemberStatusResponse = {
   memberCount: number;
   memberStatusCounts: Record<MemberStatus, number>;
-  members: HomeMember[];
+  members: Member[];
 };
 
 export const TEAM_SCORE_MAX = 100;
-
-const HOME_TIMEZONE = "Asia/Tokyo";
 
 const homeSnapshot: HomeSnapshot = {
   headline: ["今日のチームは", "いい調子です"],
   teamScore: 20,
   aiAdvice: "AIアドバイスを表示する場所",
-  nextFreeStart: "14:30",
-  nextFreeEnd: "15:00",
-  availableMemberCount: 5,
   members: [
     { id: "a", label: "A", status: "offline" },
     { id: "b", label: "B", status: "working" },
@@ -55,24 +43,27 @@ const homeSnapshot: HomeSnapshot = {
     { id: "d", label: "D", status: "working" },
     { id: "e", label: "E", status: "offline" },
     { id: "f", label: "F", status: "working" },
+    { id: "g", label: "G", status: "resting" },
+    { id: "h", label: "H", status: "working" },
   ],
 };
 
 export function getHomeSummary(): HomeSummaryResponse {
-  const timeUntilStart = getTimeUntilTime(homeSnapshot.nextFreeStart, new Date());
+  const freeSlot = getNextFreeSlot();
+  const untilStart = timeUntil(freeSlot.start, new Date());
 
   return {
-    todayLabel: formatTodayLabel(new Date()),
+    todayLabel: jstTodayLabel(new Date()),
     headline: homeSnapshot.headline,
     teamScore: homeSnapshot.teamScore,
     aiAdvice: homeSnapshot.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
     nextFree: {
-      start: homeSnapshot.nextFreeStart,
-      end: homeSnapshot.nextFreeEnd,
-      hoursUntilStart: timeUntilStart.hours,
-      minutesUntilStartRemainder: timeUntilStart.minutes,
-      availableMemberCount: homeSnapshot.availableMemberCount,
+      start: freeSlot.start,
+      end: freeSlot.end,
+      hoursUntilStart: untilStart.hours,
+      minutesUntilStartRemainder: untilStart.minutes,
+      availableMemberCount: freeSlot.availableMemberCount,
     },
   };
 }
@@ -85,68 +76,12 @@ export function getHomeMemberStatus(): HomeMemberStatusResponse {
   };
 }
 
-function countMemberStatuses(
-  members: HomeMember[],
-): Record<MemberStatus, number> {
+function countMemberStatuses(members: Member[]): Record<MemberStatus, number> {
   return members.reduce<Record<MemberStatus, number>>(
     (counts, member) => {
       counts[member.status] += 1;
       return counts;
     },
-    {
-      working: 0,
-      resting: 0,
-      offline: 0,
-    },
+    { working: 0, resting: 0, offline: 0 },
   );
-}
-
-function formatTodayLabel(date: Date): string {
-  const formatter = new Intl.DateTimeFormat("ja-JP", {
-    timeZone: HOME_TIMEZONE,
-    month: "numeric",
-    day: "numeric",
-    weekday: "short",
-  });
-
-  const parts = formatter.formatToParts(date);
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-  const weekday = parts.find((part) => part.type === "weekday")?.value;
-
-  return `${month}月${day}日 (${weekday})`;
-}
-
-function getTimeUntilTime(
-  targetTime: string,
-  now: Date,
-): { hours: number; minutes: number } {
-  const zonedNow = new Date(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: HOME_TIMEZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).format(now).replace(",", ""),
-  );
-
-  const [hours, minutes] = targetTime.split(":").map(Number);
-  const target = new Date(zonedNow);
-  target.setHours(hours, minutes, 0, 0);
-
-  let diffMinutes = Math.round((target.getTime() - zonedNow.getTime()) / 60000);
-
-  if (diffMinutes < 0) {
-    target.setDate(target.getDate() + 1);
-    diffMinutes = Math.round((target.getTime() - zonedNow.getTime()) / 60000);
-  }
-
-  return {
-    hours: Math.floor(diffMinutes / 60),
-    minutes: diffMinutes % 60,
-  };
 }

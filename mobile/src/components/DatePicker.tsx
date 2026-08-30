@@ -11,22 +11,32 @@ import {
   WEEKDAYS_JA,
 } from "@/utils/date";
 
+/** Dots rendered under a day never exceed this, however many events it has. */
+const MAX_DOTS = 3;
+
 type DatePickerProps = {
   selectedDate: Date;
   onChangeDate: (date: Date) => void;
-  /** Day-of-month numbers (within the shown week) that have events. */
-  eventDays?: number[];
+  /**
+   * Day-of-month -> event count for the shown week. Each day renders one
+   * dot per event, capped at {@link MAX_DOTS}.
+   */
+  eventCounts?: Record<number, number>;
+  /** Day-of-month numbers (within the shown week) that have a recorded nap. */
+  napDays?: number[];
 };
 
 /**
  * Date navigation (‹ 2024年6月12日 (水) ›) plus a Sunday-anchored week
- * strip. The selected day gets a brand pill; days with events get a dot
+ * strip. The selected day gets a brand pill; days with events get up to
+ * three dots; days with a recorded nap get a green ring
  * (Figma "DatePicker", node 244:435).
  */
 export default function DatePicker({
   selectedDate,
   onChangeDate,
-  eventDays = [],
+  eventCounts = {},
+  napDays = [],
 }: DatePickerProps) {
   const weekStart = startOfWeek(selectedDate);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -56,7 +66,11 @@ export default function DatePicker({
       <View style={styles.week}>
         {days.map((day) => {
           const selected = isSameDay(day, selectedDate);
-          const hasEvent = eventDays.includes(day.getDate());
+          const dotCount = Math.min(
+            MAX_DOTS,
+            eventCounts[day.getDate()] ?? 0,
+          );
+          const hasNap = napDays.includes(day.getDate());
 
           return (
             <Pressable
@@ -67,16 +81,24 @@ export default function DatePicker({
               style={styles.cell}
             >
               <Text style={styles.weekday}>{WEEKDAYS_JA[day.getDay()]}</Text>
-              <View style={[styles.date, selected && styles.dateSelected]}>
+              <View
+                style={[
+                  styles.date,
+                  hasNap && styles.dateNap,
+                  selected && styles.dateSelected,
+                ]}
+              >
                 <Text
                   style={[styles.dateText, selected && styles.dateTextSelected]}
                 >
                   {day.getDate()}
                 </Text>
               </View>
-              <View
-                style={[styles.dot, hasEvent && styles.dotActive]}
-              />
+              <View style={styles.dotRow}>
+                {Array.from({ length: dotCount }, (_, i) => (
+                  <View key={i} style={styles.dot} />
+                ))}
+              </View>
             </Pressable>
           );
         })}
@@ -126,6 +148,10 @@ const styles = StyleSheet.create({
   dateSelected: {
     backgroundColor: colors.primary,
   },
+  dateNap: {
+    borderWidth: 2,
+    borderColor: colors.textSuccess,
+  },
   dateText: {
     fontSize: 14,
     lineHeight: 24,
@@ -135,13 +161,15 @@ const styles = StyleSheet.create({
   dateTextSelected: {
     color: colors.white,
   },
+  dotRow: {
+    flexDirection: "row",
+    height: 5,
+    gap: 3,
+  },
   dot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: "transparent",
-  },
-  dotActive: {
     backgroundColor: colors.primary,
   },
 });

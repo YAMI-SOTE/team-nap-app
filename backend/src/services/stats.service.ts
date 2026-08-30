@@ -1,5 +1,6 @@
 import { getHomeMemberStatus } from "./home.service.js";
 import { getNapSummary, listNaps } from "./naps.service.js";
+import type { Member } from "../types/domain.js";
 
 /**
  * Statistics. Personal numbers are derived from `naps.service`; team
@@ -29,7 +30,7 @@ export type TeamStatsResponse = {
   achievementRate: number;
   achievedMemberLabel: string;
   achievementDeltaLabel: string;
-  achievedMembers: Array<{ id: string; label: string; status: string }>;
+  achievedMembers: Member[];
   focus: StatFocus;
   napCount: number;
   avgNapMinutes: number;

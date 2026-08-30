@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +16,7 @@ import Logo from "@/components/Logo";
 import SegmentedControl from "@/components/SegmentedControl";
 import PersonalStatsView from "@/features/stats/PersonalStatsView";
 import TeamStatsView from "@/features/stats/TeamStatsView";
-import { BellIcon } from "@/components/icons";
+import NotificationBell from "@/components/NotificationBell";
 
 const TABS = [
   { key: "personal", label: "個人" },
@@ -41,14 +40,7 @@ export default function StatsScreen() {
         >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={() => router.push("/notifications")}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={24} color={colors.primary} />
-            </Pressable>
+            <NotificationBell />
           </View>
 
           <SegmentedControl<StatsTab>
