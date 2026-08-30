@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getNotifications } from "@/services/notifications";
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/services/notifications";
 
 import type { NotificationItem } from "@/types/api";
 
@@ -46,16 +50,25 @@ export function useNotifications() {
   }, []);
 
   const markRead = useCallback((id: string) => {
+    // Optimistic update; reconcile with the server's copy on success.
     setItems(
       (prev) =>
         prev?.map((n) => (n.id === id ? { ...n, read: true } : n)) ?? null,
     );
-    // TODO: PATCH /notifications/:id/read
+    markNotificationRead(id)
+      .then((next) => setItems(next))
+      .catch(() => {
+        /* keep the optimistic state */
+      });
   }, []);
 
   const markAllRead = useCallback(() => {
     setItems((prev) => prev?.map((n) => ({ ...n, read: true })) ?? null);
-    // TODO: POST /notifications/read-all
+    markAllNotificationsRead()
+      .then((next) => setItems(next))
+      .catch(() => {
+        /* keep the optimistic state */
+      });
   }, []);
 
   const groups = useMemo<NotificationGroup[]>(() => {

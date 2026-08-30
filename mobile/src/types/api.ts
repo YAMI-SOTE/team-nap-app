@@ -163,3 +163,80 @@ export interface NotificationItem {
   /** Which section it belongs to. */
   group: "today" | "earlier";
 }
+
+export interface StatFocus {
+  /** Concentration before naps this period. */
+  before: number;
+  /** Concentration after naps this period. */
+  after: number;
+  /** Delta in points. */
+  deltaPt: number;
+}
+
+export interface WeeklyCondition {
+  /** One value per weekday (mon–fri), any scale. */
+  values: number[];
+  labels: string[];
+}
+
+export interface RecentNap {
+  id: string;
+  /** "14:32〜14:47" */
+  time: string;
+  /** "8/21 ・ 15分 ・ 目覚め ★★★★☆" */
+  detail: string;
+}
+
+export interface PersonalStatsResponse {
+  score: number;
+  scoreMax: number;
+  scoreDeltaLabel: string;
+  focus: StatFocus;
+  napCount: number;
+  avgNapMinutes: number;
+  wakeRating: number;
+  condition: WeeklyCondition;
+  recentNaps: RecentNap[];
+}
+
+export interface TeamStatsResponse {
+  achievementRate: number;
+  achievedMemberLabel: string;
+  achievementDeltaLabel: string;
+  achievedMembers: HomeMember[];
+  focus: StatFocus;
+  napCount: number;
+  avgNapMinutes: number;
+  everyoneNappedDays: number;
+  condition: WeeklyCondition;
+  achievementBanner: string;
+  disclaimer: string;
+}
+
+export interface NapRecord {
+  id: string;
+  /** "14:32〜14:47" */
+  time: string;
+  /** "15分 ・ 目覚め ★★★★☆ ・ 集中度 +20pt" */
+  detail: string;
+}
+
+export interface NapHistoryDay {
+  /** "8月21日 (水)" */
+  dateLabel: string;
+  records: NapRecord[];
+}
+
+export interface NapHistoryResponse {
+  summary: {
+    monthlyCount: number;
+    avgMinutes: number;
+    avgWakeRating: number;
+  };
+  days: NapHistoryDay[];
+}
+
+export interface StatsResponse {
+  personal: PersonalStatsResponse;
+  team: TeamStatsResponse;
+}
