@@ -1,3 +1,5 @@
+import type { Member } from "../types/domain.js";
+
 type NotificationSettings = {
   napSuggestion: boolean;
   napEnd: boolean;
@@ -27,17 +29,11 @@ export type CalendarIntegrationResponse = {
   };
 };
 
-type MemberStatus = "working" | "resting" | "offline";
-
 export type TeamSettingsResponse = {
   teamName: string;
   memberCount: number;
   inviteCode: string;
-  members: Array<{
-    id: string;
-    label: string;
-    status: MemberStatus;
-  }>;
+  members: Member[];
 };
 
 let accountSettings: AccountSettingsResponse = {

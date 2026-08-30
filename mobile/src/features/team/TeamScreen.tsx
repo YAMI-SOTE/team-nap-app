@@ -19,8 +19,8 @@ import IconPill from "@/components/IconPill";
 import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
+import NotificationBell from "@/components/NotificationBell";
 import {
-  BellIcon,
   ClipboardTextIcon,
   CrownSimpleIcon,
   DotsThreeCircleIcon,
@@ -35,10 +35,6 @@ export default function TeamScreen() {
   const { data, loading, error } = useTeamSummary();
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
-
-  const handleOpenNotifications = () => {
-    router.push("/notifications");
-  };
 
   const handleSuggestNap = () => {
     console.log("TODO: suggest a nap to the team");
@@ -74,14 +70,7 @@ export default function TeamScreen() {
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={handleOpenNotifications}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={24} color={colors.primary} />
-            </Pressable>
+            <NotificationBell />
           </View>
 
           {/* Hero — 今週の Team Nap */}

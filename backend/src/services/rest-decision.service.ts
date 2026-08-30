@@ -11,24 +11,20 @@ export type FreeTime = {
 
 // 休息判定に必要な入力
 export type RestDecisionInput = {
-  // ① 普段の就寝・起床時刻
+  // ① 普段の就寝時刻
   usualSleepStart: string; // 例 "23:30"
-  usualWakeTime: string; // 例 "07:00"
 
-  // ② 今日の睡眠時間
-  todaySleepHours: number;
-
-  // ③ 現在までの連続作業時間
+  // ② 現在までの連続作業時間
   continuousWorkMinutes: number;
 
-  // ④ 直近の休息終了時刻
+  // ③ 直近の休息終了時刻
   // 今日まだ休息していない場合は null
   lastRestTime: string | null;
 
-  // ⑤ 現在時刻
+  // ④ 現在時刻
   currentTime: string;
 
-  // ⑥ スケジュール上の空き時間
+  // ⑤ スケジュール上の空き時間
   freeTimes: FreeTime[];
 };
 
@@ -65,10 +61,6 @@ export type RestDecisionResult = {
 // 標準の休息時間
 const RECOMMENDED_REST_MINUTES = 15;
 
-// 睡眠不足
-const MODERATE_SLEEP_DEFICIT_HOURS = 0.5;
-const HIGH_SLEEP_DEFICIT_HOURS = 1;
-
 // 連続作業
 const MODERATE_WORK_MINUTES = 60;
 const LONG_WORK_MINUTES = 120;
@@ -88,7 +80,7 @@ const PREFERRED_END_MINUTES = 16 * 60; // 16:00
 const REST_RECOMMEND_THRESHOLD = 2;
 
 // この点数以上なら休息必要度が高い
-const HIGH_REST_NEED_THRESHOLD = 5;
+const HIGH_REST_NEED_THRESHOLD = 4;
 
 // ========================================
 // 時刻関係の関数
@@ -116,14 +108,6 @@ function minutesBetween(
   }
 
   return difference;
-}
-
-// 普段の睡眠時間を計算
-function calculateUsualSleepHours(
-  sleepStart: string,
-  wakeTime: string
-): number {
-  return minutesBetween(sleepStart, wakeTime) / 60;
 }
 
 // 開始時刻から指定分後の時刻を作る
@@ -261,8 +245,6 @@ export function decideRestTiming(
 ): RestDecisionResult {
   const {
     usualSleepStart,
-    usualWakeTime,
-    todaySleepHours,
     continuousWorkMinutes,
     lastRestTime,
     currentTime,
@@ -317,34 +299,7 @@ export function decideRestTiming(
   let needScore = 0;
 
   // --------------------------------------
-  // ①② 普段の睡眠時間と今日の睡眠時間
-  // --------------------------------------
-
-  const usualSleepHours =
-    calculateUsualSleepHours(
-      usualSleepStart,
-      usualWakeTime
-    );
-
-  const sleepDeficitHours =
-    usualSleepHours - todaySleepHours;
-
-  if (
-    sleepDeficitHours >=
-    HIGH_SLEEP_DEFICIT_HOURS
-  ) {
-    // 普段より1時間以上少ない
-    needScore += 2;
-  } else if (
-    sleepDeficitHours >=
-    MODERATE_SLEEP_DEFICIT_HOURS
-  ) {
-    // 普段より30分以上少ない
-    needScore += 1;
-  }
-
-  // --------------------------------------
-  // ③ 連続作業時間
+  // ① 連続作業時間
   // --------------------------------------
 
   if (
@@ -362,7 +317,7 @@ export function decideRestTiming(
   }
 
   // --------------------------------------
-  // ④ 直近の休息
+  // ② 直近の休息
   // --------------------------------------
 
   if (lastRestTime === null) {
@@ -383,7 +338,7 @@ export function decideRestTiming(
   }
 
   // --------------------------------------
-  // ⑤ 現在時刻
+  // ③ 現在時刻
   // --------------------------------------
 
   const currentMinutes =
@@ -424,6 +379,10 @@ export function decideRestTiming(
     );
   }
 
+  // ======================================
+  // STEP 5：結果を返す
+  // ======================================
+
   const recommendedStart =
     selectedFreeTime.start;
 
@@ -431,10 +390,6 @@ export function decideRestTiming(
     recommendedStart,
     RECOMMENDED_REST_MINUTES
   );
-
-  // ======================================
-  // STEP 5：結果を返す
-  // ======================================
 
   const reasonCode: RestReasonCode =
     needScore >= HIGH_REST_NEED_THRESHOLD

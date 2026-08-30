@@ -1,6 +1,8 @@
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+import { env } from "../config/env.js";
 
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:e2b";
+const OLLAMA_URL = env.OLLAMA_URL;
+
+const OLLAMA_MODEL = env.OLLAMA_MODEL;
 
 // ========================================
 // REST終了後：個人データ

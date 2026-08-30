@@ -1,11 +1,6 @@
-import "dotenv/config";
-
+import { env } from "./config/env.js";
 import app from "./app.js";
 
-const PORT = Number(process.env.PORT) || 3000;
-
-const HOST = process.env.HOST || "0.0.0.0";
-
-app.listen(PORT, HOST, () => {
-  console.log(`Team Nap API running on http://${HOST}:${PORT}`);
+app.listen(env.PORT, env.HOST, () => {
+  console.log(`Team Nap API running on http://${env.HOST}:${env.PORT}`);
 });

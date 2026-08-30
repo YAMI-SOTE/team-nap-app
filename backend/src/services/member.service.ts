@@ -1,4 +1,4 @@
-type MemberStatus = "working" | "resting" | "offline";
+import type { MemberStatus } from "../types/domain.js";
 
 export type MemberDetailResponse = {
   id: string;

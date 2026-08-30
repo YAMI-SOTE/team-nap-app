@@ -25,8 +25,3 @@ router.use("/notifications", notificationRoutes);
 router.use("/teams", teamRoutes);
 
 export default router;
-
-/*
-router.use("/auth", authRouter);
-router.use("/users", userRouter);
-*/

@@ -130,8 +130,13 @@ export interface DayScheduleResponse {
   /** The team's next open slot, or null when there is none. */
   freeSlot: { start: string; end: string; note: string } | null;
   tasks: ScheduleTask[];
-  /** Day-of-month numbers within the shown week that have events. */
-  weekEventDays: number[];
+  /**
+   * Day-of-month -> number of events on that day, within the shown week.
+   * The calendar strip renders one dot per event, capped at 3.
+   */
+  weekEventCounts: Record<number, number>;
+  /** Day-of-month numbers within the shown week that have a recorded nap. */
+  weekNapDays: number[];
 }
 
 export interface EventDraft {
@@ -219,6 +224,29 @@ export interface NapRecord {
   time: string;
   /** "15分 ・ 目覚め ★★★★☆ ・ 集中度 +20pt" */
   detail: string;
+}
+
+export interface CreateNapPayload {
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" */
+  end: string;
+  minutes: number;
+  wakeStars?: number;
+  focusDeltaPt?: number;
+}
+
+export interface NapEntryResponse {
+  id: string;
+  date: string;
+  dateLabel: string;
+  start: string;
+  end: string;
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
 }
 
 export interface NapHistoryDay {

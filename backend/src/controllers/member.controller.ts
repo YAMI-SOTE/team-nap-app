@@ -1,15 +1,14 @@
 import type { Request, Response } from "express";
 
+import { firstParam } from "../lib/params.js";
+import { HttpError } from "../lib/http-error.js";
 import { getMemberDetail } from "../services/member.service.js";
 
 export function getMemberDetailController(req: Request, res: Response) {
-  const rawId = req.params.id;
-  const id = Array.isArray(rawId) ? rawId[0] : rawId;
-  const detail = getMemberDetail(id);
+  const detail = getMemberDetail(firstParam(req, "id"));
 
   if (!detail) {
-    res.status(404).json({ message: "Member not found" });
-    return;
+    throw HttpError.notFound("Member not found");
   }
 
   res.status(200).json(detail);

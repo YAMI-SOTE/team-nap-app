@@ -37,6 +37,13 @@ export function toISODate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** "09:05" — local wall-clock time as "HH:MM". */
+export function toClockTime(date: Date): string {
+  const h = `${date.getHours()}`.padStart(2, "0");
+  const m = `${date.getMinutes()}`.padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 /** Parse "2024-06-12" as a local date (avoids the UTC shift of `new Date(str)`). */
 export function fromISODate(value: string): Date {
   const [y, m, d] = value.split("-").map((part) => Number.parseInt(part, 10));

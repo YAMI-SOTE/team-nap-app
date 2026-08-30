@@ -1,11 +1,4 @@
-type MemberStatus = "working" | "resting" | "offline";
-type WeeklyBarState = "past" | "today" | "future";
-
-type TeamMember = {
-  id: string;
-  label: string;
-  status: MemberStatus;
-};
+import type { WeeklyBarState } from "../types/domain.js";
 
 type TeamWeeklyBar = {
   label: string;
