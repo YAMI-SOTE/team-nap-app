@@ -4,14 +4,12 @@ import { describe, it } from "node:test";
 import { decideRestTiming } from "./rest-decision.service.js";
 
 describe("decideRestTiming", () => {
-  // ① 睡眠不足中心
-  it("睡眠不足の場合は休息を推奨する", () => {
+  // ① 長時間作業 + 長時間休息なし
+  it("作業時間と休息間隔から休息必要度が高いと判定する", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 5.5,
-      continuousWorkMinutes: 30,
-      lastRestTime: "12:30",
+      continuousWorkMinutes: 120,
+      lastRestTime: "12:00",
       currentTime: "14:30",
       freeTimes: [
         {
@@ -24,17 +22,16 @@ describe("decideRestTiming", () => {
 
     assert.equal(result.shouldRest, true);
     assert.equal(result.needScore, 4);
-    assert.equal(result.reasonCode, "REST_RECOMMENDED");
+    assert.equal(result.reasonCode, "HIGH_REST_NEED");
     assert.equal(result.recommendedStart, "14:40");
     assert.equal(result.recommendedEnd, "14:55");
+    assert.equal(result.recommendedMinutes, 15);
   });
 
-  // ② 長時間作業のみ
+  // ② 長時間作業
   it("長時間作業の場合は休息を推奨する", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 7.5,
       continuousWorkMinutes: 120,
       lastRestTime: "13:30",
       currentTime: "14:30",
@@ -56,8 +53,6 @@ describe("decideRestTiming", () => {
   it("直近60分以内に休息していたら提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 5,
       continuousWorkMinutes: 150,
       lastRestTime: "14:20",
       currentTime: "14:30",
@@ -79,8 +74,6 @@ describe("decideRestTiming", () => {
   it("就寝2時間前以内なら提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 5,
       continuousWorkMinutes: 150,
       lastRestTime: "18:00",
       currentTime: "22:30",
@@ -101,8 +94,6 @@ describe("decideRestTiming", () => {
   it("15分以上の空き時間がなければ提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 5,
       continuousWorkMinutes: 150,
       lastRestTime: "12:00",
       currentTime: "14:30",
@@ -119,12 +110,10 @@ describe("decideRestTiming", () => {
     assert.equal(result.reasonCode, "NO_FREE_TIME");
   });
 
-  // ⑥ 休息必要度が高い＋複数候補
+  // ⑥ 休息必要度が高い + 複数候補
   it("休息必要度が高い場合、最適な空き時間を選択する", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      usualWakeTime: "07:00",
-      todaySleepHours: 5,
       continuousWorkMinutes: 150,
       lastRestTime: null,
       currentTime: "14:00",
@@ -148,7 +137,7 @@ describe("decideRestTiming", () => {
     });
 
     assert.equal(result.shouldRest, true);
-    assert.equal(result.needScore, 6);
+    assert.equal(result.needScore, 4);
     assert.equal(result.reasonCode, "HIGH_REST_NEED");
 
     // 3候補の中から14:30が選ばれることを確認
