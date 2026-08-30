@@ -1,30 +1,52 @@
 import { useState, useEffect, useRef } from "react";
 import {
+  LayoutChangeEvent,
   StyleSheet,
   Text,
   View,
   Pressable,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
 
-const { width } = Dimensions.get("window");
-
 // 15分（900秒）
 const INITIAL_TIME = 15 * 60;
-const TIMER_SIZE = width * 0.75;
 const STROKE_WIDTH = 12;
-const RADIUS = (TIMER_SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+// Figma（S02-02_Nap_Timer, node 138:695）実測値。
+// 402px幅のフレーム基準で、カード312px／リング280px（内側16pxパディング）。
+const FIGMA_FRAME_WIDTH = 402;
+const FIGMA_CARD_SIZE = 312;
+const FIGMA_RING_INSET = 16;
 
 export default function RestScreen() {
+  const router = useRouter();
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 実際に描画された画面幅を onLayout で測定する。
+  // Dimensions.get('window') はWeb環境で実際の表示幅とズレることがあるため、
+  // 見た目のコンテナ幅と必ず一致するこちらを正として使う。
+  const [screenWidth, setScreenWidth] = useState(0);
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const measuredWidth = e.nativeEvent.layout.width;
+    if (measuredWidth > 0 && measuredWidth !== screenWidth) {
+      setScreenWidth(measuredWidth);
+    }
+  };
+
+  // Figmaのフレーム幅(402px)に対する比率で、実画面幅にスケーリングする。
+  const scale = screenWidth > 0 ? screenWidth / FIGMA_FRAME_WIDTH : 0;
+  const CARD_SIZE = FIGMA_CARD_SIZE * scale;
+  const TIMER_SIZE = CARD_SIZE - FIGMA_RING_INSET * 2 * scale;
+  const RADIUS = Math.max((TIMER_SIZE - STROKE_WIDTH) / 2, 0);
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
   useEffect(() => {
     if (isActive) {
@@ -76,129 +98,142 @@ export default function RestScreen() {
     : "再開";
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar style="dark" />
+    <View style={styles.container} onLayout={handleLayout}>
+      {/* 背景はイラスト1枚を全画面に敷く想定（Figma上は現状チェッカー柄＝未設定のプレースホルダー）。
+          TODO: 実際の挿絵アセットが用意でき次第、containerの背景をImageに差し替える。 */}
+      <StatusBar style="light" />
 
-      <View style={styles.topSection}>
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>仮眠中</Text>
-        </View>
-
-        {/* TODO: nap-cat.png が assets に用意でき次第、画像を復活させる */}
-      </View>
-
-      <View style={styles.timerSection}>
-        <View style={styles.timerContainer}>
-          <Svg
-            width={TIMER_SIZE}
-            height={TIMER_SIZE}
-            style={[styles.svgContainer, styles.svgRotated]}
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="戻る"
           >
-            <Circle
-              cx={TIMER_SIZE / 2}
-              cy={TIMER_SIZE / 2}
-              r={RADIUS}
-              stroke={colors.borderSubtle}
-              strokeWidth={STROKE_WIDTH}
-              fill={colors.surface}
-            />
-            <Circle
-              cx={TIMER_SIZE / 2}
-              cy={TIMER_SIZE / 2}
-              r={RADIUS}
-              stroke={colors.primary}
-              strokeWidth={STROKE_WIDTH}
-              fill="none"
-              strokeDasharray={CIRCUMFERENCE}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-            />
-          </Svg>
-
-          <View style={styles.timeTextContainer}>
-            <Text style={styles.labelRemaining}>残り</Text>
-            <Text style={styles.timeText}>{formatTime(timeLeft)}</Text>
-          </View>
+            <Ionicons name="chevron-back" size={24} color={colors.white} />
+          </Pressable>
+          <Text style={styles.mainTitle}>仮眠中</Text>
+          <View style={styles.headerSpacer} />
         </View>
-      </View>
 
-      <View style={styles.buttonSection}>
-        <Pressable style={styles.buttonContainer} onPress={handleEnd} testID="timer-end-button">
-          <View style={styles.iconButton}>
-            <MaterialCommunityIcons name="stop" size={32} color={colors.primary} />
-          </View>
-          <Text style={styles.buttonLabel}>終了</Text>
-        </Pressable>
+        {CARD_SIZE > 0 ? (
+          <View style={styles.body}>
+            {/* タイマー円（背景に浮かぶ独立した白い丸カード） */}
+            <View
+              style={[
+                styles.timerCard,
+                { width: CARD_SIZE, height: CARD_SIZE, borderRadius: CARD_SIZE / 2 },
+              ]}
+            >
+              <Svg
+                width={TIMER_SIZE}
+                height={TIMER_SIZE}
+                style={[styles.svgContainer, styles.svgRotated]}
+              >
+                <Circle
+                  cx={TIMER_SIZE / 2}
+                  cy={TIMER_SIZE / 2}
+                  r={RADIUS}
+                  stroke={colors.borderSubtle}
+                  strokeWidth={STROKE_WIDTH}
+                  fill="none"
+                />
+                <Circle
+                  cx={TIMER_SIZE / 2}
+                  cy={TIMER_SIZE / 2}
+                  r={RADIUS}
+                  stroke={colors.primary}
+                  strokeWidth={STROKE_WIDTH}
+                  fill="none"
+                  strokeDasharray={CIRCUMFERENCE}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                />
+              </Svg>
 
-        <Pressable
-          style={styles.buttonContainer}
-          onPress={handleStartPause}
-          testID="timer-play-pause-button"
-        >
-          <View style={[styles.iconButton, styles.playPauseButton]}>
-            <Ionicons
-              name={isActive ? "pause" : "play"}
-              size={36}
-              color={colors.white}
-              style={isActive ? {} : { marginLeft: 4 }}
-            />
-          </View>
-          <Text style={styles.buttonLabel}>{playPauseLabel}</Text>
-        </Pressable>
+              <View style={styles.timeTextContainer}>
+                <Text style={styles.labelRemaining}>残り</Text>
+                <Text style={styles.timeText}>{formatTime(timeLeft)}</Text>
+              </View>
+            </View>
 
-        <Pressable style={styles.buttonContainer} onPress={handleReset} testID="timer-reset-button">
-          <View style={styles.iconButton}>
-            <Ionicons name="refresh-outline" size={32} color={colors.primary} />
+            {/* 操作ボタン（それぞれ独立した丸ボタン。カードには入っていない） */}
+            <View style={styles.buttonSection}>
+              <Pressable style={styles.buttonContainer} onPress={handleEnd} testID="timer-end-button">
+                <View style={styles.iconButton}>
+                  <MaterialCommunityIcons name="stop" size={28} color={colors.textPrimary} />
+                </View>
+                <Text style={styles.buttonLabel}>終了</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.buttonContainer}
+                onPress={handleStartPause}
+                testID="timer-play-pause-button"
+              >
+                <View style={[styles.iconButton, styles.playPauseButton]}>
+                  <Ionicons
+                    name={isActive ? "pause" : "play"}
+                    size={32}
+                    color={colors.white}
+                    style={isActive ? {} : { marginLeft: 3 }}
+                  />
+                </View>
+                <Text style={styles.buttonLabel}>{playPauseLabel}</Text>
+              </Pressable>
+
+              <Pressable style={styles.buttonContainer} onPress={handleReset} testID="timer-reset-button">
+                <View style={styles.iconButton}>
+                  <Ionicons name="refresh-outline" size={28} color={colors.textPrimary} />
+                </View>
+                <Text style={styles.buttonLabel}>最初から</Text>
+              </Pressable>
+            </View>
           </View>
-          <Text style={styles.buttonLabel}>最初から</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+        ) : null}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.mintVeil,
+    backgroundColor: colors.surfaceSunken,
   },
-  topSection: {
-    flex: 2,
-    alignItems: "center",
+  safeArea: {
+    flex: 1,
   },
-  header: {
-    width: "100%",
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingTop: 12,
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  headerSpacer: {
+    width: 24,
   },
   mainTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.textBrand,
-    zIndex: 10,
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.white,
   },
-  catImage: {
-    width: width * 0.5,
-    height: width * 0.5,
-    position: "absolute",
-    bottom: -TIMER_SIZE / 4,
+  body: {
+    flex: 1,
+    alignItems: "center",
   },
-  timerSection: {
-    flex: 3,
+  timerCard: {
+    marginTop: 160,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 5,
-  },
-  timerContainer: {
-    width: TIMER_SIZE,
-    height: TIMER_SIZE,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
+    backgroundColor: colors.surface,
+    shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 6,
   },
   svgContainer: {
     position: "absolute",
@@ -209,53 +244,45 @@ const styles = StyleSheet.create({
   timeTextContainer: {
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
   },
   labelRemaining: {
-    fontSize: 16,
-    color: colors.textMuted,
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: "300",
+    color: colors.textTertiary,
   },
   timeText: {
     fontSize: 64,
-    fontWeight: "200",
-    color: colors.textBrand,
+    fontWeight: "400",
+    color: colors.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   buttonSection: {
-    flex: 2,
     flexDirection: "row",
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingTop: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 10,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    gap: 32,
+    marginTop: 64,
   },
   buttonContainer: {
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 80,
+    gap: 8,
   },
   iconButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 4,
   },
   playPauseButton: {
     backgroundColor: colors.primary,
@@ -266,7 +293,7 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     fontSize: 14,
-    color: colors.textBrand,
-    fontWeight: "600",
+    color: colors.textPrimary,
+    fontWeight: "400",
   },
 });
