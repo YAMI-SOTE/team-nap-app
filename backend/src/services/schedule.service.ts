@@ -4,6 +4,8 @@
  * the same events the CRUD endpoints mutate.
  */
 
+import { isoDateOffset } from "../lib/datetime.js";
+
 export type ScheduleEvent = {
   id: string;
   title: string;
@@ -17,17 +19,6 @@ export type ScheduleEvent = {
 };
 
 export type EventDraft = Omit<ScheduleEvent, "id">;
-
-const TIMEZONE = "Asia/Tokyo";
-
-function isoOffsetFromToday(days: number): string {
-  const now = new Date();
-  now.setDate(now.getDate() + days);
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, "0");
-  const d = `${now.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function seedEvents(): ScheduleEvent[] {
   const templates: Array<Omit<ScheduleEvent, "id" | "date">> = [
@@ -45,7 +36,7 @@ function seedEvents(): ScheduleEvent[] {
     if ((offset + 5) % 4 === 0) {
       continue;
     }
-    const date = isoOffsetFromToday(offset);
+    const date = isoDateOffset(offset);
     const count = offset === 0 ? 3 : 1 + ((offset + 5) % 2);
     for (let i = 0; i < count; i += 1) {
       const template = templates[(seq + i) % templates.length];
@@ -132,5 +123,3 @@ export function deleteEvent(id: string): boolean {
   events = events.filter((e) => e.id !== id);
   return events.length < before;
 }
-
-export { TIMEZONE };

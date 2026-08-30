@@ -4,6 +4,8 @@
  * personal nap metrics from here so the two stay in sync.
  */
 
+import { isoDateOffset, jstDateLabelFromISO } from "../lib/datetime.js";
+
 export type NapEntry = {
   id: string;
   /** "YYYY-MM-DD" */
@@ -21,26 +23,6 @@ export type NapEntry = {
   focusDeltaPt: number;
 };
 
-const TIMEZONE = "Asia/Tokyo";
-
-function labelFor(dateISO: string): string {
-  const [y, m, d] = dateISO.split("-").map(Number);
-  const weekday = new Intl.DateTimeFormat("ja-JP", {
-    timeZone: TIMEZONE,
-    weekday: "short",
-  }).format(new Date(y, m - 1, d));
-  return `${m}月${d}日 (${weekday})`;
-}
-
-function isoOffsetFromToday(days: number): string {
-  const now = new Date();
-  now.setDate(now.getDate() - days);
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, "0");
-  const d = `${now.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function entry(
   daysAgo: number,
   index: number,
@@ -50,11 +32,11 @@ function entry(
   wakeStars: number,
   focusDeltaPt: number,
 ): NapEntry {
-  const date = isoOffsetFromToday(daysAgo);
+  const date = isoDateOffset(-daysAgo);
   return {
     id: `nap-${daysAgo}-${index}`,
     date,
-    dateLabel: labelFor(date),
+    dateLabel: jstDateLabelFromISO(date),
     start,
     end,
     minutes,
@@ -91,6 +73,6 @@ export function getNapSummary() {
     avgMinutes: Math.round(average(naps.map((n) => n.minutes))),
     avgWakeRating: Math.round(average(naps.map((n) => n.wakeStars)) * 10) / 10,
     /** Naps within the last 7 days. */
-    weekCount: naps.filter((n) => n.date >= isoOffsetFromToday(6)).length,
+    weekCount: naps.filter((n) => n.date >= isoDateOffset(-6)).length,
   };
 }

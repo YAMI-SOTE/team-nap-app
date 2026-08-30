@@ -20,25 +20,18 @@ export function getAccountSettingsController(_req: Request, res: Response) {
 }
 
 export function updateAccountSettingsController(req: Request, res: Response) {
-  const username =
-    typeof req.body?.username === "string" ? req.body.username : "";
-  const email = typeof req.body?.email === "string" ? req.body.email : "";
-
-  res.status(200).json(updateAccountSettings({ username, email }));
+  res.status(200).json(updateAccountSettings(req.body));
 }
 
-export function getNotificationSettingsController(
-  _req: Request,
-  res: Response,
-) {
-    res.status(200).json(getNotificationSettings());
+export function getNotificationSettingsController(_req: Request, res: Response) {
+  res.status(200).json(getNotificationSettings());
 }
 
 export function updateNotificationSettingsController(
   req: Request,
   res: Response,
 ) {
-  res.status(200).json(updateNotificationSettings(req.body ?? {}));
+  res.status(200).json(updateNotificationSettings(req.body));
 }
 
 export function getSleepScheduleController(_req: Request, res: Response) {
@@ -46,18 +39,10 @@ export function getSleepScheduleController(_req: Request, res: Response) {
 }
 
 export function updateSleepScheduleController(req: Request, res: Response) {
-  const bedtime =
-    typeof req.body?.bedtime === "string" ? req.body.bedtime : "23:30";
-  const wakeTime =
-    typeof req.body?.wakeTime === "string" ? req.body.wakeTime : "07:30";
-
-  res.status(200).json(updateSleepSchedule({ bedtime, wakeTime }));
+  res.status(200).json(updateSleepSchedule(req.body));
 }
 
-export function getCalendarIntegrationController(
-  _req: Request,
-  res: Response,
-) {
+export function getCalendarIntegrationController(_req: Request, res: Response) {
   res.status(200).json(getCalendarIntegration());
 }
 
