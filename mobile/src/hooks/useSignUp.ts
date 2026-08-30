@@ -1,19 +1,28 @@
 import { useState } from "react";
-import { signUp, AuthError, LoginResult } from "../services/authService";
+import {
+  signUp,
+  signInWithGoogle,
+  AuthError,
+  LoginResult,
+} from "../services/authService";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 type UseSignUpResult = {
+  name: string;
   email: string;
   password: string;
   confirmPassword: string;
   isSubmitting: boolean;
+  isGoogleSubmitting: boolean;
   errorMessage: string | null;
+  setName: (value: string) => void;
   setEmail: (value: string) => void;
   setPassword: (value: string) => void;
   setConfirmPassword: (value: string) => void;
   submit: () => Promise<LoginResult | null>;
+  submitWithGoogle: () => Promise<LoginResult | null>;
 };
 
 /**
@@ -21,13 +30,16 @@ type UseSignUpResult = {
  * useLogin と対になる構成にしている。
  */
 export function useSignUp(): UseSignUpResult {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const validate = (): string | null => {
+    if (!name.trim()) return "お名前を入力してください";
     if (!email.trim()) return "メールアドレスを入力してください";
     if (!EMAIL_REGEX.test(email))
       return "メールアドレスの形式が正しくありません";
@@ -48,7 +60,7 @@ export function useSignUp(): UseSignUpResult {
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      const result = await signUp({ email, password });
+      const result = await signUp({ name: name.trim(), email, password });
       return result;
     } catch (error) {
       const message =
@@ -60,15 +72,35 @@ export function useSignUp(): UseSignUpResult {
     }
   };
 
+  const submitWithGoogle = async (): Promise<LoginResult | null> => {
+    setErrorMessage(null);
+    setIsGoogleSubmitting(true);
+    try {
+      const result = await signInWithGoogle();
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof AuthError ? error.message : "通信エラーが発生しました";
+      setErrorMessage(message);
+      return null;
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
   return {
+    name,
     email,
     password,
     confirmPassword,
     isSubmitting,
+    isGoogleSubmitting,
     errorMessage,
+    setName,
     setEmail,
     setPassword,
     setConfirmPassword,
     submit,
+    submitWithGoogle,
   };
 }

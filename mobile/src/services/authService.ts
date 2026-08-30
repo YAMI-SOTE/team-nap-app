@@ -37,6 +37,7 @@ export class AuthError extends Error {
 }
 
 export type SignUpPayload = {
+  name: string;
   email: string;
   password: string;
 };
@@ -44,8 +45,10 @@ export type SignUpPayload = {
 /**
  * 新規登録API。契約は login() と同様、バックエンド確定後に
  * 本番実装へ差し替える想定（POST {BASE_URL}/auth/signup を想定）。
+ * name はユーザーの表示名として送信する。
  */
 export async function signUp({
+  name,
   email,
   password,
 }: SignUpPayload): Promise<LoginResult> {
@@ -53,7 +56,7 @@ export async function signUp({
   // const response = await fetch(`${BASE_URL}/auth/signup`, {
   //   method: 'POST',
   //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ email, password }),
+  //   body: JSON.stringify({ name, email, password }),
   // });
   //
   // if (!response.ok) {
@@ -73,7 +76,7 @@ export async function signUp({
 
   return {
     token: "mock-token",
-    user: { id: "mock-user-id", name: "新規ユーザー" },
+    user: { id: "mock-user-id", name },
   };
   // --------------------------------------------------------------------
 }
