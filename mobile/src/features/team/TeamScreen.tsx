@@ -47,7 +47,7 @@ export default function TeamScreen() {
   };
 
   const handleOpenRanking = () => {
-    console.log("TODO: open the nap ranking screen");
+    router.push("/team/ranking");
   };
 
   const handleSeeAllMembers = () => {

@@ -95,6 +95,20 @@ export interface TeamSettingsResponse {
   members: HomeMember[];
 }
 
+export interface TeamRankingEntry {
+  id: string;
+  name: string;
+  label: string;
+  status: HomeMemberStatus;
+  score: number;
+}
+
+export interface TeamRankingResponse {
+  memberCount: number;
+  /** Highest score first. */
+  entries: TeamRankingEntry[];
+}
+
 export interface CreateTeamPayload {
   name: string;
 }

@@ -4,6 +4,7 @@ import type {
   CreateTeamPayload,
   HomeMemberStatusResponse,
   JoinTeamPayload,
+  TeamRankingResponse,
   TeamSettingsResponse,
   TeamSummaryResponse,
 } from "@/types/api";
@@ -11,6 +12,11 @@ import type {
 /** `null` when the signed-in user has not joined a team yet. */
 export async function getTeamSummary(): Promise<TeamSummaryResponse | null> {
   return api.get<TeamSummaryResponse | null>("/teams/summary");
+}
+
+/** Members ordered by rest score. `null` when not in a team. */
+export async function getTeamRanking(): Promise<TeamRankingResponse | null> {
+  return api.get<TeamRankingResponse | null>("/teams/ranking");
 }
 
 export async function getSharedMemberStatus(): Promise<HomeMemberStatusResponse> {

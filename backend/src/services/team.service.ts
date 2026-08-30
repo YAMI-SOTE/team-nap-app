@@ -1,5 +1,5 @@
 import { HttpError } from "../lib/http-error.js";
-import type { Member, WeeklyBarState } from "../types/domain.js";
+import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
 // ---------------------------------------------------------------------------
 // Team dashboard (今週の Team Nap) — static snapshot, only meaningful while
@@ -136,4 +136,45 @@ export function joinTeam(inviteCode: string): TeamSettingsResponse {
 
 export function leaveTeam(): void {
   currentTeam = null;
+}
+
+// ---------------------------------------------------------------------------
+// 仮眠上手ランキング — members ordered by their weekly rest score
+// (Figma "S04-02_Ranking", node 252:519).
+// ---------------------------------------------------------------------------
+
+export type TeamRankingEntry = {
+  id: string;
+  name: string;
+  label: string;
+  status: MemberStatus;
+  score: number;
+};
+
+export type TeamRankingResponse = {
+  memberCount: number;
+  /** Highest score first. */
+  entries: TeamRankingEntry[];
+};
+
+const rankingSnapshot: TeamRankingEntry[] = [
+  { id: "m-a", name: "メンバーA", label: "A", status: "resting", score: 92 },
+  { id: "m-b", name: "メンバーB", label: "B", status: "working", score: 88 },
+  { id: "m-c", name: "メンバーC", label: "C", status: "offline", score: 76 },
+  { id: "m-d", name: "メンバーD", label: "D", status: "working", score: 64 },
+  { id: "m-e", name: "メンバーE", label: "E", status: "resting", score: 58 },
+  { id: "m-f", name: "メンバーF", label: "F", status: "working", score: 55 },
+  { id: "m-g", name: "メンバーG", label: "G", status: "offline", score: 51 },
+  { id: "m-h", name: "メンバーH", label: "H", status: "working", score: 48 },
+  { id: "m-i", name: "メンバーI", label: "I", status: "resting", score: 44 },
+  { id: "m-j", name: "メンバーJ", label: "J", status: "working", score: 40 },
+  { id: "m-k", name: "メンバーK", label: "K", status: "offline", score: 36 },
+];
+
+export function getTeamRanking(): TeamRankingResponse | null {
+  if (!currentTeam) {
+    return null;
+  }
+  const entries = [...rankingSnapshot].sort((a, b) => b.score - a.score);
+  return { memberCount: entries.length, entries };
 }

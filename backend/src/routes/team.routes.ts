@@ -3,6 +3,7 @@ import { Router } from "express";
 import { getMemberDetailController } from "../controllers/member.controller.js";
 import {
   createTeamController,
+  getTeamRankingController,
   getTeamSummaryController,
   joinTeamController,
 } from "../controllers/team.controller.js";
@@ -13,6 +14,7 @@ import { createTeamBody, joinTeamBody } from "../schemas/team.schema.js";
 const router = Router();
 
 router.get("/summary", getTeamSummaryController);
+router.get("/ranking", getTeamRankingController);
 router.post("/", validate({ body: createTeamBody }), createTeamController);
 router.post("/join", validate({ body: joinTeamBody }), joinTeamController);
 router.get(

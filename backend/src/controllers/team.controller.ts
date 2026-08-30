@@ -2,12 +2,17 @@ import type { Request, Response } from "express";
 
 import {
   createTeam,
+  getTeamRanking,
   getTeamSummary,
   joinTeam,
 } from "../services/team.service.js";
 
 export function getTeamSummaryController(_req: Request, res: Response) {
   res.status(200).json(getTeamSummary());
+}
+
+export function getTeamRankingController(_req: Request, res: Response) {
+  res.status(200).json(getTeamRanking());
 }
 
 export function createTeamController(req: Request, res: Response) {
