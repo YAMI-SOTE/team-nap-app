@@ -134,6 +134,14 @@ export function joinTeam(inviteCode: string): TeamSettingsResponse {
   return toSettings(currentTeam);
 }
 
+export function renameTeam(name: string): TeamSettingsResponse {
+  if (!currentTeam) {
+    throw HttpError.notFound("No team to rename");
+  }
+  currentTeam = { ...currentTeam, teamName: name };
+  return toSettings(currentTeam);
+}
+
 export function leaveTeam(): void {
   currentTeam = null;
 }

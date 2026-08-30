@@ -34,3 +34,7 @@ export async function joinTeam(
 ): Promise<TeamSettingsResponse> {
   return api.post<TeamSettingsResponse>("/teams/join", payload);
 }
+
+export async function renameTeam(name: string): Promise<TeamSettingsResponse> {
+  return api.put<TeamSettingsResponse>("/teams", { name });
+}

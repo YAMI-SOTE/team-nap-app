@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,18 +16,18 @@ import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
+import InviteCodeCard from "@/components/InviteCodeCard";
 import MemberRow, { type MemberRowMember } from "@/components/MemberRow";
 import PillButton from "@/components/PillButton";
 import {
-  ClipboardTextIcon,
-  PaperPlaneTiltIcon,
+  CheckCircleIcon,
   PencilSimpleIcon,
   UsersThreeIcon,
 } from "@/components/icons";
 
 export default function TeamSettingsScreen() {
   const router = useRouter();
-  const { data, loading, saving, error, leave } = useTeamSettings();
+  const { data, loading, saving, error, leave, rename } = useTeamSettings();
 
   // No current team (e.g. just left) → send to the Team tab empty state.
   const noTeam = !loading && !error && data === null;
@@ -36,10 +37,25 @@ export default function TeamSettingsScreen() {
     }
   }, [noTeam, router]);
 
-  const handleEditName = () => console.log("TODO: edit the team name");
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const startEditName = () => {
+    setNameDraft(data?.teamName ?? "");
+    setEditingName(true);
+  };
+  const cancelEditName = () => setEditingName(false);
+  const submitName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === data?.teamName) {
+      setEditingName(false);
+      return;
+    }
+    const ok = await rename(trimmed);
+    if (ok) setEditingName(false);
+  };
+
   const handleManageMembers = () => console.log("TODO: open member management");
-  const handleCopyCode = () => console.log("TODO: copy the invite code");
-  const handleShareInvite = () => console.log("TODO: share the invite link");
   const handleLeaveTeam = async () => {
     const success = await leave();
     if (success) {
@@ -62,6 +78,7 @@ export default function TeamSettingsScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <ScreenHeader title="チーム設定" onBack={() => router.back()} />
 
@@ -69,18 +86,56 @@ export default function TeamSettingsScreen() {
           <Card style={styles.rowCard}>
             <View style={styles.rowCardText}>
               <Text style={styles.caption}>チーム名</Text>
-              <Text style={styles.teamName}>
-                {data?.teamName ?? "読み込み中"}
-              </Text>
+              {editingName ? (
+                <TextInput
+                  style={styles.nameInput}
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  autoFocus
+                  maxLength={50}
+                  editable={!saving}
+                  returnKeyType="done"
+                  onSubmitEditing={submitName}
+                  placeholder="チーム名"
+                  placeholderTextColor={colors.placeholder}
+                />
+              ) : (
+                <Text style={styles.teamName}>
+                  {data?.teamName ?? "読み込み中"}
+                </Text>
+              )}
             </View>
-            <Pressable
-              onPress={handleEditName}
-              accessibilityRole="button"
-              accessibilityLabel="チーム名を編集"
-              hitSlop={8}
-            >
-              <PencilSimpleIcon size={20} color={colors.textTertiary} />
-            </Pressable>
+
+            {editingName ? (
+              <View style={styles.nameActions}>
+                <Pressable
+                  onPress={submitName}
+                  disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel="チーム名を保存"
+                  hitSlop={8}
+                >
+                  <CheckCircleIcon size={22} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={cancelEditName}
+                  accessibilityRole="button"
+                  accessibilityLabel="編集をキャンセル"
+                  hitSlop={8}
+                >
+                  <Text style={styles.cancelText}>キャンセル</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={startEditName}
+                accessibilityRole="button"
+                accessibilityLabel="チーム名を編集"
+                hitSlop={8}
+              >
+                <PencilSimpleIcon size={20} color={colors.textTertiary} />
+              </Pressable>
+            )}
           </Card>
 
           {/* メンバー */}
@@ -105,27 +160,7 @@ export default function TeamSettingsScreen() {
           </Card>
 
           {/* 招待 */}
-          <Card style={styles.inviteCard}>
-            <Text style={styles.inviteLabel}>招待コード</Text>
-            <View style={styles.codeBox}>
-              <Text style={styles.code}>{data?.inviteCode ?? "----"}</Text>
-              <Pressable
-                onPress={handleCopyCode}
-                accessibilityRole="button"
-                accessibilityLabel="招待コードをコピー"
-                hitSlop={8}
-              >
-                <ClipboardTextIcon size={20} color={colors.textTertiary} />
-              </Pressable>
-            </View>
-            <PillButton
-              variant="primary"
-              label="招待リンクを共有"
-              onPress={handleShareInvite}
-              elevated={false}
-              icon={<PaperPlaneTiltIcon size={24} color={colors.white} />}
-            />
-          </Card>
+          <InviteCodeCard code={data?.inviteCode ?? ""} loading={loading} />
 
           <View style={styles.spacer} />
 
@@ -138,7 +173,9 @@ export default function TeamSettingsScreen() {
           </Pressable>
 
           <View style={styles.footer}>
-            {loading || saving ? <ActivityIndicator color={colors.primary} /> : null}
+            {loading || saving ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         </ScrollView>
@@ -183,6 +220,26 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
   },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  nameActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  cancelText: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textTertiary,
+  },
 
   // メンバー
   head: {
@@ -208,34 +265,6 @@ const styles = StyleSheet.create({
   },
   smallButtonText: {
     fontSize: 14,
-  },
-
-  // 招待
-  inviteCard: {
-    alignItems: "center",
-  },
-  inviteLabel: {
-    width: "100%",
-    fontSize: 12,
-    lineHeight: 19,
-    textAlign: "center",
-    color: colors.textTertiary,
-  },
-  codeBox: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceSunken,
-  },
-  code: {
-    fontSize: 24,
-    lineHeight: 34,
-    fontWeight: "700",
-    color: colors.textPrimary,
   },
 
   spacer: {

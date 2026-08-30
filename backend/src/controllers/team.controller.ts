@@ -5,6 +5,7 @@ import {
   getTeamRanking,
   getTeamSummary,
   joinTeam,
+  renameTeam,
 } from "../services/team.service.js";
 
 export function getTeamSummaryController(_req: Request, res: Response) {
@@ -23,4 +24,9 @@ export function createTeamController(req: Request, res: Response) {
 export function joinTeamController(req: Request, res: Response) {
   const { inviteCode } = req.body as { inviteCode: string };
   res.status(200).json(joinTeam(inviteCode));
+}
+
+export function renameTeamController(req: Request, res: Response) {
+  const { name } = req.body as { name: string };
+  res.status(200).json(renameTeam(name));
 }
