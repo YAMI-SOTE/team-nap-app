@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 
+import { currentUserId } from "../lib/request-user.js";
 import {
   getPersonalStats,
   getStats,
@@ -7,14 +8,14 @@ import {
 } from "../services/stats.service.js";
 
 /** Combined endpoint — the client's stats screen needs both tabs. */
-export function getStatsController(_req: Request, res: Response) {
-  res.status(200).json(getStats());
+export async function getStatsController(req: Request, res: Response) {
+  res.status(200).json(await getStats(currentUserId(req)));
 }
 
 export function getPersonalStatsController(_req: Request, res: Response) {
   res.status(200).json(getPersonalStats());
 }
 
-export function getTeamStatsController(_req: Request, res: Response) {
-  res.status(200).json(getTeamStats());
+export async function getTeamStatsController(req: Request, res: Response) {
+  res.status(200).json(await getTeamStats(currentUserId(req)));
 }

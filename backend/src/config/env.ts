@@ -19,8 +19,15 @@ const envSchema = z.object({
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().min(1).default("gemma4:e2b"),
 
-  // Reserved for the upcoming Prisma/Postgres work; empty until then.
-  DATABASE_URL: z.string().default(""),
+  // Postgres connection string for Prisma.
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+
+  // Caller identity fallback when a request omits the `X-User-Id` header
+  // (there is no auth yet). Matches the user created by `prisma/seed.ts`.
+  DEV_USER_ID: z
+    .string()
+    .min(1)
+    .default("00000000-0000-0000-0000-000000000001"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -175,6 +175,7 @@ export interface EventDraft {
 export type NotificationKind =
   | "team_nap_suggestion"
   | "wake_request"
+  | "rest_request"
   | "nap_ended"
   | "weekly_review"
   | "member_joined";

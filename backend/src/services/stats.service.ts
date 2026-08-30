@@ -1,6 +1,6 @@
 import { getHomeMemberStatus } from "./home.service.js";
 import { getNapSummary, listNaps } from "./naps.service.js";
-import { getCurrentTeam } from "./team.service.js";
+import { hasTeam } from "./team.service.js";
 import type { Member } from "../types/domain.js";
 
 /**
@@ -72,8 +72,10 @@ export function getPersonalStats(): PersonalStatsResponse {
   };
 }
 
-export function getTeamStats(): TeamStatsResponse {
-  const { members, memberCount } = getHomeMemberStatus();
+export async function getTeamStats(
+  userId: string,
+): Promise<TeamStatsResponse> {
+  const { members, memberCount } = await getHomeMemberStatus(userId);
   const achievementRate = 82;
   const achieved = Math.round((memberCount * achievementRate) / 100);
   const before = 64;
@@ -95,13 +97,13 @@ export function getTeamStats(): TeamStatsResponse {
   };
 }
 
-export function getStats(): {
+export async function getStats(userId: string): Promise<{
   personal: PersonalStatsResponse;
   team: TeamStatsResponse | null;
-} {
+}> {
   return {
     personal: getPersonalStats(),
     // No team joined → the stats screen shows only the 個人 tab.
-    team: getCurrentTeam() ? getTeamStats() : null,
+    team: (await hasTeam(userId)) ? await getTeamStats(userId) : null,
   };
 }

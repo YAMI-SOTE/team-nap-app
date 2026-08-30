@@ -12,6 +12,7 @@ async function request<T>(
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "X-User-Id": config.userId,
       ...options.headers,
     },
   });

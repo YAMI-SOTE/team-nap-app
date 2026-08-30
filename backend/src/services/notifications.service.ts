@@ -1,6 +1,7 @@
 type NotificationKind =
   | "team_nap_suggestion"
   | "wake_request"
+  | "rest_request"
   | "nap_ended"
   | "weekly_review"
   | "member_joined";
@@ -66,6 +67,15 @@ let notifications: NotificationItem[] = [
 
 export function listNotifications(): NotificationItem[] {
   return notifications;
+}
+
+/** Prepend a new notification to the (in-memory) feed. */
+export function addNotification(
+  input: Omit<NotificationItem, "id">,
+): NotificationItem {
+  const item: NotificationItem = { id: `n${Date.now()}`, ...input };
+  notifications = [item, ...notifications];
+  return item;
 }
 
 export function markNotificationRead(id: string): NotificationItem[] {
