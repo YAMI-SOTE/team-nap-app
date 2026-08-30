@@ -95,6 +95,14 @@ export interface TeamSettingsResponse {
   members: HomeMember[];
 }
 
+export interface CreateTeamPayload {
+  name: string;
+}
+
+export interface JoinTeamPayload {
+  inviteCode: string;
+}
+
 export interface MemberDetailResponse {
   id: string;
   name: string;

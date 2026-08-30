@@ -20,6 +20,7 @@ import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
 import NotificationBell from "@/components/NotificationBell";
+import NoTeamScreen from "@/features/team/NoTeamScreen";
 import {
   ClipboardTextIcon,
   CrownSimpleIcon,
@@ -32,9 +33,14 @@ const SCREEN_PADDING = 24;
 
 export default function TeamScreen() {
   const router = useRouter();
-  const { data, loading, error } = useTeamSummary();
+  const { data, hasTeam, loading, error } = useTeamSummary();
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
+
+  // No team joined yet → the empty state (S04-06).
+  if (!loading && !error && !hasTeam) {
+    return <NoTeamScreen />;
+  }
 
   const handleSuggestNap = () => {
     console.log("TODO: suggest a nap to the team");

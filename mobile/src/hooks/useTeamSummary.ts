@@ -17,6 +17,7 @@ type TeamScreenData = {
 
 export function useTeamSummary() {
   const [data, setData] = useState<TeamScreenData | null>(null);
+  const [hasTeam, setHasTeam] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,10 +35,14 @@ export function useTeamSummary() {
           return;
         }
 
-        setData({
-          summary,
-          memberStatus,
-        });
+        if (!summary) {
+          setHasTeam(false);
+          setData(null);
+          return;
+        }
+
+        setHasTeam(true);
+        setData({ summary, memberStatus });
       } catch (err) {
         if (!active) {
           return;
@@ -60,6 +65,7 @@ export function useTeamSummary() {
 
   return {
     data,
+    hasTeam,
     loading,
     error,
   };

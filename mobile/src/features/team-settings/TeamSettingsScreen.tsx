@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -27,6 +28,14 @@ export default function TeamSettingsScreen() {
   const router = useRouter();
   const { data, loading, saving, error, leave } = useTeamSettings();
 
+  // No current team (e.g. just left) → send to the Team tab empty state.
+  const noTeam = !loading && !error && data === null;
+  useEffect(() => {
+    if (noTeam) {
+      router.replace("/team");
+    }
+  }, [noTeam, router]);
+
   const handleEditName = () => console.log("TODO: edit the team name");
   const handleManageMembers = () => console.log("TODO: open member management");
   const handleCopyCode = () => console.log("TODO: copy the invite code");
@@ -37,6 +46,14 @@ export default function TeamSettingsScreen() {
       router.replace("/settings");
     }
   };
+
+  if (noTeam) {
+    return (
+      <View style={styles.root}>
+        <AuroraBackdrop />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
