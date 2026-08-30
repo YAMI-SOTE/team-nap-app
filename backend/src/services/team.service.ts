@@ -118,11 +118,16 @@ export function createTeam(name: string): TeamSettingsResponse {
   return toSettings(currentTeam);
 }
 
+/** Compare codes on their alphanumerics only, so "NAP-4821" == "nap4821". */
+function normalizeCode(code: string): string {
+  return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 export function joinTeam(inviteCode: string): TeamSettingsResponse {
   if (currentTeam) {
     throw HttpError.conflict("You already belong to a team");
   }
-  if (inviteCode.trim().toUpperCase() !== seedTeam.inviteCode) {
+  if (normalizeCode(inviteCode) !== normalizeCode(seedTeam.inviteCode)) {
     throw HttpError.notFound("Invalid invite code");
   }
   currentTeam = { ...seedTeam, members: [...seedTeam.members] };

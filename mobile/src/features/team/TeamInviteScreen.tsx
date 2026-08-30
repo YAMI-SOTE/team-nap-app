@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 
 import { colors } from "@/theme/colors";
 import { useTeamSettings } from "@/hooks/useTeamSettings";
@@ -27,6 +29,15 @@ export default function TeamInviteScreen() {
   const { data, loading } = useTeamSettings();
   const inviteCode = data?.inviteCode ?? "";
 
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
   const handleShare = async () => {
     if (!inviteCode) return;
     try {
@@ -38,9 +49,12 @@ export default function TeamInviteScreen() {
     }
   };
 
-  const handleCopy = () => {
-    // TODO: copy to clipboard once expo-clipboard is added.
-    console.log("TODO: copy invite code", inviteCode);
+  const handleCopy = async () => {
+    if (!inviteCode) return;
+    await Clipboard.setStringAsync(inviteCode);
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 1500);
   };
 
   const goToTeam = () => router.replace("/team");
@@ -60,23 +74,24 @@ export default function TeamInviteScreen() {
           </View>
 
           <Card style={styles.inviteCard}>
-            <Text style={styles.cardLabel}>招待コード</Text>
+            <Text style={[styles.cardLabel, copied && styles.cardLabelCopied]}>
+              {copied ? "コピーしました" : "招待コード"}
+            </Text>
 
-            <View style={styles.codeBox}>
+            <Pressable
+              onPress={handleCopy}
+              disabled={!inviteCode}
+              accessibilityRole="button"
+              accessibilityLabel="招待コードをコピー"
+              style={styles.codeBox}
+            >
               {loading ? (
                 <ActivityIndicator color={colors.primary} />
               ) : (
                 <Text style={styles.code}>{inviteCode || "----"}</Text>
               )}
-              <Pressable
-                onPress={handleCopy}
-                accessibilityRole="button"
-                accessibilityLabel="招待コードをコピー"
-                hitSlop={8}
-              >
-                <ClipboardTextIcon size={20} color={colors.textTertiary} />
-              </Pressable>
-            </View>
+              <ClipboardTextIcon size={20} color={colors.textTertiary} />
+            </Pressable>
 
             <PillButton
               variant="primary"
@@ -137,6 +152,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: "center",
     color: colors.textTertiary,
+  },
+  cardLabelCopied: {
+    color: colors.textSuccess,
+    fontWeight: "700",
   },
   codeBox: {
     width: "100%",

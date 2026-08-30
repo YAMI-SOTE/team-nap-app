@@ -14,7 +14,8 @@ export function useJoinTeam() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const setCode = (value: string) => {
-    setCodeRaw(value.toUpperCase());
+    // Invite codes are alphanumeric only — drop anything else as typed.
+    setCodeRaw(value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
     if (errorMessage) setErrorMessage(null);
   };
 
