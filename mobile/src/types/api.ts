@@ -274,5 +274,6 @@ export interface NapHistoryResponse {
 
 export interface StatsResponse {
   personal: PersonalStatsResponse;
-  team: TeamStatsResponse;
+  /** `null` when the user has not joined a team — the チーム tab is hidden. */
+  team: TeamStatsResponse | null;
 }

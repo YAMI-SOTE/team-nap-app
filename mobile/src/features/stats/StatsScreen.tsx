@@ -27,8 +27,11 @@ type StatsTab = (typeof TABS)[number]["key"];
 
 export default function StatsScreen() {
   const router = useRouter();
-  const { personal, team, loading, error } = useStats();
+  const { personal, team, hasTeam, loading, error } = useStats();
   const [tab, setTab] = useState<StatsTab>("personal");
+
+  // Without a team there is no チーム tab — only 個人.
+  const activeTab: StatsTab = hasTeam ? tab : "personal";
 
   return (
     <View style={styles.root}>
@@ -43,11 +46,13 @@ export default function StatsScreen() {
             <NotificationBell />
           </View>
 
-          <SegmentedControl<StatsTab>
-            options={TABS}
-            value={tab}
-            onChange={setTab}
-          />
+          {hasTeam ? (
+            <SegmentedControl<StatsTab>
+              options={TABS}
+              value={tab}
+              onChange={setTab}
+            />
+          ) : null}
 
           {loading ? (
             <View style={styles.stateBlock}>
@@ -57,13 +62,13 @@ export default function StatsScreen() {
             <View style={styles.stateBlock}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
-          ) : tab === "personal" && personal ? (
+          ) : activeTab === "personal" && personal ? (
             <PersonalStatsView
               data={personal}
               onSeeAll={() => router.push("/naps/history")}
               onNapPress={(id) => console.log(`TODO: open nap ${id}`)}
             />
-          ) : tab === "team" && team ? (
+          ) : activeTab === "team" && team ? (
             <TeamStatsView
               data={team}
               onMemberPress={(id) => router.push(`/members/${id}`)}

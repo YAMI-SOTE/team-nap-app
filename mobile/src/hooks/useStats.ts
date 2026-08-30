@@ -39,5 +39,5 @@ export function useStats() {
     };
   }, []);
 
-  return { personal, team, loading, error };
+  return { personal, team, hasTeam: team !== null, loading, error };
 }
