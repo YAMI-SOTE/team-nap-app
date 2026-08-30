@@ -68,7 +68,7 @@ export default function StatsScreen() {
           ) : tab === "personal" && personal ? (
             <PersonalStatsView
               data={personal}
-              onSeeAll={() => console.log("TODO: open all naps")}
+              onSeeAll={() => router.push("/naps/history")}
               onNapPress={(id) => console.log(`TODO: open nap ${id}`)}
             />
           ) : tab === "team" && team ? (

@@ -1,26 +1,21 @@
 import { useEffect, useState } from "react";
 
-import { getStats } from "@/services/stats";
+import { getNapHistory } from "@/services/naps";
 
-import type {
-  PersonalStatsResponse,
-  TeamStatsResponse,
-} from "@/types/api";
+import type { NapHistoryResponse } from "@/types/api";
 
-export function useStats() {
-  const [personal, setPersonal] = useState<PersonalStatsResponse | null>(null);
-  const [team, setTeam] = useState<TeamStatsResponse | null>(null);
+export function useNapHistory() {
+  const [data, setData] = useState<NapHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    getStats()
+    getNapHistory()
       .then((result) => {
         if (active) {
-          setPersonal(result.personal);
-          setTeam(result.team);
+          setData(result);
         }
       })
       .catch((err) => {
@@ -39,5 +34,5 @@ export function useStats() {
     };
   }, []);
 
-  return { personal, team, loading, error };
+  return { data, loading, error };
 }
