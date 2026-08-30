@@ -20,7 +20,13 @@ async function request<T>(
     throw new Error(`API request failed: ${response.status}`);
   }
 
-  return response.json() as Promise<T>;
+  // 204 No Content (e.g. DELETE) has no body to parse.
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
@@ -33,5 +39,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     });
+  },
+
+  put<T>(endpoint: string, body: unknown) {
+    return request<T>(endpoint, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  del<T = void>(endpoint: string) {
+    return request<T>(endpoint, { method: "DELETE" });
   },
 };

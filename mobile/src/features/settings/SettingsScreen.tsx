@@ -15,10 +15,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { data, loading, error, setNotification } = useNotificationSettings();
 
-  const openTodo = (label: string) => () => {
-    console.log(`TODO: open "${label}" screen`);
-  };
-
   const handleLogout = () => {
     // No auth token to clear in the current mock auth — just return to login.
     router.replace("/login");
@@ -32,7 +28,7 @@ export default function SettingsScreen() {
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
             <Pressable
-              onPress={openTodo("通知")}
+              onPress={() => router.push("/notifications")}
               accessibilityRole="button"
               accessibilityLabel="通知"
               hitSlop={8}
