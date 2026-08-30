@@ -1,4 +1,10 @@
-import type { Member } from "../types/domain.js";
+import {
+  getCurrentTeam,
+  leaveTeam as clearCurrentTeam,
+  type TeamSettingsResponse,
+} from "./team.service.js";
+
+export type { TeamSettingsResponse };
 
 type NotificationSettings = {
   napSuggestion: boolean;
@@ -29,13 +35,6 @@ export type CalendarIntegrationResponse = {
   };
 };
 
-export type TeamSettingsResponse = {
-  teamName: string;
-  memberCount: number;
-  inviteCode: string;
-  members: Member[];
-};
-
 let accountSettings: AccountSettingsResponse = {
   username: "Team Nap User",
   email: "user@example.com",
@@ -63,20 +62,6 @@ let calendarIntegration: CalendarIntegrationResponse = {
   device: {
     connected: false,
   },
-};
-
-let teamSettings: TeamSettingsResponse = {
-  teamName: "TEAM NAP 開発チーム",
-  memberCount: 6,
-  inviteCode: "NAP-4821",
-  members: [
-    { id: "a", label: "A", status: "resting" },
-    { id: "b", label: "B", status: "working" },
-    { id: "c", label: "C", status: "working" },
-    { id: "d", label: "D", status: "working" },
-    { id: "e", label: "E", status: "resting" },
-    { id: "f", label: "F", status: "offline" },
-  ],
 };
 
 export function getAccountSettings(): AccountSettingsResponse {
@@ -157,10 +142,11 @@ export function connectDeviceCalendar(): CalendarIntegrationResponse {
   return calendarIntegration;
 }
 
-export function getTeamSettings(): TeamSettingsResponse {
-  return teamSettings;
+export function getTeamSettings(): TeamSettingsResponse | null {
+  return getCurrentTeam();
 }
 
 export function leaveTeam(): { success: true } {
+  clearCurrentTeam();
   return { success: true };
 }

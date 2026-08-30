@@ -18,6 +18,8 @@ type MemberAvatarProps = {
   status: MemberStatus;
   /** Optional avatar photo. Falls back to a neutral circle. */
   imageUri?: string;
+  /** Render the label under the avatar. Default `true`. */
+  showLabel?: boolean;
   onPress?: () => void;
   style?: ViewStyle;
 };
@@ -39,6 +41,7 @@ export default function MemberAvatar({
   label,
   status,
   imageUri,
+  showLabel = true,
   onPress,
   style,
 }: MemberAvatarProps) {
@@ -61,9 +64,11 @@ export default function MemberAvatar({
           style={[styles.dot, { backgroundColor: STATUS_COLOR[status] }]}
         />
       </View>
-      <Text style={styles.label} numberOfLines={1}>
-        {label}
-      </Text>
+      {showLabel ? (
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+      ) : null}
     </Container>
   );
 }

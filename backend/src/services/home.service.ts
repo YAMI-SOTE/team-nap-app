@@ -32,6 +32,9 @@ export type HomeMemberStatusResponse = {
 
 export const TEAM_SCORE_MAX = 100;
 
+/** Max member avatars returned for the Home / Team / Stats member rows. */
+const MEMBER_DISPLAY_LIMIT = 6;
+
 const homeSnapshot: HomeSnapshot = {
   headline: ["今日のチームは", "いい調子です"],
   teamScore: 20,
@@ -70,9 +73,11 @@ export function getHomeSummary(): HomeSummaryResponse {
 
 export function getHomeMemberStatus(): HomeMemberStatusResponse {
   return {
+    // Full-team figures for the summary text…
     memberCount: homeSnapshot.members.length,
     memberStatusCounts: countMemberStatuses(homeSnapshot.members),
-    members: homeSnapshot.members,
+    // …but only the first few avatars for the member row.
+    members: homeSnapshot.members.slice(0, MEMBER_DISPLAY_LIMIT),
   };
 }
 

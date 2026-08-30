@@ -1,5 +1,6 @@
 import { getHomeMemberStatus } from "./home.service.js";
 import { getNapSummary, listNaps } from "./naps.service.js";
+import { getCurrentTeam } from "./team.service.js";
 import type { Member } from "../types/domain.js";
 
 /**
@@ -94,9 +95,13 @@ export function getTeamStats(): TeamStatsResponse {
   };
 }
 
-export function getStats() {
+export function getStats(): {
+  personal: PersonalStatsResponse;
+  team: TeamStatsResponse | null;
+} {
   return {
     personal: getPersonalStats(),
-    team: getTeamStats(),
+    // No team joined → the stats screen shows only the 個人 tab.
+    team: getCurrentTeam() ? getTeamStats() : null,
   };
 }

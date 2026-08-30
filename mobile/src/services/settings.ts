@@ -60,8 +60,9 @@ export function connectDeviceCalendar(): Promise<CalendarIntegrationResponse> {
   );
 }
 
-export function getTeamSettings(): Promise<TeamSettingsResponse> {
-  return api.get<TeamSettingsResponse>("/settings/team");
+/** `null` when the user has left / not joined a team. */
+export function getTeamSettings(): Promise<TeamSettingsResponse | null> {
+  return api.get<TeamSettingsResponse | null>("/settings/team");
 }
 
 export function leaveTeam(): Promise<{ success: true }> {

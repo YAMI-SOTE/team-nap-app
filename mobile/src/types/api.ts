@@ -95,6 +95,28 @@ export interface TeamSettingsResponse {
   members: HomeMember[];
 }
 
+export interface TeamRankingEntry {
+  id: string;
+  name: string;
+  label: string;
+  status: HomeMemberStatus;
+  score: number;
+}
+
+export interface TeamRankingResponse {
+  memberCount: number;
+  /** Highest score first. */
+  entries: TeamRankingEntry[];
+}
+
+export interface CreateTeamPayload {
+  name: string;
+}
+
+export interface JoinTeamPayload {
+  inviteCode: string;
+}
+
 export interface MemberDetailResponse {
   id: string;
   name: string;
@@ -266,5 +288,6 @@ export interface NapHistoryResponse {
 
 export interface StatsResponse {
   personal: PersonalStatsResponse;
-  team: TeamStatsResponse;
+  /** `null` when the user has not joined a team — the チーム tab is hidden. */
+  team: TeamStatsResponse | null;
 }
