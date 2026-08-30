@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import {
-  Dimensions,
+  LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -14,8 +14,6 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import PillButton from "@/components/PillButton";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type Slide = {
   key: string;
@@ -70,6 +68,17 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
+  // 実際に描画された枠の幅を onLayout で測定する。
+  // Dimensions.get('window') はWeb環境で実際の表示幅とズレることがあるため、
+  // 見た目のコンテナ幅と必ず一致するこちらを正として使う。
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const measuredWidth = e.nativeEvent.layout.width;
+    if (measuredWidth > 0 && measuredWidth !== containerWidth) {
+      setContainerWidth(measuredWidth);
+    }
+  };
 
   const goToIndex = (nextIndex: number) => {
     if (nextIndex >= SLIDES.length) {
@@ -77,12 +86,13 @@ export default function OnboardingScreen() {
       router.push("/signup");
       return;
     }
-    scrollRef.current?.scrollTo({ x: nextIndex * SCREEN_WIDTH, animated: true });
+    scrollRef.current?.scrollTo({ x: nextIndex * containerWidth, animated: true });
     setIndex(nextIndex);
   };
 
   const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nextIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    if (containerWidth === 0) return;
+    const nextIndex = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
     setIndex(nextIndex);
   };
 
@@ -106,7 +116,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]} onLayout={handleLayout}>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -116,8 +126,10 @@ export default function OnboardingScreen() {
         onMomentumScrollEnd={handleMomentumScrollEnd}
         style={styles.scroll}
       >
-        {SLIDES.map((slide) => (
-          <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
+        {containerWidth === 0
+          ? null
+          : SLIDES.map((slide) => (
+          <View key={slide.key} style={[styles.slide, { width: containerWidth }]}>
             {/* イラスト用プレースホルダー。
                 TODO: 各スライドの挿絵アセットが用意でき次第、Imageに差し替える。 */}
             <View style={styles.illustrationPlaceholder} />

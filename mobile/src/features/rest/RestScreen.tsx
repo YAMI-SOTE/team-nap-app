@@ -89,7 +89,11 @@ export default function RestScreen() {
 
       <View style={styles.timerSection}>
         <View style={styles.timerContainer}>
-          <Svg width={TIMER_SIZE} height={TIMER_SIZE} style={styles.svgContainer}>
+          <Svg
+            width={TIMER_SIZE}
+            height={TIMER_SIZE}
+            style={[styles.svgContainer, styles.svgRotated]}
+          >
             <Circle
               cx={TIMER_SIZE / 2}
               cy={TIMER_SIZE / 2}
@@ -108,8 +112,6 @@ export default function RestScreen() {
               strokeDasharray={CIRCUMFERENCE}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
-              rotation="-90"
-              origin={`${TIMER_SIZE / 2}, ${TIMER_SIZE / 2}`}
             />
           </Svg>
 
@@ -200,6 +202,9 @@ const styles = StyleSheet.create({
   },
   svgContainer: {
     position: "absolute",
+  },
+  svgRotated: {
+    transform: [{ rotate: "-90deg" }],
   },
   timeTextContainer: {
     justifyContent: "center",
