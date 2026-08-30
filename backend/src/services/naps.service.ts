@@ -5,6 +5,7 @@
  */
 
 import { isoDateOffset, jstDateLabelFromISO } from "../lib/datetime.js";
+import { HttpError } from "../lib/http-error.js";
 
 export type NapEntry = {
   id: string;
@@ -45,19 +46,61 @@ function entry(
   };
 }
 
-// Newest first.
+// Newest first. Invariant: at most one entry per calendar date.
 const naps: NapEntry[] = [
   entry(0, 0, "14:32", "14:47", 15, 4, 20),
-  entry(1, 0, "13:50", "14:08", 18, 5, 24),
+  entry(1, 0, "13:25", "14:08", 18, 5, 24),
   entry(2, 0, "14:05", "14:20", 15, 4, 16),
-  entry(2, 1, "11:20", "11:32", 12, 3, 8),
   entry(4, 0, "13:40", "13:58", 18, 4, 18),
   entry(6, 0, "14:10", "14:24", 14, 4, 14),
   entry(9, 0, "12:55", "13:12", 17, 5, 22),
 ];
 
+let createdNapSeq = 1;
+
 export function listNaps(): NapEntry[] {
   return naps;
+}
+
+/** Whether a nap is already recorded for the given "YYYY-MM-DD". */
+export function hasNapOn(dateISO: string): boolean {
+  return naps.some((nap) => nap.date === dateISO);
+}
+
+export type NapInput = {
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" */
+  end: string;
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+};
+
+/**
+ * Record a nap. Only one nap per date is allowed — a second on the same
+ * date is a 409.
+ */
+export function createNap(input: NapInput): NapEntry {
+  if (hasNapOn(input.date)) {
+    throw HttpError.conflict("A nap is already recorded for this date");
+  }
+
+  const nap: NapEntry = {
+    id: `nap-new-${createdNapSeq++}`,
+    date: input.date,
+    dateLabel: jstDateLabelFromISO(input.date),
+    start: input.start,
+    end: input.end,
+    minutes: input.minutes,
+    wakeStars: input.wakeStars,
+    focusDeltaPt: input.focusDeltaPt,
+  };
+
+  naps.unshift(nap);
+  return nap;
 }
 
 function average(values: number[]): number {

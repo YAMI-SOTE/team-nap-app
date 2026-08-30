@@ -1,13 +1,11 @@
 import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
 import type { Member, MemberStatus } from "../types/domain.js";
+import { getNextFreeSlot } from "./schedule.service.js";
 
 type HomeSnapshot = {
   headline: [string, string];
   teamScore: number;
   aiAdvice: string;
-  nextFreeStart: string;
-  nextFreeEnd: string;
-  availableMemberCount: number;
   members: Member[];
 };
 
@@ -38,9 +36,6 @@ const homeSnapshot: HomeSnapshot = {
   headline: ["今日のチームは", "いい調子です"],
   teamScore: 20,
   aiAdvice: "AIアドバイスを表示する場所",
-  nextFreeStart: "14:30",
-  nextFreeEnd: "15:00",
-  availableMemberCount: 5,
   members: [
     { id: "a", label: "A", status: "offline" },
     { id: "b", label: "B", status: "working" },
@@ -48,11 +43,14 @@ const homeSnapshot: HomeSnapshot = {
     { id: "d", label: "D", status: "working" },
     { id: "e", label: "E", status: "offline" },
     { id: "f", label: "F", status: "working" },
+    { id: "g", label: "G", status: "resting" },
+    { id: "h", label: "H", status: "working" },
   ],
 };
 
 export function getHomeSummary(): HomeSummaryResponse {
-  const untilStart = timeUntil(homeSnapshot.nextFreeStart, new Date());
+  const freeSlot = getNextFreeSlot();
+  const untilStart = timeUntil(freeSlot.start, new Date());
 
   return {
     todayLabel: jstTodayLabel(new Date()),
@@ -61,11 +59,11 @@ export function getHomeSummary(): HomeSummaryResponse {
     aiAdvice: homeSnapshot.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
     nextFree: {
-      start: homeSnapshot.nextFreeStart,
-      end: homeSnapshot.nextFreeEnd,
+      start: freeSlot.start,
+      end: freeSlot.end,
       hoursUntilStart: untilStart.hours,
       minutesUntilStartRemainder: untilStart.minutes,
-      availableMemberCount: homeSnapshot.availableMemberCount,
+      availableMemberCount: freeSlot.availableMemberCount,
     },
   };
 }
@@ -78,9 +76,7 @@ export function getHomeMemberStatus(): HomeMemberStatusResponse {
   };
 }
 
-function countMemberStatuses(
-  members: Member[],
-): Record<MemberStatus, number> {
+function countMemberStatuses(members: Member[]): Record<MemberStatus, number> {
   return members.reduce<Record<MemberStatus, number>>(
     (counts, member) => {
       counts[member.status] += 1;

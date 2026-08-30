@@ -48,7 +48,8 @@ export default function ScheduleScreen() {
           <DatePicker
             selectedDate={selectedDate}
             onChangeDate={setSelectedDate}
-            eventDays={data?.weekEventDays ?? []}
+            eventCounts={data?.weekEventCounts ?? {}}
+            napDays={data?.weekNapDays ?? []}
           />
 
           {data?.freeSlot ? (

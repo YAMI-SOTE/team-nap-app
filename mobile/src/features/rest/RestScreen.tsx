@@ -11,6 +11,8 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
+import { createNap } from "@/services/naps";
+import { toClockTime, toISODate } from "@/utils/date";
 
 const { width } = Dimensions.get("window");
 
@@ -25,6 +27,44 @@ export default function RestScreen() {
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordedRef = useRef(false);
+  const prevTimeLeftRef = useRef(INITIAL_TIME);
+
+  /**
+   * Record the finished nap. Best-effort: the backend keeps only one nap
+   * per day, so a repeat (409) or an offline error is logged, not shown.
+   */
+  const recordNap = (elapsedSeconds: number) => {
+    if (recordedRef.current) return;
+    const minutes = Math.round(elapsedSeconds / 60);
+    if (minutes < 1) return;
+
+    recordedRef.current = true;
+    const now = new Date();
+    const startedAt = new Date(now.getTime() - elapsedSeconds * 1000);
+
+    createNap({
+      date: toISODate(now),
+      start: toClockTime(startedAt),
+      end: toClockTime(now),
+      minutes,
+    }).catch((err) => {
+      recordedRef.current = false;
+      console.log(
+        "nap not recorded (already logged today or offline):",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  };
+
+  // Record when the countdown reaches zero on its own (終了 records itself).
+  useEffect(() => {
+    const prev = prevTimeLeftRef.current;
+    prevTimeLeftRef.current = timeLeft;
+    if (timeLeft === 0 && prev > 0 && prev <= 2) {
+      recordNap(INITIAL_TIME);
+    }
+  }, [timeLeft]);
 
   useEffect(() => {
     if (isActive) {
@@ -61,12 +101,15 @@ export default function RestScreen() {
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
+    recordedRef.current = false;
+    prevTimeLeftRef.current = INITIAL_TIME;
   };
 
   const handleEnd = () => {
     setIsActive(false);
+    recordNap(INITIAL_TIME - timeLeft);
     setTimeLeft(0);
-    // TODO: 終了時に仮眠の記録・サマリー画面へ遷移する処理をここに実装する。
+    // TODO: 終了時に仮眠のサマリー画面へ遷移する処理をここに実装する。
   };
 
   const playPauseLabel = isActive
