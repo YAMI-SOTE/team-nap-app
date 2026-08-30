@@ -258,6 +258,8 @@ docker compose down
 - [docs/setup.md](docs/setup.md)
 - [docs/ai-development.md](docs/ai-development.md)
 - [docs/db.md](docs/db.md)
+- [docs/team-feature.ja.md](docs/team-feature.ja.md) — チーム機能のバックエンド実装
+- [docs/settings-architecture.md](docs/settings-architecture.md)
 
 ---
 
@@ -294,15 +296,23 @@ Migration作成:
 npx prisma migrate dev --name <migration-name>
 ```
 
-例:
+`backend/package.json` には npm script も用意しています。
 
 ```bash
-npx prisma migrate dev --name init
+npm run db:generate   # prisma generate
+npm run db:migrate     # prisma migrate dev
+npm run db:seed        # 開発ユーザー + チーム(NAP-4821) を投入
+npm run db:reset       # DB 作り直し + シード
+npm run db:studio      # GUI で閲覧
 ```
 
 `prisma/migrations/` はGitにcommitしてください。
-
 Migrationはチーム全体で同じDatabase Schemaを再現するために必要です。
+Compose / 本番では `npm start` が起動時に `prisma migrate deploy` を実行します。
+
+現在のモデルは `User` / `Team` / `TeamMembership` の3つです（詳細は
+[docs/db.md](docs/db.md)、チーム機能のバックエンド設計は
+[docs/team-feature.ja.md](docs/team-feature.ja.md)）。
 
 ---
 
@@ -320,7 +330,7 @@ src/
 ├── routes/         <feature>.routes.ts — パス + validate() + コントローラ接続
 │   └── index.ts    全ルーターを /api/v1 にマウント
 ├── controllers/    HTTP の入出力のみ。ロジックは持たない
-├── services/       （現在はモックの）データとドメインロジック
+├── services/       ドメインロジック（チーム系は Prisma で永続化、その他は一部インメモリ）
 ├── schemas/        zod のリクエストスキーマ
 ├── middleware/     エラーハンドラ / 404 / validate / リクエストログ
 ├── lib/            フレームワーク非依存のヘルパー（http-error, params, datetime）
@@ -336,7 +346,7 @@ Controller                                  ← <動詞><名詞>Controller
   ↓
 Service
   ↓
-（将来）Prisma / LLM
+Prisma（PostgreSQL）/ LLM
 ```
 
 エラーはどこからでも `HttpError` を throw し、`errorHandler` が
