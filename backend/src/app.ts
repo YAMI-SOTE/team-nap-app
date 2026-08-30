@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import apiRouter from "./routes/index.js";
+import { apiFlowLogger } from "./middleware/api-flow.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { notFound } from "./middleware/not-found.middleware.js";
 import { requestLogger } from "./middleware/request-logger.middleware.js";
@@ -10,6 +11,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(apiFlowLogger);
 app.use(requestLogger);
 
 app.get("/", (_req, res) => {

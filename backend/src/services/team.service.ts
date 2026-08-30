@@ -2,6 +2,7 @@ import type { MemberActivity } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
+import { step } from "../lib/api-flow.js";
 import { addNotification } from "./notifications.service.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
@@ -157,6 +158,7 @@ export async function createTeam(
   userId: string,
   name: string,
 ): Promise<TeamSettingsResponse> {
+  step("service", "team.createTeam", { name });
   if (await hasTeam(userId)) {
     throw HttpError.conflict("You already belong to a team");
   }
@@ -176,6 +178,7 @@ export async function joinTeam(
   userId: string,
   inviteCode: string,
 ): Promise<TeamSettingsResponse> {
+  step("service", "team.joinTeam", { inviteCode });
   if (await hasTeam(userId)) {
     throw HttpError.conflict("You already belong to a team");
   }

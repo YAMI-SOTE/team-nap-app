@@ -1,5 +1,54 @@
 # セットアップ
 
+## 最短セットアップ
+
+いちばん簡単な起動手順はこれです。
+
+### 1. Repository root で Backend / DB / Ollama を起動
+
+```bash
+docker compose up --build
+```
+
+初回はイメージ build と Ollama モデル取得があるため少し時間がかかります。
+
+### 2. 別ターミナルで Frontend を起動
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+`mobile/.env` は以下を使います。
+
+```env
+EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
+```
+
+### 3. 必要なら開発データを投入
+
+別ターミナルで Repository root に戻って実行します。
+
+```bash
+docker compose exec backend npm run db:seed
+```
+
+これで開発ユーザーとチーム `TEAM NAP 開発チーム`（招待コード `NAP-4821`）が入ります。
+
+### 4. 動作確認
+
+Backend:
+
+```bash
+curl http://localhost:3000/api/v1/health
+```
+
+Frontend:
+
+- Expo ターミナルが起動し、QR code / iOS / Android / web の選択肢が表示されればOKです。
+- アプリ起動後、Expo 側に `[frontend] Frontend boot confirmed ...` が出て、Backend 側に `[frontend-boot] ...` が出れば疎通できています。
+
 ## 前提
 
 - Repository root で `docker compose up --build` を実行すると、Backend / PostgreSQL / Ollama が起動します。
@@ -64,8 +113,11 @@ docker compose exec backend npm run db:seed
 `mobile/` で実行します。
 
 ```bash
-npm start
+npm install
+npx expo start
 ```
+
+依存関係インストール済みなら `npx expo start` だけで構いません。
 
 ## 起動手順（Backend をローカルで動かす場合）
 

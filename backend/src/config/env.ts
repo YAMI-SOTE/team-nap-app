@@ -28,6 +28,16 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("00000000-0000-0000-0000-000000000001"),
+
+  // API-flow debug tracer (src/lib/api-flow.ts). Off by default; set to
+  // "1" or "true" to log a per-request layer-by-layer trace.
+  DEBUG_API_FLOW: z
+    .string()
+    .default("false")
+    .transform((v) => v === "1" || v.toLowerCase() === "true"),
+  // Optional substring filter for the tracer, e.g. "/teams" to trace only
+  // team routes. Empty = trace every route.
+  DEBUG_API_FLOW_SCOPE: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

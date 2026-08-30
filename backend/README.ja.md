@@ -50,6 +50,8 @@ Prisma 7 + PostgreSQL。接続はドライバアダプタ `@prisma/adapter-pg` �
 | `HOST`         |      | `0.0.0.0`                           |                                 |
 | `OLLAMA_URL`   |      | `http://localhost:11434`            | AI コメント生成用                  |
 | `OLLAMA_MODEL` |      | `gemma4:e2b`                        | ⚠️ タグが正しいか要確認            |
+| `DEBUG_API_FLOW` |    | `false`                            | `1`/`true` でリクエストごとの API フロートレースを出力（後述） |
+| `DEBUG_API_FLOW_SCOPE` | | –                              | URL の部分一致フィルタ（例 `/teams`） |
 
 不正な環境変数がある場合、サーバーは起動時にエラー内容を出力して終了します。
 
@@ -66,10 +68,11 @@ src/
   controllers/         <feature>.controller.ts — HTTP の入出力のみ。ロジックは持たない
   services/            <feature>.service.ts — ドメインロジック（DB化済み or インメモリ）
   schemas/             <feature>.schema.ts — zod のリクエストスキーマ
-  middleware/          *.middleware.ts — エラーハンドラ / 404 / validate / リクエストログ
+  middleware/          *.middleware.ts — api-flow / エラーハンドラ / 404 / validate / リクエストログ
   lib/
-    prisma.ts          共有 Prisma Client（driver adapter で初期化）
+    prisma.ts          共有 Prisma Client（driver adapter で初期化）+ api-flow の db フック
     request-user.ts    currentUserId(req) — X-User-Id ヘッダ or DEV_USER_ID
+    api-flow.ts        リクエストごとのフロートレーサー（step / traced / render）
     http-error.ts, params.ts, datetime.ts
   types/               共有ドメイン型（domain.ts）
 prisma/
@@ -101,6 +104,49 @@ prisma.config.ts       Prisma CLI 設定（schema / migrations / seed / datasour
 3. `controllers/<feature>.controller.ts` — 薄いハンドラ。
 4. `routes/<feature>.routes.ts` — `router.<method>(path, validate({...}), controller)`。
 5. 新 feature の場合は `routes/index.ts` にルーターをマウント。
+
+## デバッグ: API フロートレース
+
+`DEBUG_API_FLOW=1` でリクエストごとのトレーサーが有効になります
+（`src/lib/api-flow.ts` + `middleware/api-flow.middleware.ts`）。
+各リクエストについて、通過したレイヤーと所要時間を1ブロックで出力します。
+
+```
+API-flow 79c9b104  POST /api/v1/teams
+  +0ms    [http] request in  body={"name":"Dev Team"}
+  +0ms    [validate] ok  checked=body
+  +1ms    [service] team.createTeam  name=Dev Team
+  +2ms    [db] TeamMembership.count  ms=1
+  +4ms    [db] Team.create  ms=6
+  +12ms   [http] response out  status=201
+API-flow 79c9b104  201 in 12ms  route=POST /api/v1/teams/  steps=6
+```
+
+- **自動**で記録されるステップ: `http`（in/out）、`validate`（ok/failed）、
+  `db`（Prisma の全クエリ。`$extends` フック経由）、`error`
+  （`errorHandler` から）。マッチしたルートはフッターに出ます。
+- **手動**ステップ: コントローラ / サービスから
+  `step("service", "team.joinTeam", { … })` または
+  `await traced("service", "x", () => …)` を呼ぶと詳細を足せます。
+  どちらもトレース OFF 時は no-op です。`team.service.ts` に
+  実例（`createTeam` / `joinTeam`）があります。
+
+### ビューを分ける
+
+1ブロック = 1リクエストで、各行にレイヤー名のタグが付きます。
+特定のレイヤーや機能だけを見たい場合:
+
+| やりたいこと | 方法 |
+| --- | --- |
+| チームのルートだけ | `DEBUG_API_FLOW_SCOPE=/teams`（URL の部分一致） |
+| DB レイヤーだけ | `... \| grep '\[db\]'` |
+| 失敗したリクエストだけ | `... \| grep -E 'steps=\|(\[error\])'` |
+| 1リクエストを端から端まで | `grep <id>`（8文字の id が同ブロックの全行に付く） |
+| 短い1行ログも併用 | `requestLogger` が `METHOD url status ms` を別途出力 |
+
+`requestLogger` と `apiFlowLogger` は別ミドルウェアです。短いログは常に
+出力され（`NODE_ENV=test` を除く）、フロートレースは `DEBUG_API_FLOW`
+指定時のみ動きます。
 
 ## スキーマ変更（DB）
 

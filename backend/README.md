@@ -49,6 +49,8 @@ Read and validated once in `src/config/env.ts` (zod). Copy
 | `HOST`         |          | `0.0.0.0`                |                                |
 | `OLLAMA_URL`   |          | `http://localhost:11434` | AI comment generation          |
 | `OLLAMA_MODEL` |          | `gemma4:e2b`             | ⚠️ verify this tag             |
+| `DEBUG_API_FLOW` |        | `false`                 | `1`/`true` → per-request API-flow trace (see below) |
+| `DEBUG_API_FLOW_SCOPE` |  | –                       | substring filter, e.g. `/teams` |
 
 Invalid env → the server prints the problem and exits on startup.
 
@@ -65,10 +67,11 @@ src/
   controllers/         <feature>.controller.ts — HTTP in/out only, no business logic
   services/            <feature>.service.ts — domain logic (DB-backed or in-memory)
   schemas/             <feature>.schema.ts — zod request schemas
-  middleware/          *.middleware.ts — error handler, 404, validate, request log
+  middleware/          *.middleware.ts — api-flow, error handler, 404, validate, request log
   lib/
-    prisma.ts          shared Prisma client (driver adapter)
+    prisma.ts          shared Prisma client (driver adapter) + api-flow db hook
     request-user.ts    currentUserId(req) — X-User-Id header or DEV_USER_ID
+    api-flow.ts        per-request flow tracer (step / traced / render)
     http-error.ts, params.ts, datetime.ts
   types/               shared domain types (domain.ts)
 prisma/
@@ -97,6 +100,48 @@ prisma.config.ts       Prisma CLI config (schema / migrations / seed / datasourc
 3. `controllers/<feature>.controller.ts` — thin handler.
 4. `routes/<feature>.routes.ts` — `router.<method>(path, validate({...}), controller)`.
 5. Mount the router in `routes/index.ts` (new feature only).
+
+## Debugging: API flow trace
+
+`DEBUG_API_FLOW=1` turns on a per-request tracer (`src/lib/api-flow.ts` +
+`middleware/api-flow.middleware.ts`). For every request it prints one
+block showing the layers it passed through and where the time went:
+
+```
+API-flow 79c9b104  POST /api/v1/teams
+  +0ms    [http] request in  body={"name":"Dev Team"}
+  +0ms    [validate] ok  checked=body
+  +1ms    [service] team.createTeam  name=Dev Team
+  +2ms    [db] TeamMembership.count  ms=1
+  +4ms    [db] Team.create  ms=6
+  +12ms   [http] response out  status=201
+API-flow 79c9b104  201 in 12ms  route=POST /api/v1/teams/  steps=6
+```
+
+- **Automatic** steps: `http` (in/out), `validate` (ok/failed), `db`
+  (every Prisma query, via a `$extends` hook), `error` (from
+  `errorHandler`), plus the matched `route` in the footer.
+- **Manual** steps: call `step("service", "team.joinTeam", { … })` or
+  `await traced("service", "x", () => …)` from a controller/service to add
+  detail. Both are no-ops when tracing is off. `team.service.ts` has two
+  worked examples (`createTeam`, `joinTeam`).
+
+### Separating the views
+
+The block is one request; each line is tagged with its layer. To look at
+one layer or one feature in isolation:
+
+| Want | How |
+| --- | --- |
+| Only team routes | `DEBUG_API_FLOW_SCOPE=/teams` (substring match on the URL) |
+| Only the DB layer | `... | grep '\[db\]'` |
+| Only failed requests | `... | grep -E 'steps=|(\[error\])'` |
+| A single request end-to-end | `grep <id>` — the 8-char id is on every line of its block |
+| Keep the terse one-liner too | `requestLogger` still logs `METHOD url status ms` independently |
+
+`requestLogger` and `apiFlowLogger` are separate middleware — the terse
+log always runs (except under `NODE_ENV=test`); the flow trace only runs
+when `DEBUG_API_FLOW` is set.
 
 ## Database changes
 

@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 
 import { HttpError } from "../lib/http-error.js";
+import { step } from "../lib/api-flow.js";
 
 /**
  * Terminal error handler. `HttpError`s become `{ error }` (plus optional
@@ -9,6 +10,7 @@ import { HttpError } from "../lib/http-error.js";
  */
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof HttpError) {
+    step("error", `HttpError ${err.status}`, { message: err.message });
     res.status(err.status).json({
       error: err.message,
       ...(err.details !== undefined ? { details: err.details } : {}),
@@ -16,6 +18,9 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  step("error", "unhandled", {
+    message: err instanceof Error ? err.message : String(err),
+  });
   console.error(err);
   res.status(500).json({ error: "Internal Server Error" });
 };
