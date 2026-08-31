@@ -16,21 +16,30 @@ Team-related services are DB-backed: `team.service`, `member.service`,
 (`settings`, `schedule`, `notifications`, `naps`, and the team
 summary/ranking snapshots) is still in-memory state in `src/services/*`.
 
-## Authentication
+## Authentication & sessions
 
-`POST /api/v1/auth/signup` and `POST /api/v1/auth/login` create a user
-(scrypt-hashed password, `src/lib/password.ts`) and issue an opaque
-bearer token backed by a `Session` row (`src/services/session.service.ts`).
-Only the token's SHA-256 hash is stored. Response shape:
-`{ token, user: { id, name, email } }`.
+Sign-up / login create a user (scrypt-hashed password, `src/lib/password.ts`)
+and issue an **opaque bearer token** backed by a `Session` row
+(`src/services/session.service.ts`) — only the token's SHA-256 hash is
+stored. Sessions expire after `SESSION_TTL_HOURS` and can be revoked.
 
-| Method / path | Body | Notes |
+| Method / path | Auth | Body / notes |
 | --- | --- | --- |
-| `POST /api/v1/auth/signup` | `{ name, email, password }` | 201; `password` ≥ 8 chars; 409 if the email is taken |
-| `POST /api/v1/auth/login` | `{ email, password }` | 200; 401 on bad email/password (same message either way) |
+| `POST /auth/signup` | – | `{ name, email, password }` → 201 `{ token, user }`; `password` ≥ 8; 409 if email taken |
+| `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
+| `GET /auth/me` | Bearer | `{ user: { id, name, email } }` |
+| `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
+| `DELETE /auth/sessions/:id` | Bearer | revoke one session → 204 (404 if not yours/active) |
+| `POST /auth/logout` | Bearer | revoke the current session → 204 |
+| `POST /auth/logout-others` | Bearer | revoke every *other* session → `{ revoked }` |
 
-Other routes still resolve the caller via the `X-User-Id` header /
-`env.DEV_USER_ID` (`src/lib/request-user.ts`).
+To require a session on a route, mount `authenticate`
+(`src/middleware/authenticate.middleware.ts`): it resolves
+`Authorization: Bearer <token>` and sets `req.auth = { userId, sessionId }`.
+In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
+(`src/lib/request-user.ts`). `currentUserId(req)` returns `req.auth.userId`
+when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
+for routes not yet moved onto sessions.
 
 ## Scripts
 
@@ -81,15 +90,16 @@ src/
   controllers/         <feature>.controller.ts — HTTP in/out only, no business logic
   services/            <feature>.service.ts — domain logic (DB-backed or in-memory)
   schemas/             <feature>.schema.ts — zod request schemas
-  middleware/          *.middleware.ts — api-flow, error handler, 404, validate, request log
+  middleware/          *.middleware.ts — api-flow, authenticate, error handler, 404, validate, request log
   lib/
     prisma.ts          shared Prisma client (driver adapter) + api-flow db hook
-    request-user.ts    currentUserId(req) — X-User-Id header or DEV_USER_ID
+    request-user.ts    currentUserId / requireUserId / requireSessionId
+    password.ts        scrypt hash/verify;  tokens.ts  bearer token gen/hash/parse
     api-flow.ts        per-request flow tracer (step / traced / render)
     http-error.ts, params.ts, datetime.ts
-  types/               shared domain types (domain.ts)
+  types/               shared domain types (domain.ts); express.d.ts augments req.auth
 prisma/
-  schema.prisma        User / Team / TeamMembership + MemberActivity enum
+  schema.prisma        User / Session / Team / TeamMembership + MemberActivity enum
   seed.ts              dev users + "TEAM NAP 開発チーム" (NAP-4821)
   migrations/          Prisma Migrate output (committed)
 prisma.config.ts       Prisma CLI config (schema / migrations / seed / datasource)

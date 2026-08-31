@@ -13,3 +13,7 @@ export const loginBody = z.object({
   email,
   password: z.string().min(1, "password is required").max(200),
 });
+
+export const sessionIdParams = z.object({
+  id: z.string().uuid(),
+});

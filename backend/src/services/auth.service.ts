@@ -62,6 +62,14 @@ export async function signUp(
   return { token, user: toPublicUser(user) };
 }
 
+export async function getPublicUser(userId: string): Promise<PublicUser> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw HttpError.unauthorized("Account no longer exists");
+  }
+  return toPublicUser(user);
+}
+
 export async function login(
   input: { email: string; password: string },
   userAgent?: string | null,

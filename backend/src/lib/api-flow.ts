@@ -18,6 +18,7 @@ import { env } from "../config/env.js";
 
 export type FlowLayer =
   | "http" // request in / response out
+  | "auth" // authenticate middleware — session resolved
   | "validate" // zod route guard
   | "controller" // manual: handler entry
   | "service" // manual: domain logic
