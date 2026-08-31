@@ -22,12 +22,15 @@ const envSchema = z.object({
   // Postgres connection string for Prisma.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  // Caller identity fallback when a request omits the `X-User-Id` header
-  // (there is no auth yet). Matches the user created by `prisma/seed.ts`.
+  // Caller identity fallback for routes that are not behind `authenticate`
+  // and receive no `X-User-Id` header. Matches `prisma/seed.ts`.
   DEV_USER_ID: z
     .string()
     .min(1)
     .default("00000000-0000-0000-0000-000000000001"),
+
+  // Lifetime of an issued session token, in hours (default 30 days).
+  SESSION_TTL_HOURS: z.coerce.number().int().positive().default(720),
 
   // API-flow debug tracer (src/lib/api-flow.ts). Off by default; set to
   // "1" or "true" to log a per-request layer-by-layer trace.

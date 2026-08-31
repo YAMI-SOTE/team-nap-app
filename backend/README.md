@@ -8,7 +8,7 @@ Express + TypeScript API server for the Team Nap app.
 
 Prisma 7 + PostgreSQL, connected through the `@prisma/adapter-pg` driver
 adapter (`src/lib/prisma.ts`). Persisted models: **`User`, `Team`,
-`TeamMembership`** (see `prisma/schema.prisma` and
+`TeamMembership`, `Session`** (see `prisma/schema.prisma` and
 [../docs/db.md](../docs/db.md)).
 
 Team-related services are DB-backed: `team.service`, `member.service`,
@@ -16,8 +16,21 @@ Team-related services are DB-backed: `team.service`, `member.service`,
 (`settings`, `schedule`, `notifications`, `naps`, and the team
 summary/ranking snapshots) is still in-memory state in `src/services/*`.
 
-There is no auth yet — the acting user is the `X-User-Id` header, or
-`env.DEV_USER_ID` when it is absent (`src/lib/request-user.ts`).
+## Authentication
+
+`POST /api/v1/auth/signup` and `POST /api/v1/auth/login` create a user
+(scrypt-hashed password, `src/lib/password.ts`) and issue an opaque
+bearer token backed by a `Session` row (`src/services/session.service.ts`).
+Only the token's SHA-256 hash is stored. Response shape:
+`{ token, user: { id, name, email } }`.
+
+| Method / path | Body | Notes |
+| --- | --- | --- |
+| `POST /api/v1/auth/signup` | `{ name, email, password }` | 201; `password` ≥ 8 chars; 409 if the email is taken |
+| `POST /api/v1/auth/login` | `{ email, password }` | 200; 401 on bad email/password (same message either way) |
+
+Other routes still resolve the caller via the `X-User-Id` header /
+`env.DEV_USER_ID` (`src/lib/request-user.ts`).
 
 ## Scripts
 
@@ -44,6 +57,7 @@ Read and validated once in `src/config/env.ts` (zod). Copy
 | -------------- | -------- | ------------------------ | ------------------------------ |
 | `DATABASE_URL` | yes      | –                        | Prisma connection string. Host is `db` inside Compose, `localhost` locally |
 | `DEV_USER_ID`  |          | `00000000-0000-0000-0000-000000000001` | Caller identity when `X-User-Id` is missing; matches `prisma/seed.ts` |
+| `SESSION_TTL_HOURS` |     | `720`                   | Lifetime of an issued session token (30 days) |
 | `NODE_ENV`     |          | `development`            | `development \| production \| test` |
 | `PORT`         |          | `3000`                   |                                |
 | `HOST`         |          | `0.0.0.0`                |                                |

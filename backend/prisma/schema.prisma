@@ -12,11 +12,32 @@ datasource db {
 }
 
 model User {
-  id          String           @id @default(uuid())
-  email       String           @unique
-  name        String?
-  createdAt   DateTime         @default(now())
-  memberships TeamMembership[]
+  id           String           @id @default(uuid())
+  email        String           @unique
+  name         String?
+  // scrypt hash ("scrypt$<saltHex>$<hashHex>"). Null for users created by
+  // the seed / legacy `ensureUser` path or a future OAuth-only sign-in.
+  passwordHash String?
+  createdAt    DateTime         @default(now())
+  memberships  TeamMembership[]
+  sessions     Session[]
+}
+
+/// An issued bearer token. The raw token is returned to the client once;
+/// only its SHA-256 hash is stored. Sessions expire (`expiresAt`) and can
+/// be revoked (`revokedAt`) — see src/services/session.service.ts.
+model Session {
+  id         String    @id @default(uuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model Team {
