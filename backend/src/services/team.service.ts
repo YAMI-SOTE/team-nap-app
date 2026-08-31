@@ -92,6 +92,11 @@ async function uniqueInviteCode(): Promise<string> {
   throw new HttpError(500, "Could not allocate an invite code");
 }
 
+/**
+ * Team routes run behind `authenticate`, so the caller is normally a real
+ * `User` already. This stays as a safety net for the legacy `X-User-Id`
+ * path (other feature routes) and is a no-op for an existing user.
+ */
 async function ensureUser(userId: string) {
   return prisma.user.upsert({
     where: { id: userId },

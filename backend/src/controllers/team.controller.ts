@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type { MemberActivity } from "@prisma/client";
 
 import { firstParam } from "../lib/params.js";
-import { currentUserId } from "../lib/request-user.js";
+import { requireUserId } from "../lib/request-user.js";
 import {
   createTeam,
   getMyStatus,
@@ -15,40 +15,40 @@ import {
 import { sendNudge } from "../services/nudge.service.js";
 
 export async function getTeamSummaryController(req: Request, res: Response) {
-  res.status(200).json(await getTeamSummary(currentUserId(req)));
+  res.status(200).json(await getTeamSummary(requireUserId(req)));
 }
 
 export async function getTeamRankingController(req: Request, res: Response) {
-  res.status(200).json(await getTeamRanking(currentUserId(req)));
+  res.status(200).json(await getTeamRanking(requireUserId(req)));
 }
 
 export async function createTeamController(req: Request, res: Response) {
   const { name } = req.body as { name: string };
-  res.status(201).json(await createTeam(currentUserId(req), name));
+  res.status(201).json(await createTeam(requireUserId(req), name));
 }
 
 export async function joinTeamController(req: Request, res: Response) {
   const { inviteCode } = req.body as { inviteCode: string };
-  res.status(200).json(await joinTeam(currentUserId(req), inviteCode));
+  res.status(200).json(await joinTeam(requireUserId(req), inviteCode));
 }
 
 export async function renameTeamController(req: Request, res: Response) {
   const { name } = req.body as { name: string };
-  res.status(200).json(await renameTeam(currentUserId(req), name));
+  res.status(200).json(await renameTeam(requireUserId(req), name));
 }
 
 export async function getMyStatusController(req: Request, res: Response) {
-  res.status(200).json(await getMyStatus(currentUserId(req)));
+  res.status(200).json(await getMyStatus(requireUserId(req)));
 }
 
 export async function setStatusController(req: Request, res: Response) {
   const { status } = req.body as { status: MemberActivity };
-  res.status(200).json(await setActivity(currentUserId(req), status));
+  res.status(200).json(await setActivity(requireUserId(req), status));
 }
 
 export async function wakeNudgeController(req: Request, res: Response) {
   const result = await sendNudge(
-    currentUserId(req),
+    requireUserId(req),
     firstParam(req, "id"),
     "wake",
   );
@@ -57,7 +57,7 @@ export async function wakeNudgeController(req: Request, res: Response) {
 
 export async function restNudgeController(req: Request, res: Response) {
   const result = await sendNudge(
-    currentUserId(req),
+    requireUserId(req),
     firstParam(req, "id"),
     "rest",
   );

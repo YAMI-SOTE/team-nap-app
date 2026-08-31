@@ -1,13 +1,13 @@
 import type { Request, Response } from "express";
 
 import { firstParam } from "../lib/params.js";
-import { currentUserId } from "../lib/request-user.js";
+import { requireUserId } from "../lib/request-user.js";
 import { HttpError } from "../lib/http-error.js";
 import { getMemberDetail } from "../services/member.service.js";
 
 export async function getMemberDetailController(req: Request, res: Response) {
   const detail = await getMemberDetail(
-    currentUserId(req),
+    requireUserId(req),
     firstParam(req, "id"),
   );
 

@@ -41,6 +41,13 @@ In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
 when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
 for routes not yet moved onto sessions.
 
+**Behind `authenticate`:** all of `/api/v1/teams/*`, plus
+`/api/v1/settings/team` and `/api/v1/settings/team/leave`. Everything else
+(`home`, `schedule`, `stats`, `naps`, `ai`, the rest of `settings`,
+`notifications`) still uses the `X-User-Id` fallback. `npm run db:seed`
+gives every seeded user the password `teamnap-dev`
+(e.g. `dev@teamnap.local`) so team endpoints can be exercised in dev.
+
 ## Scripts
 
 | Command              | What it does                                        |

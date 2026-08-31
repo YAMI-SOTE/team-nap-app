@@ -3,12 +3,17 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
+import { hashPassword } from "../src/lib/password.js";
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
 const DEV_USER_ID =
   process.env.DEV_USER_ID ?? "00000000-0000-0000-0000-000000000001";
+
+// Every seeded account logs in with this password (dev only).
+const DEV_PASSWORD = "teamnap-dev";
 
 const USERS = [
   { id: DEV_USER_ID, email: "dev@teamnap.local", name: "あなた" },
@@ -29,11 +34,12 @@ const MEMBERSHIPS = [
 ];
 
 async function main() {
+  const passwordHash = await hashPassword(DEV_PASSWORD);
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { id: u.id },
-      update: { email: u.email, name: u.name },
-      create: u,
+      update: { email: u.email, name: u.name, passwordHash },
+      create: { ...u, passwordHash },
     });
   }
 
@@ -57,6 +63,9 @@ async function main() {
 
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
+  );
+  console.log(
+    `Login: ${USERS[0].email} / ${DEV_PASSWORD} (same password for every seeded user).`,
   );
 }
 

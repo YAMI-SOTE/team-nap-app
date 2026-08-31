@@ -14,6 +14,7 @@ import {
   updateNotificationSettingsController,
   updateSleepScheduleController,
 } from "../controllers/settings.controller.js";
+import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
   accountSettingsBody,
@@ -52,7 +53,8 @@ router.post(
 );
 router.post("/calendar/device/connect", connectDeviceCalendarController);
 
-router.get("/team", getTeamSettingsController);
-router.post("/team/leave", leaveTeamController);
+// Team settings act on the caller's membership — session required.
+router.get("/team", authenticate, getTeamSettingsController);
+router.post("/team/leave", authenticate, leaveTeamController);
 
 export default router;
