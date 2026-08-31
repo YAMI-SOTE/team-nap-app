@@ -64,7 +64,10 @@ export default function TeamInviteScreen() {
       <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.content}>
-          <CharacterSlot size={130} />
+          <CharacterSlot
+            size={130}
+            source={require("../../../assets/characters/celebration.png")}
+          />
 
           <View style={styles.head}>
             <Text style={styles.title}>チームができました！</Text>

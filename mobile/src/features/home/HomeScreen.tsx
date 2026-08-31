@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -54,7 +55,11 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
@@ -72,7 +77,10 @@ export default function HomeScreen() {
                   {(summary?.headline ?? ["今日のチームは", "確認中です"]).join("\n")}
                 </Text>
               </View>
-              <CharacterSlot size={84} />
+              <CharacterSlot
+                size={84}
+                source={require("../../../assets/characters/genki.png")}
+              />
             </View>
           </View>
 
@@ -156,7 +164,7 @@ export default function HomeScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -188,8 +196,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     paddingTop: 16,
     paddingHorizontal: SCREEN_PADDING,
     paddingBottom: 12,

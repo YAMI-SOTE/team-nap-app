@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import {
+  Image,
+  type ImageSourcePropType,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -13,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
+import AuroraBackdrop from "@/components/AuroraBackdrop";
 import PillButton from "@/components/PillButton";
 
 type Slide = {
@@ -21,6 +24,7 @@ type Slide = {
   body: string;
   primaryLabel: string;
   showSkip: boolean;
+  illustration: ImageSourcePropType;
 };
 
 const SLIDES: Slide[] = [
@@ -30,6 +34,7 @@ const SLIDES: Slide[] = [
     body: "休みたいけど…\n自分だけ寝るのも、ちょっと気まずい。\n\nTEAM NAPは、\nみんなで休みやすい時間を見つけます。",
     primaryLabel: "つぎへ",
     showSkip: false,
+    illustration: require("../../../assets/onboarding/teamnap-01.png"),
   },
   {
     key: "sleep-rhythm",
@@ -37,6 +42,7 @@ const SLIDES: Slide[] = [
     body: "夜の睡眠を邪魔しないように、\nいつ寝ているか教えてね。",
     primaryLabel: "つぎへ",
     showSkip: true,
+    illustration: require("../../../assets/onboarding/teamnap-02.png"),
   },
   {
     key: "calendar",
@@ -44,6 +50,7 @@ const SLIDES: Slide[] = [
     body: "カレンダーを連携すると、\nみんなが休める時間を見つけられます。",
     primaryLabel: "カレンダーを連携する",
     showSkip: true,
+    illustration: require("../../../assets/onboarding/teamnap-04.png"),
   },
   {
     key: "notification",
@@ -51,6 +58,7 @@ const SLIDES: Slide[] = [
     body: "仮眠が終わる時間や\nチームからの仮眠提案をお知らせします。",
     primaryLabel: "通知をオンにする",
     showSkip: true,
+    illustration: require("../../../assets/onboarding/teamnap-03.png"),
   },
 ];
 
@@ -116,7 +124,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]} onLayout={handleLayout}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]} onLayout={handleLayout}>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -129,10 +137,21 @@ export default function OnboardingScreen() {
         {containerWidth === 0
           ? null
           : SLIDES.map((slide) => (
-          <View key={slide.key} style={[styles.slide, { width: containerWidth }]}>
-            {/* イラスト用プレースホルダー。
-                TODO: 各スライドの挿絵アセットが用意でき次第、Imageに差し替える。 */}
-            <View style={styles.illustrationPlaceholder} />
+          <ScrollView
+            key={slide.key}
+            style={{ width: containerWidth, flex: 1 }}
+            contentContainerStyle={styles.slide}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            <View style={styles.illustrationWrap}>
+              <AuroraBackdrop />
+              <Image
+                source={slide.illustration}
+                style={styles.illustrationImage}
+                resizeMode="contain"
+              />
+            </View>
 
             <View style={styles.textBlock}>
               <Text style={styles.title}>{slide.title}</Text>
@@ -155,7 +174,7 @@ export default function OnboardingScreen() {
                 </View>
               ) : null}
             </View>
-          </View>
+          </ScrollView>
         ))}
       </ScrollView>
 
@@ -247,15 +266,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slide: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 28,
     paddingTop: 24,
   },
-  illustrationPlaceholder: {
-    height: 180,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSunken,
+  illustrationWrap: {
+    height: 200,
     marginBottom: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  illustrationImage: {
+    width: "70%",
+    height: "100%",
   },
   textBlock: {
     gap: 12,

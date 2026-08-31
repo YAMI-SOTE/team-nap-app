@@ -141,7 +141,11 @@ export default function TeamScreen() {
             style={styles.suggestionCard}
           >
             <View style={styles.suggestionRow}>
-              <CharacterSlot size={96} borderColor={colors.white} />
+              <CharacterSlot
+                size={96}
+                borderColor={colors.white}
+                source={require("../../../assets/characters/kirakira.png")}
+              />
               <View style={styles.suggestionTextCol}>
                 <Text style={styles.suggestionTitle}>{suggestionHeadline}</Text>
                 <Text style={styles.suggestionBody}>

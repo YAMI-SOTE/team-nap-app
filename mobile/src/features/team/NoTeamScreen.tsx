@@ -28,7 +28,10 @@ export default function NoTeamScreen() {
           </View>
 
           <View style={styles.main}>
-            <CharacterSlot size={150} />
+            <CharacterSlot
+              size={150}
+              source={require("../../../assets/characters/plus-team.png")}
+            />
 
             <View style={styles.head}>
               <Text style={styles.title}>まだチームに参加していません</Text>

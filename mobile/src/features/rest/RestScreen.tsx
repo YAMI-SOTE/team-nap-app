@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   LayoutChangeEvent,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -33,30 +34,43 @@ export default function RestScreen() {
   const recordedRef = useRef(false);
   const prevTimeLeftRef = useRef(INITIAL_TIME);
 
+  const buildNapWindow = (elapsedSeconds: number) => {
+    const minutes = Math.round(elapsedSeconds / 60);
+    const now = new Date();
+    const startedAt = new Date(now.getTime() - elapsedSeconds * 1000);
+    return {
+      minutes,
+      date: toISODate(now),
+      start: toClockTime(startedAt),
+      end: toClockTime(now),
+    };
+  };
+
   /**
    * Record the finished nap. Best-effort: the backend keeps only one nap
    * per day, so a repeat (409) or an offline error is logged, not shown.
    */
   const recordNap = (elapsedSeconds: number) => {
     if (recordedRef.current) return;
-    const minutes = Math.round(elapsedSeconds / 60);
+    const { minutes, date, start, end } = buildNapWindow(elapsedSeconds);
     if (minutes < 1) return;
 
     recordedRef.current = true;
-    const now = new Date();
-    const startedAt = new Date(now.getTime() - elapsedSeconds * 1000);
-
-    createNap({
-      date: toISODate(now),
-      start: toClockTime(startedAt),
-      end: toClockTime(now),
-      minutes,
-    }).catch((err) => {
+    createNap({ date, start, end, minutes }).catch((err) => {
       recordedRef.current = false;
       console.log(
         "nap not recorded (already logged today or offline):",
         err instanceof Error ? err.message : err,
       );
+    });
+  };
+
+  // 仮眠のサマリー・評価画面（S02-03_Nap_Rating）へ遷移する。
+  const goToRating = (elapsedSeconds: number) => {
+    const { minutes, start, end } = buildNapWindow(elapsedSeconds);
+    router.replace({
+      pathname: "/naps/rating",
+      params: { minutes: String(minutes), start, end },
     });
   };
 
@@ -66,6 +80,7 @@ export default function RestScreen() {
     prevTimeLeftRef.current = timeLeft;
     if (timeLeft === 0 && prev > 0 && prev <= 2) {
       recordNap(INITIAL_TIME);
+      goToRating(INITIAL_TIME);
     }
   }, [timeLeft]);
 
@@ -129,9 +144,10 @@ export default function RestScreen() {
 
   const handleEnd = () => {
     setIsActive(false);
-    recordNap(INITIAL_TIME - timeLeft);
+    const elapsedSeconds = INITIAL_TIME - timeLeft;
+    recordNap(elapsedSeconds);
     setTimeLeft(0);
-    // TODO: 終了時に仮眠のサマリー画面へ遷移する処理をここに実装する。
+    goToRating(elapsedSeconds);
   };
 
   const playPauseLabel = isActive
@@ -146,7 +162,7 @@ export default function RestScreen() {
           TODO: 実際の挿絵アセットが用意でき次第、containerの背景をImageに差し替える。 */}
       <StatusBar style="light" />
 
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.headerRow}>
           <Pressable
             onPress={() => router.back()}
@@ -161,7 +177,11 @@ export default function RestScreen() {
         </View>
 
         {CARD_SIZE > 0 ? (
-          <View style={styles.body}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.body}
+            showsVerticalScrollIndicator={false}
+          >
             {/* タイマー円（背景に浮かぶ独立した白い丸カード） */}
             <View
               style={[
@@ -233,7 +253,7 @@ export default function RestScreen() {
                 <Text style={styles.buttonLabel}>最初から</Text>
               </Pressable>
             </View>
-          </View>
+          </ScrollView>
         ) : null}
       </SafeAreaView>
     </View>
@@ -246,6 +266,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSunken,
   },
   safeArea: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   headerRow: {
@@ -264,8 +287,9 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   body: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
+    paddingBottom: 24,
   },
   timerCard: {
     marginTop: 160,
