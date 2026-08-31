@@ -1,6 +1,7 @@
 import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
 import type { Member, MemberStatus } from "../types/domain.js";
 import { getNextFreeSlot } from "./schedule.service.js";
+import { generateHomeComments } from "./ai.service.js";
 
 type HomeSnapshot = {
   headline: [string, string];
@@ -32,6 +33,21 @@ export type HomeMemberStatusResponse = {
 
 export const TEAM_SCORE_MAX = 100;
 
+//チームスコア判定ロジック
+type TeamEvaluation = "good" | "normal" | "needs_improvement";
+
+function evaluateTeamScore(teamScore: number): TeamEvaluation {
+  if (teamScore >= 70) {
+    return "good";
+  }
+
+  if (teamScore >= 50) {
+    return "normal";
+  }
+
+  return "needs_improvement";
+}
+
 /** Max member avatars returned for the Home / Team / Stats member rows. */
 const MEMBER_DISPLAY_LIMIT = 6;
 
@@ -51,15 +67,22 @@ const homeSnapshot: HomeSnapshot = {
   ],
 };
 
-export function getHomeSummary(): HomeSummaryResponse {
+export async function getHomeSummary(): Promise<HomeSummaryResponse> {
   const freeSlot = getNextFreeSlot();
   const untilStart = timeUntil(freeSlot.start, new Date());
 
+  const teamEvaluation = evaluateTeamScore(homeSnapshot.teamScore);
+
+  const homeComments = await generateHomeComments({
+    teamScore: homeSnapshot.teamScore,
+    teamEvaluation,
+  });
+
   return {
     todayLabel: jstTodayLabel(new Date()),
-    headline: homeSnapshot.headline,
+    headline: homeComments.headline,
     teamScore: homeSnapshot.teamScore,
-    aiAdvice: homeSnapshot.aiAdvice,
+    aiAdvice: homeComments.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
     nextFree: {
       start: freeSlot.start,
