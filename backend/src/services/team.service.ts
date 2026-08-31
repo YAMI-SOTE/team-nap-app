@@ -1,9 +1,14 @@
+import type { MemberActivity } from "@prisma/client";
+
+import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
+import { step } from "../lib/api-flow.js";
+import { addNotification } from "./notifications.service.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
 // ---------------------------------------------------------------------------
 // Team dashboard (今週の Team Nap) — static snapshot, only meaningful while
-// the user belongs to a team.
+// the user belongs to a team. (Out of scope: making this DB-derived.)
 // ---------------------------------------------------------------------------
 
 type TeamWeeklyBar = {
@@ -49,8 +54,7 @@ const teamSummarySnapshot: TeamSummaryResponse = {
 };
 
 // ---------------------------------------------------------------------------
-// Current team membership. Single source of truth — `settings.service`
-// reads this for the "チーム設定" screen. `null` means the user has not
+// Current team membership — Prisma-backed. `null` means the user has not
 // joined a team yet (Team tab shows the empty state).
 // ---------------------------------------------------------------------------
 
@@ -61,61 +65,13 @@ export type TeamSettingsResponse = {
   members: Member[];
 };
 
-type Team = {
-  teamName: string;
-  inviteCode: string;
-  members: Member[];
-};
-
-/** The one team a join code resolves to in this mock. */
-const seedTeam: Team = {
-  teamName: "TEAM NAP 開発チーム",
-  inviteCode: "NAP-4821",
-  members: [
-    { id: "a", label: "A", status: "resting" },
-    { id: "b", label: "B", status: "working" },
-    { id: "c", label: "C", status: "working" },
-    { id: "d", label: "D", status: "working" },
-    { id: "e", label: "E", status: "resting" },
-    { id: "f", label: "F", status: "offline" },
-  ],
-};
-
-let currentTeam: Team | null = { ...seedTeam, members: [...seedTeam.members] };
-
-function toSettings(team: Team): TeamSettingsResponse {
-  return {
-    teamName: team.teamName,
-    memberCount: team.members.length,
-    inviteCode: team.inviteCode,
-    members: team.members,
-  };
+/** Activity is stored as `online | resting`; "offline" is not modelled. */
+export function mapActivity(activity: MemberActivity): MemberStatus {
+  return activity === "resting" ? "resting" : "working";
 }
 
-function generateInviteCode(): string {
-  return `NAP-${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
-export function getTeamSummary(): TeamSummaryResponse | null {
-  return currentTeam ? teamSummarySnapshot : null;
-}
-
-export function getCurrentTeam(): TeamSettingsResponse | null {
-  return currentTeam ? toSettings(currentTeam) : null;
-}
-
-export function createTeam(name: string): TeamSettingsResponse {
-  if (currentTeam) {
-    throw HttpError.conflict("You already belong to a team");
-  }
-  currentTeam = {
-    teamName: name,
-    inviteCode: generateInviteCode(),
-    members: [
-      { id: "me", label: name.trim().slice(0, 1).toUpperCase() || "M", status: "working" },
-    ],
-  };
-  return toSettings(currentTeam);
+function initial(name: string | null): string {
+  return name?.trim().slice(0, 1).toUpperCase() || "M";
 }
 
 /** Compare codes on their alphanumerics only, so "NAP-4821" == "nap4821". */
@@ -123,24 +79,197 @@ function normalizeCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-export function joinTeam(inviteCode: string): TeamSettingsResponse {
-  if (currentTeam) {
-    throw HttpError.conflict("You already belong to a team");
-  }
-  if (normalizeCode(inviteCode) !== normalizeCode(seedTeam.inviteCode)) {
-    throw HttpError.notFound("Invalid invite code");
-  }
-  currentTeam = { ...seedTeam, members: [...seedTeam.members] };
-  return toSettings(currentTeam);
+function generateInviteCode(): string {
+  return `NAP-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-export function leaveTeam(): void {
-  currentTeam = null;
+async function uniqueInviteCode(): Promise<string> {
+  for (let i = 0; i < 20; i += 1) {
+    const code = generateInviteCode();
+    const clash = await prisma.team.findUnique({ where: { inviteCode: code } });
+    if (!clash) return code;
+  }
+  throw new HttpError(500, "Could not allocate an invite code");
+}
+
+async function ensureUser(userId: string) {
+  return prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: { id: userId, email: `${userId}@dev.local` },
+  });
+}
+
+const teamWithMembers = {
+  members: {
+    include: { user: true },
+    orderBy: { joinedAt: "asc" },
+  },
+} as const;
+
+type TeamWithMembers = {
+  name: string;
+  inviteCode: string;
+  members: {
+    userId: string;
+    activity: MemberActivity;
+    user: { name: string | null };
+  }[];
+};
+
+function toSettings(team: TeamWithMembers): TeamSettingsResponse {
+  return {
+    teamName: team.name,
+    memberCount: team.members.length,
+    inviteCode: team.inviteCode,
+    members: team.members.map((m) => ({
+      id: m.userId,
+      label: initial(m.user.name),
+      status: mapActivity(m.activity),
+    })),
+  };
+}
+
+async function findMembership(userId: string) {
+  return prisma.teamMembership.findUnique({
+    where: { userId },
+    include: { team: { include: teamWithMembers } },
+  });
+}
+
+export async function hasTeam(userId: string): Promise<boolean> {
+  return (await prisma.teamMembership.count({ where: { userId } })) > 0;
+}
+
+export async function getCurrentTeam(
+  userId: string,
+): Promise<TeamSettingsResponse | null> {
+  const membership = await findMembership(userId);
+  return membership ? toSettings(membership.team) : null;
+}
+
+export async function getTeamSummary(
+  userId: string,
+): Promise<TeamSummaryResponse | null> {
+  return (await hasTeam(userId)) ? teamSummarySnapshot : null;
+}
+
+export async function createTeam(
+  userId: string,
+  name: string,
+): Promise<TeamSettingsResponse> {
+  step("service", "team.createTeam", { name });
+  if (await hasTeam(userId)) {
+    throw HttpError.conflict("You already belong to a team");
+  }
+  await ensureUser(userId);
+  const team = await prisma.team.create({
+    data: {
+      name,
+      inviteCode: await uniqueInviteCode(),
+      members: { create: { userId } },
+    },
+    include: teamWithMembers,
+  });
+  return toSettings(team);
+}
+
+export async function joinTeam(
+  userId: string,
+  inviteCode: string,
+): Promise<TeamSettingsResponse> {
+  step("service", "team.joinTeam", { inviteCode });
+  if (await hasTeam(userId)) {
+    throw HttpError.conflict("You already belong to a team");
+  }
+
+  const wanted = normalizeCode(inviteCode);
+  const teams = await prisma.team.findMany();
+  const target = teams.find((t) => normalizeCode(t.inviteCode) === wanted);
+  if (!target) {
+    throw HttpError.notFound("Invalid invite code");
+  }
+
+  const user = await ensureUser(userId);
+  await prisma.teamMembership.create({
+    data: { teamId: target.id, userId },
+  });
+
+  const memberCount = await prisma.teamMembership.count({
+    where: { teamId: target.id },
+  });
+  addNotification({
+    kind: "member_joined",
+    title: `${user.name ?? "メンバー"}がチームに参加しました`,
+    body: `チームは${memberCount}人になりました`,
+    timestamp: "たった今",
+    read: false,
+    group: "today",
+  });
+
+  return (await getCurrentTeam(userId))!;
+}
+
+export async function renameTeam(
+  userId: string,
+  name: string,
+): Promise<TeamSettingsResponse> {
+  const membership = await findMembership(userId);
+  if (!membership) {
+    throw HttpError.notFound("No team to rename");
+  }
+  await prisma.team.update({
+    where: { id: membership.teamId },
+    data: { name },
+  });
+  return (await getCurrentTeam(userId))!;
+}
+
+export async function leaveTeam(userId: string): Promise<void> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+  });
+  if (!membership) return;
+
+  await prisma.teamMembership.delete({ where: { userId } });
+
+  const remaining = await prisma.teamMembership.count({
+    where: { teamId: membership.teamId },
+  });
+  if (remaining === 0) {
+    await prisma.team.delete({ where: { id: membership.teamId } });
+  }
+}
+
+export async function setActivity(
+  userId: string,
+  activity: MemberActivity,
+): Promise<TeamSettingsResponse> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+  });
+  if (!membership) {
+    throw HttpError.notFound("You do not belong to a team");
+  }
+  await prisma.teamMembership.update({ where: { userId }, data: { activity } });
+  return (await getCurrentTeam(userId))!;
+}
+
+export async function getMyStatus(
+  userId: string,
+): Promise<{ status: MemberStatus }> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+  });
+  if (!membership) {
+    throw HttpError.notFound("You do not belong to a team");
+  }
+  return { status: mapActivity(membership.activity) };
 }
 
 // ---------------------------------------------------------------------------
-// 仮眠上手ランキング — members ordered by their weekly rest score
-// (Figma "S04-02_Ranking", node 252:519).
+// 仮眠上手ランキング — still a static per-team snapshot (out of scope to
+// compute from real nap data).
 // ---------------------------------------------------------------------------
 
 export type TeamRankingEntry = {
@@ -153,7 +282,6 @@ export type TeamRankingEntry = {
 
 export type TeamRankingResponse = {
   memberCount: number;
-  /** Highest score first. */
   entries: TeamRankingEntry[];
 };
 
@@ -171,8 +299,10 @@ const rankingSnapshot: TeamRankingEntry[] = [
   { id: "m-k", name: "メンバーK", label: "K", status: "offline", score: 36 },
 ];
 
-export function getTeamRanking(): TeamRankingResponse | null {
-  if (!currentTeam) {
+export async function getTeamRanking(
+  userId: string,
+): Promise<TeamRankingResponse | null> {
+  if (!(await hasTeam(userId))) {
     return null;
   }
   const entries = [...rankingSnapshot].sort((a, b) => b.score - a.score);

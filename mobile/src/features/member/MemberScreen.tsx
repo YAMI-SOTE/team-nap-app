@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useMemberDetail } from "@/hooks/useMemberDetail";
+import { sendRestNudge, sendWakeNudge } from "@/services/team";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import MenuBar from "@/components/MenuBar";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -24,13 +26,34 @@ export default function MemberScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, error } = useMemberDetail(id);
 
-  const handleRest = () => {
-    console.log("TODO: send a gentle 「休んでね」 nudge");
+  const [nudging, setNudging] = useState(false);
+  const [nudgeMessage, setNudgeMessage] = useState<string | null>(null);
+
+  const nudge = async (kind: "wake" | "rest") => {
+    if (!id || nudging) return;
+    setNudging(true);
+    setNudgeMessage(null);
+    try {
+      await (kind === "wake" ? sendWakeNudge(id) : sendRestNudge(id));
+      setNudgeMessage(
+        kind === "wake"
+          ? "「起きて〜」を送信しました"
+          : "「休んでね」を送信しました",
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setNudgeMessage(
+        /409/.test(message)
+          ? "相手が「起こしてもらう」をOFFにしています"
+          : "送信できませんでした",
+      );
+    } finally {
+      setNudging(false);
+    }
   };
 
-  const handleWake = () => {
-    console.log("TODO: send a 「起きて〜」 wake notification");
-  };
+  const handleRest = () => nudge("rest");
+  const handleWake = () => nudge("wake");
 
   const wakeAssistEnabled = data?.wakeSupport.wakeAssistEnabled ?? false;
 
@@ -80,6 +103,7 @@ export default function MemberScreen() {
                     variant="outline"
                     label="休んでね"
                     onPress={handleRest}
+                    disabled={nudging}
                     icon={<HeartIcon size={20} color={colors.textBrand} />}
                     textStyle={styles.outlineActionText}
                     style={styles.actionButton}
@@ -88,7 +112,7 @@ export default function MemberScreen() {
                     variant="primary"
                     label="起きて〜"
                     onPress={handleWake}
-                    disabled={!wakeAssistEnabled}
+                    disabled={!wakeAssistEnabled || nudging}
                     elevated={false}
                     icon={<BellIcon size={24} color={colors.white} />}
                     style={styles.actionButton}
@@ -96,7 +120,7 @@ export default function MemberScreen() {
                 </View>
 
                 <Text style={styles.supportCaption}>
-                  タップすると軽い通知が届きます
+                  {nudgeMessage ?? "タップすると軽い通知が届きます"}
                 </Text>
               </View>
             </View>

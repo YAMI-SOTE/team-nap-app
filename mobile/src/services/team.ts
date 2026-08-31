@@ -34,3 +34,23 @@ export async function joinTeam(
 ): Promise<TeamSettingsResponse> {
   return api.post<TeamSettingsResponse>("/teams/join", payload);
 }
+
+export async function renameTeam(name: string): Promise<TeamSettingsResponse> {
+  return api.put<TeamSettingsResponse>("/teams", { name });
+}
+
+/** "起きて〜" — nudge a teammate to wake up. */
+export async function sendWakeNudge(memberId: string): Promise<void> {
+  await api.post<{ success: true }>(
+    `/teams/members/${encodeURIComponent(memberId)}/wake`,
+    {},
+  );
+}
+
+/** "休んでね" — nudge a teammate to take a break. */
+export async function sendRestNudge(memberId: string): Promise<void> {
+  await api.post<{ success: true }>(
+    `/teams/members/${encodeURIComponent(memberId)}/rest`,
+    {},
+  );
+}

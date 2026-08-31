@@ -2,35 +2,40 @@
 
 ## 1. 概要
 
-Team Napでは、ユーザーのスケジュール、睡眠設定、休息履歴、AIによる休息提案、チーム情報などを保存するために **PostgreSQL** を使用します。
+Team Napでは、ユーザー・チーム・（将来的に）スケジュールや休息履歴などを
+保存するために **PostgreSQL** を使用します。
 
-ORMには **Prisma** を使用し、Backend API からのみデータベースへアクセスします。
+ORMには **Prisma 7** を使用し、Backend API からのみデータベースへアクセスします。
+Prisma 7 では接続にドライバアダプタ（`@prisma/adapter-pg`）を用います。
 
 ```text
 Mobile App
    |
    | REST API / JSON
    v
-Backend API
-   |
-   | Prisma
-   v
-PostgreSQL
+Backend API  ──(Prisma 7 + @prisma/adapter-pg)──▶  PostgreSQL
 ```
 
 Mobile App から PostgreSQL へ直接アクセスすることはありません。
+
+> **実装状況（2026-08時点）**
+> 実際にDBへ永続化しているのは **User / Team / TeamMembership** の3モデルのみです
+> （マイグレーション `20260830091652_team_feature`）。
+> スケジュール・睡眠設定・休息履歴・休息提案などは、まだ各 `src/services/*` の
+> インメモリ状態で持っており、本ドキュメントの後半では「今後の予定」として扱います。
 
 ---
 
 ## 2. 使用技術
 
-| 項目      | 技術                           |
-| --------- | ------------------------------ |
-| Database  | PostgreSQL 17                  |
-| ORM       | Prisma                         |
-| Backend   | Node.js + Express + TypeScript |
-| Container | Docker / Docker Compose        |
-| Migration | Prisma Migrate                 |
+| 項目          | 技術                                    |
+| ------------- | -------------------------------------- |
+| Database      | PostgreSQL 17                          |
+| ORM           | Prisma 7（`prisma` / `@prisma/client`）  |
+| Driver Adapter| `@prisma/adapter-pg`（`pg` 8 系）        |
+| Backend       | Node.js 22 + Express 5 + TypeScript     |
+| Container     | Docker / Docker Compose                 |
+| Migration     | Prisma Migrate                          |
 
 ---
 
@@ -41,38 +46,83 @@ Databaseに関する主要ファイルは以下です。
 ```text
 backend/
 ├── prisma/
-│   ├── schema.prisma
-│   └── migrations/
-├── prisma.config.ts
+│   ├── schema.prisma          モデル定義
+│   ├── seed.ts                開発用シードデータ
+│   └── migrations/            Prisma Migrate 生成物（Git管理）
+│       ├── migration_lock.toml
+│       └── 20260830091652_team_feature/
+│           └── migration.sql
+├── prisma.config.ts           Prisma CLI 設定（schema/migrations/seed/datasource）
 ├── src/
 │   └── lib/
-│       └── prisma.ts
-└── .env
+│       └── prisma.ts          共有 Prisma Client（driver adapter で初期化）
+└── .env                       DATABASE_URL など（Git管理外）
 ```
 
 ### `backend/prisma/schema.prisma`
 
-データベースのモデル定義を記述します。
+データベースのモデル定義を記述します。Prisma 7 では接続URLは schema には
+書かず、`prisma.config.ts` の `datasource.url`（`DATABASE_URL`）で渡します。
 
 ### `backend/prisma/migrations/`
 
-Prisma Migrateによって生成されたMigrationを保存します。
+Prisma Migrateによって生成されたMigrationを保存します。**Gitで管理します。**
 
-このディレクトリは **Gitで管理します**。
+### `backend/prisma/seed.ts`
+
+開発用のユーザーとチームを投入します（`npm run db:seed`）。
+`prisma.config.ts` の `migrations.seed` にも登録されているため
+`prisma migrate reset` 時にも実行されます。
 
 ### `backend/prisma.config.ts`
 
-Prisma CLIの設定ファイルです。
-
-Database URLやMigration pathなどを管理します。
+Prisma CLIの設定ファイルです。先頭で `import "dotenv/config"` して `.env` を
+読み込み、`schema` / `migrations.path` / `migrations.seed` / `datasource.url`
+を指定します。
 
 ### `backend/src/lib/prisma.ts`
 
-Backend内で使用するPrisma Clientを初期化するファイルです。
+Backend内で共有する Prisma Client を初期化します。
+`new PrismaClient({ adapter: new PrismaPg({ connectionString: env.DATABASE_URL }) })`。
+`tsx watch` のホットリロードで接続プールが増えないよう `globalThis` にキャッシュします。
 
 ---
 
-## 4. 初期ER図
+## 4. ER図
+
+### 4.1 現在実装済み
+
+```mermaid
+erDiagram
+
+    USER ||--o{ TEAM_MEMBERSHIP : has
+    TEAM ||--o{ TEAM_MEMBERSHIP : has
+
+    USER {
+        string id PK
+        string email UK
+        string name "nullable"
+        datetime createdAt
+    }
+
+    TEAM {
+        string id PK
+        string name
+        string inviteCode UK
+        datetime createdAt
+    }
+
+    TEAM_MEMBERSHIP {
+        string id PK
+        string teamId FK
+        string userId FK "unique（1ユーザー1チーム）"
+        enum   activity "online | resting"
+        boolean wakeAssistEnabled
+        datetime joinedAt
+    }
+```
+
+### 4.2 今後の予定（未実装）
 
 ```mermaid
 erDiagram
@@ -81,16 +131,6 @@ erDiagram
     USER ||--|| SLEEP_SETTING : has
     USER ||--o{ REST_SESSION : records
     USER ||--o{ REST_RECOMMENDATION : receives
-    USER ||--o{ TEAM_MEMBER : belongs_to
-
-    TEAM ||--o{ TEAM_MEMBER : has
-
-    USER {
-        string id PK
-        string email
-        string name
-        datetime createdAt
-    }
 
     SCHEDULE {
         string id PK
@@ -125,183 +165,80 @@ erDiagram
         boolean accepted
         datetime createdAt
     }
-
-    TEAM {
-        string id PK
-        string name
-        datetime createdAt
-    }
-
-    TEAM_MEMBER {
-        string id PK
-        string teamId FK
-        string userId FK
-        string role
-    }
 ```
 
 ---
 
 ## 5. テーブル概要
 
-### User
+### 5.1 実装済み
+
+#### User
 
 ユーザーの基本情報を保存します。
 
-主な用途:
+| 列        | 型         | 備考                    |
+| --------- | ---------- | ----------------------- |
+| id        | String PK  | `uuid()`                |
+| email     | String     | `@unique`               |
+| name      | String?    | 表示名（頭文字生成に使用）|
+| createdAt | DateTime   | `now()`                 |
 
-- ログインユーザーの識別
-- Scheduleとの紐付け
-- Sleep Settingとの紐付け
-- Rest Sessionとの紐付け
-- Team Memberとの紐付け
+認証はまだ無いため、`X-User-Id` ヘッダで未知のユーザーが来た場合は
+`team.service.ts` の `ensureUser()` が `email = "<userId>@dev.local"` で
+`upsert` します。
 
-想定項目:
+#### Team
+
+チーム情報と招待コードを保存します。
+
+| 列         | 型         | 備考                                          |
+| ---------- | ---------- | --------------------------------------------- |
+| id         | String PK  | `uuid()`                                      |
+| name       | String     | 1〜50 文字（zod で検証）                        |
+| inviteCode | String     | `@unique`。`NAP-1000`〜`NAP-9999` 形式で採番    |
+| createdAt  | DateTime   | `now()`                                       |
+
+招待コードの照合は大文字小文字・ハイフンを無視します
+（`normalizeCode()`。`NAP-4821` と `nap4821` は同一扱い）。
+
+#### TeamMembership
+
+User と Team を関連付ける中間テーブルです（旧称 `TeamMember`）。
+
+| 列                | 型                    | 備考                                  |
+| ----------------- | --------------------- | ------------------------------------- |
+| id                | String PK             | `uuid()`                              |
+| teamId            | String FK             | `onDelete: Cascade`                   |
+| userId            | String FK             | `onDelete: Cascade`                   |
+| activity          | MemberActivity enum   | `online` \| `resting`（既定 `online`） |
+| wakeAssistEnabled | Boolean               | 既定 `true`。起床サポート ON/OFF       |
+| joinedAt          | DateTime              | `now()`                               |
+
+制約:
 
 ```text
-id
-email
-name
-createdAt
+@@unique([teamId, userId])   同じチームへの重複参加を防ぐ
+@@unique([userId])           1ユーザーは同時に1チームのみ（サービス層でも二重チェック）
 ```
+
+`role` 列は現状ありません（作成者と参加者を区別していません）。
+
+`activity` は API 上は `MemberStatus`（`working` / `resting` / `offline`）へ
+写像されますが、DB に `offline` は存在しません（`mapActivity()`）。
+
+### 5.2 今後の予定
+
+Schedule / SleepSetting / RestSession / RestRecommendation は未実装です。
+想定項目は「4.2 今後の予定」ER図および過去版の記述を参照してください。
+`source` は `manual | google_calendar | apple_calendar`、`reasonCode` は
+`LOW_SLEEP | LONG_WORK_PERIOD | FREE_TIME_AVAILABLE | HIGH_FATIGUE` を想定します。
 
 ---
 
-### Schedule
+## 6. Prisma Schema（現状）
 
-ユーザーの予定を保存します。
-
-想定項目:
-
-```text
-id
-userId
-title
-startTime
-endTime
-source
-```
-
-`source`には、例えば以下の値を想定します。
-
-```text
-manual
-google_calendar
-apple_calendar
-```
-
-MVPでは `manual` のみでも問題ありません。
-
----
-
-### SleepSetting
-
-ユーザーの基本的な睡眠時間を保存します。
-
-想定項目:
-
-```text
-userId
-sleepTime
-wakeTime
-```
-
-1ユーザーにつき1件を基本とするため、`userId`を一意にします。
-
----
-
-### RestSession
-
-実際に行った休息を記録します。
-
-想定項目:
-
-```text
-id
-userId
-type
-startTime
-endTime
-completed
-```
-
-`type`の例:
-
-```text
-nap
-break
-coffee
-```
-
----
-
-### RestRecommendation
-
-AIまたはルールベースで生成された休息提案を保存します。
-
-想定項目:
-
-```text
-id
-userId
-type
-durationMinutes
-reasonCode
-accepted
-createdAt
-```
-
-`reasonCode`の例:
-
-```text
-LOW_SLEEP
-LONG_WORK_PERIOD
-FREE_TIME_AVAILABLE
-HIGH_FATIGUE
-```
-
-将来的には、ユーザーが提案を受け入れたかどうかを分析し、個人最適化に利用します。
-
----
-
-### Team
-
-チーム情報を保存します。
-
-想定項目:
-
-```text
-id
-name
-createdAt
-```
-
----
-
-### TeamMember
-
-UserとTeamを関連付ける中間テーブルです。
-
-想定項目:
-
-```text
-id
-teamId
-userId
-role
-```
-
-同じユーザーが同じTeamへ重複登録されないように、以下の組み合わせはUnique Constraintにする想定です。
-
-```text
-teamId + userId
-```
-
----
-
-## 6. Prisma Schemaの例
-
-初期段階では、以下のようなモデルから開始できます。
+`backend/prisma/schema.prisma` の実物です。
 
 ```prisma
 generator client {
@@ -310,81 +247,86 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // 接続URL(DATABASE_URL)は prisma.config.ts の datasource.url で渡す
 }
 
 model User {
-  id                  String               @id @default(uuid())
-  email               String               @unique
-  name                String?
-  createdAt           DateTime             @default(now())
-
-  schedules           Schedule[]
-  sleepSetting        SleepSetting?
-  restSessions        RestSession[]
-  recommendations     RestRecommendation[]
-  teamMembers         TeamMember[]
-}
-
-model Schedule {
-  id          String   @id @default(uuid())
-  userId      String
-  title       String
-  startTime   DateTime
-  endTime     DateTime
-  source      String   @default("manual")
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model SleepSetting {
-  userId      String   @id
-  sleepTime   DateTime
-  wakeTime    DateTime
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model RestSession {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String
-  startTime   DateTime
-  endTime     DateTime?
-  completed   Boolean  @default(false)
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model RestRecommendation {
-  id               String   @id @default(uuid())
-  userId           String
-  type             String
-  durationMinutes  Int
-  reasonCode       String
-  accepted         Boolean?
-  createdAt        DateTime @default(now())
-
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String           @id @default(uuid())
+  email       String           @unique
+  name        String?
+  createdAt   DateTime         @default(now())
+  memberships TeamMembership[]
 }
 
 model Team {
-  id          String       @id @default(uuid())
-  name        String
-  createdAt   DateTime     @default(now())
-
-  members     TeamMember[]
+  id         String           @id @default(uuid())
+  name       String
+  inviteCode String           @unique
+  createdAt  DateTime         @default(now())
+  members    TeamMembership[]
 }
 
-model TeamMember {
-  id          String   @id @default(uuid())
-  teamId      String
-  userId      String
-  role        String   @default("member")
+enum MemberActivity {
+  online
+  resting
+}
 
-  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model TeamMembership {
+  id                String         @id @default(uuid())
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  activity          MemberActivity @default(online)
+  wakeAssistEnabled Boolean        @default(true)
+  joinedAt          DateTime       @default(now())
 
   @@unique([teamId, userId])
+  @@unique([userId])
+}
+```
+
+### 今後追加する場合の例
+
+`User` にリレーションを足しつつ、以下のようなモデルを段階的に追加します。
+
+```prisma
+model Schedule {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  startTime DateTime
+  endTime   DateTime
+  source    String   @default("manual")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SleepSetting {
+  userId    String   @id
+  sleepTime DateTime
+  wakeTime  DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RestSession {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  startTime DateTime
+  endTime   DateTime?
+  completed Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RestRecommendation {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String
+  durationMinutes Int
+  reasonCode      String
+  accepted        Boolean?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 ```
 
@@ -392,197 +334,151 @@ model TeamMember {
 
 ## 7. 環境変数
 
-Database接続情報は環境変数で管理します。
+Database接続情報は環境変数で管理します。`backend/src/config/env.ts` で
+zod により検証され、**`DATABASE_URL` は必須**です（未設定だと起動時に終了）。
 
-例:
+| 変数           | 必須 | 例 / 既定                                                     | 用途 |
+| -------------- | ---- | ----------------------------------------------------------- | ---- |
+| `DATABASE_URL` | ✅   | `postgresql://teamnap:teamnap_dev@localhost:5432/teamnap`   | Prisma 接続。Compose 内では host が `db` |
+| `DEV_USER_ID`  |      | `00000000-0000-0000-0000-000000000001`                      | `X-User-Id` 未指定時の呼び出しユーザー。`seed.ts` の開発ユーザーと一致 |
+| `PORT`         |      | `3000`                                                      | |
+| `HOST`         |      | `0.0.0.0`                                                   | |
+| `NODE_ENV`     |      | `development`                                               | `production` 時は Prisma Client を `globalThis` にキャッシュしない |
 
-```env
-DATABASE_URL=postgresql://teamnap:teamnap_dev@db:5432/teamnap
-```
-
-`.env`はGitにcommitしません。
-
-代わりに、Repository rootまたはBackendに `.env.example` を配置します。
+`.env` はGitにcommitしません（`backend/.gitignore` で除外済み）。
+`prisma.config.ts` は `import "dotenv/config"` で `backend/.env` を読み込みます。
 
 ---
 
 ## 8. Docker Compose
 
-PostgreSQLはDocker Composeで起動します。
-
-例:
+`compose.yaml`（Repository root）で PostgreSQL・Backend・Ollama を起動します。
+DBサービスの定義は以下のとおりです。
 
 ```yaml
 services:
   db:
     image: postgres:17
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: teamnap
       POSTGRES_USER: teamnap
       POSTGRES_PASSWORD: teamnap_dev
-
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamnap -d teamnap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
 ```
 
-起動:
+`backend` サービスは `db` の healthcheck が通ってから起動し、
+コンテナ起動時に `npm start`（＝ `prisma migrate deploy && node dist/server.js`）で
+未適用のマイグレーションを自動適用します。**シードは自動実行されません。**
 
 ```bash
-docker compose up -d
+docker compose up -d --build          # 全サービス起動（初回のみ --build）
+docker compose ps                     # 状態確認
+docker compose exec backend npm run db:seed   # 開発データ投入（必要時）
+docker compose down                   # 停止（postgres_data は残る）
 ```
-
-状態確認:
-
-```bash
-docker compose ps
-```
-
-停止:
-
-```bash
-docker compose down
-```
-
-Volumeを残すことで、Containerを再作成してもDatabase内容を保持します。
 
 ---
 
 ## 9. Prisma基本操作
 
-Backend directoryで実行します。
+Backend directory で実行します。`package.json` に npm scripts を用意しています。
 
 ```bash
 cd backend
 ```
 
-### Schema Validation
+| コマンド              | 実体                          | 用途 |
+| -------------------- | ----------------------------- | ---- |
+| `npm run db:generate`| `prisma generate`             | Prisma Client 生成 |
+| `npm run db:migrate` | `prisma migrate dev`          | スキーマ変更 → マイグレーション作成 + 適用（開発） |
+| `npm run db:seed`    | `tsx prisma/seed.ts`          | 開発用シード投入 |
+| `npm run db:reset`   | `prisma migrate reset`        | DB を落として作り直し + シード |
+| `npm run db:studio`  | `prisma studio`               | GUI でデータ閲覧 |
+
+その他:
 
 ```bash
-npx prisma validate
-```
-
-### Prisma Client生成
-
-```bash
-npx prisma generate
-```
-
-### Migration作成
-
-```bash
-npx prisma migrate dev --name <migration-name>
-```
-
-例:
-
-```bash
-npx prisma migrate dev --name init
-```
-
-### Database状態確認
-
-必要に応じてPrisma Studioを使用できます。
-
-```bash
-npx prisma studio
+npx prisma validate       # schema の構文チェック
+npx prisma migrate deploy # 未適用マイグレーションの適用（本番 / npm start が内部で実行）
 ```
 
 ---
 
 ## 10. Migration運用ルール
 
-Migration fileはGitで管理します。
+Migration fileはGitで管理します（`backend/prisma/migrations/`）。
 
 ```text
-backend/prisma/migrations/
+schema.prisma を変更
+        ↓
+npm run db:migrate  （--name <migration-name> を付ける）
+        ↓
+prisma/migrations/<timestamp>_<name>/ が生成される
+        ↓
+git add backend/prisma && git commit
 ```
 
-Database Schemaを変更する場合:
+- 開発環境: `npm run db:migrate`（= `prisma migrate dev`）
+- 本番 / Compose: `prisma migrate deploy`（`npm start` が内部で実行）
+
+現在のマイグレーション:
 
 ```text
-schema.prismaを変更
-        ↓
-npx prisma migrate dev
-        ↓
-Migration生成
-        ↓
-MigrationをGit commit
+20260830091652_team_feature   User / Team / TeamMembership / MemberActivity を作成
 ```
-
-例:
-
-```bash
-git add backend/prisma
-git commit -m "db: add initial database schema"
-```
-
-本番環境やVPSでは、既存Migrationを適用するために以下を使用します。
-
-```bash
-npx prisma migrate deploy
-```
-
-開発環境で使用する `migrate dev` と、本番環境で使用する `migrate deploy` を区別します。
 
 ---
 
 ## 11. Gitで管理するもの
 
-以下はGitにcommitします。
+commitする:
 
 ```text
 backend/prisma/schema.prisma
 backend/prisma/migrations/
+backend/prisma/seed.ts
 backend/prisma.config.ts
+backend/.env.example
 backend/package.json
 backend/package-lock.json
 ```
 
-以下はcommitしません。
+commitしない:
 
 ```text
 backend/node_modules/
 backend/dist/
-.env
-*.db
-*.db-journal
+backend/.env
+backend/src/generated/prisma
 ```
 
 ---
 
-## 12. 初期MVPで必要なDatabase範囲
+## 12. 実装範囲と優先順位
 
-最初のMVPでは全てのTableを実装する必要はありません。
-
-最初は以下を優先します。
+実装済み:
 
 ```text
 User
-Schedule
-SleepSetting
-RestSession
-```
-
-その後、
-
-```text
-RestRecommendation
 Team
-TeamMember
+TeamMembership   （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
 ```
 
-を追加します。
-
-推奨順序:
+次に追加を検討:
 
 ```text
-User
-  ↓
 Schedule
   ↓
 SleepSetting
@@ -590,40 +486,36 @@ SleepSetting
 RestSession
   ↓
 RestRecommendation
-  ↓
-Team / TeamMember
+```
+
+現在インメモリで動いていて、DB化の候補になっている機能:
+
+```text
+settings.service   アカウント / 通知トグル / 睡眠スケジュール / カレンダー連携
+schedule.service   予定・当日スケジュール
+notifications.service  通知フィード（ナッジ・参加通知の宛先）
+naps.service       仮眠履歴
+team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
 ```
 
 ---
 
 ## 13. 設計方針
 
-Database設計では以下を基本方針とします。
-
-- MobileからDatabaseへ直接アクセスしない
-- Database操作はBackend APIを経由する
-- Prisma ClientはBackend内で共通化する
-- MigrationはGitで管理する
-- SecretやDatabase Passwordはcommitしない
-- Foreign KeyによってUserとの関係を明確にする
-- 不要なDenormalizationは初期段階では避ける
-- MVPでは必要最小限のSchemaから開始する
-- 将来の機能追加に合わせてMigrationでSchemaを拡張する
+- MobileからDatabaseへ直接アクセスしない。操作はBackend API経由。
+- Prisma Clientは `src/lib/prisma.ts` で共通化する。
+- MigrationはGitで管理する。`.env` やパスワードはcommitしない。
+- Foreign Key と `onDelete: Cascade` で関係を明確にする。
+- MVPでは必要最小限のSchemaから開始し、Migrationで段階的に拡張する。
+- 「1ユーザー1チーム」など重要な不変条件はDB制約とサービス層の両方で担保する。
 
 ---
 
 ## 14. 今後追加を検討するデータ
 
-将来的には以下の追加を検討します。
-
 ```text
-UserPreference
-Notification
-RestFeedback
-DeviceUsage
-CalendarConnection
-TeamNotification
-RestScoreHistory
+UserPreference / Notification（永続化）/ RestFeedback
+DeviceUsage / CalendarConnection / TeamNotification / RestScoreHistory
 ```
 
-ただし、Hackathonの初期MVPでは必要なデータだけを実装し、過度に複雑なSchemaを作らない方針とします。
+Hackathonの初期MVPでは必要なデータだけを実装し、過度に複雑なSchemaは作らない方針です。

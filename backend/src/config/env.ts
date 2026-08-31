@@ -19,8 +19,25 @@ const envSchema = z.object({
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().min(1).default("gemma4:e2b"),
 
-  // Reserved for the upcoming Prisma/Postgres work; empty until then.
-  DATABASE_URL: z.string().default(""),
+  // Postgres connection string for Prisma.
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+
+  // Caller identity fallback when a request omits the `X-User-Id` header
+  // (there is no auth yet). Matches the user created by `prisma/seed.ts`.
+  DEV_USER_ID: z
+    .string()
+    .min(1)
+    .default("00000000-0000-0000-0000-000000000001"),
+
+  // API-flow debug tracer (src/lib/api-flow.ts). Off by default; set to
+  // "1" or "true" to log a per-request layer-by-layer trace.
+  DEBUG_API_FLOW: z
+    .string()
+    .default("false")
+    .transform((v) => v === "1" || v.toLowerCase() === "true"),
+  // Optional substring filter for the tracer, e.g. "/teams" to trace only
+  // team routes. Empty = trace every route.
+  DEBUG_API_FLOW_SCOPE: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

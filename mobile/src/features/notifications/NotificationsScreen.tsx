@@ -10,6 +10,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 import NotificationCard from "@/components/NotificationCard";
 import {
   BellIcon,
+  HeartIcon,
   MoonStarsIcon,
   SealCheckIcon,
   TimerIcon,
@@ -24,6 +25,7 @@ const ICON_BY_KIND: Record<
 > = {
   team_nap_suggestion: (color) => <MoonStarsIcon size={20} color={color} />,
   wake_request: (color) => <BellIcon size={20} color={color} />,
+  rest_request: (color) => <HeartIcon size={20} color={color} />,
   nap_ended: (color) => <TimerIcon size={20} color={color} />,
   weekly_review: (color) => <SealCheckIcon size={20} color={color} />,
   member_joined: (color) => <UsersThreeIcon size={20} color={color} />,

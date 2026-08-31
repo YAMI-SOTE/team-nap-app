@@ -1,8 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Team Nap — Prisma schema.
+// Prisma 7: the connection URL lives in prisma.config.ts (DATABASE_URL),
+// not here. The runtime client uses the `@prisma/adapter-pg` driver
+// adapter (see src/lib/prisma.ts).
 
 generator client {
   provider = "prisma-client-js"
@@ -13,8 +12,37 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id          String           @id @default(uuid())
+  email       String           @unique
+  name        String?
+  createdAt   DateTime         @default(now())
+  memberships TeamMembership[]
+}
+
+model Team {
+  id         String           @id @default(uuid())
+  name       String
+  inviteCode String           @unique
+  createdAt  DateTime         @default(now())
+  members    TeamMembership[]
+}
+
+enum MemberActivity {
+  online
+  resting
+}
+
+model TeamMembership {
+  id                String         @id @default(uuid())
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  activity          MemberActivity @default(online)
+  wakeAssistEnabled Boolean        @default(true)
+  joinedAt          DateTime       @default(now())
+
+  // A user belongs to at most one team; enforced additionally in the service.
+  @@unique([teamId, userId])
+  @@unique([userId])
 }

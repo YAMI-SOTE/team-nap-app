@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 
-import {
-  getTeamSettings,
-  leaveTeam,
-} from "@/services/settings";
+import { getTeamSettings, leaveTeam } from "@/services/settings";
+import { renameTeam } from "@/services/team";
 
 import type { TeamSettingsResponse } from "@/types/api";
 
@@ -55,11 +53,33 @@ export function useTeamSettings() {
     }
   }
 
+  async function rename(name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const updated = await renameTeam(trimmed);
+      setData(updated);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     data,
     loading,
     saving,
     error,
     leave,
+    rename,
   };
 }

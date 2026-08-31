@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 
+import { currentUserId } from "../lib/request-user.js";
 import {
   connectDeviceCalendar,
   disconnectGoogleCalendar,
@@ -61,10 +62,10 @@ export function connectDeviceCalendarController(_req: Request, res: Response) {
   res.status(200).json(connectDeviceCalendar());
 }
 
-export function getTeamSettingsController(_req: Request, res: Response) {
-  res.status(200).json(getTeamSettings());
+export async function getTeamSettingsController(req: Request, res: Response) {
+  res.status(200).json(await getTeamSettings(currentUserId(req)));
 }
 
-export function leaveTeamController(_req: Request, res: Response) {
-  res.status(200).json(leaveTeam());
+export async function leaveTeamController(req: Request, res: Response) {
+  res.status(200).json(await leaveTeam(currentUserId(req)));
 }

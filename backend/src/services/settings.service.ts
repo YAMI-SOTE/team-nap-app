@@ -142,11 +142,13 @@ export function connectDeviceCalendar(): CalendarIntegrationResponse {
   return calendarIntegration;
 }
 
-export function getTeamSettings(): TeamSettingsResponse | null {
-  return getCurrentTeam();
+export async function getTeamSettings(
+  userId: string,
+): Promise<TeamSettingsResponse | null> {
+  return getCurrentTeam(userId);
 }
 
-export function leaveTeam(): { success: true } {
-  clearCurrentTeam();
+export async function leaveTeam(userId: string): Promise<{ success: true }> {
+  await clearCurrentTeam(userId);
   return { success: true };
 }

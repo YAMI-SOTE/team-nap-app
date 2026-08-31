@@ -1,3 +1,5 @@
+import { prisma } from "../lib/prisma.js";
+import { mapActivity } from "./team.service.js";
 import type { MemberStatus } from "../types/domain.js";
 
 export type MemberDetailResponse = {
@@ -7,72 +9,43 @@ export type MemberDetailResponse = {
   status: MemberStatus;
   /** "仮眠の状況" card — present while the member is resting. */
   nap: {
-    /** Scheduled wake time, e.g. "14:47". */
     wakeAt: string;
-    /** Minutes left until the scheduled wake time. */
     minutesRemaining: number;
   } | null;
   /** "起床サポート" card. */
   wakeSupport: {
-    /**
-     * Whether the member opted in to being woken by teammates.
-     * When false, the "起きて〜" action is disabled.
-     */
     wakeAssistEnabled: boolean;
   };
 };
 
-const memberDetails: Record<string, MemberDetailResponse> = {
-  a: {
-    id: "a",
-    name: "メンバーA",
-    label: "A",
-    status: "resting",
-    nap: { wakeAt: "14:47", minutesRemaining: 10 },
-    wakeSupport: { wakeAssistEnabled: true },
-  },
-  b: {
-    id: "b",
-    name: "メンバーB",
-    label: "B",
-    status: "working",
-    nap: null,
-    wakeSupport: { wakeAssistEnabled: true },
-  },
-  c: {
-    id: "c",
-    name: "メンバーC",
-    label: "C",
-    status: "resting",
-    nap: { wakeAt: "15:05", minutesRemaining: 25 },
-    wakeSupport: { wakeAssistEnabled: false },
-  },
-  d: {
-    id: "d",
-    name: "メンバーD",
-    label: "D",
-    status: "working",
-    nap: null,
-    wakeSupport: { wakeAssistEnabled: true },
-  },
-  e: {
-    id: "e",
-    name: "メンバーE",
-    label: "E",
-    status: "offline",
-    nap: null,
-    wakeSupport: { wakeAssistEnabled: false },
-  },
-  f: {
-    id: "f",
-    name: "メンバーF",
-    label: "F",
-    status: "working",
-    nap: null,
-    wakeSupport: { wakeAssistEnabled: true },
-  },
-};
+function initial(name: string | null): string {
+  return name?.trim().slice(0, 1).toUpperCase() || "M";
+}
 
-export function getMemberDetail(id: string): MemberDetailResponse | undefined {
-  return memberDetails[id];
+/**
+ * Detail for a teammate of the caller. `undefined` when the target is
+ * not on the caller's team (controller turns that into a 404).
+ * `nap` is always `null` — there is no live nap-session model yet.
+ */
+export async function getMemberDetail(
+  userId: string,
+  targetId: string,
+): Promise<MemberDetailResponse | undefined> {
+  const me = await prisma.teamMembership.findUnique({ where: { userId } });
+  if (!me) return undefined;
+
+  const target = await prisma.teamMembership.findUnique({
+    where: { userId: targetId },
+    include: { user: true },
+  });
+  if (!target || target.teamId !== me.teamId) return undefined;
+
+  return {
+    id: target.userId,
+    name: target.user.name ?? "メンバー",
+    label: initial(target.user.name),
+    status: mapActivity(target.activity),
+    nap: null,
+    wakeSupport: { wakeAssistEnabled: target.wakeAssistEnabled },
+  };
 }

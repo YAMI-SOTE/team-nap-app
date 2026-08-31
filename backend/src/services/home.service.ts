@@ -1,4 +1,6 @@
+import { prisma } from "../lib/prisma.js";
 import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
+import { mapActivity } from "./team.service.js";
 import type { Member, MemberStatus } from "../types/domain.js";
 import { getNextFreeSlot } from "./schedule.service.js";
 
@@ -71,12 +73,36 @@ export function getHomeSummary(): HomeSummaryResponse {
   };
 }
 
-export function getHomeMemberStatus(): HomeMemberStatusResponse {
+export async function getHomeMemberStatus(
+  userId: string,
+): Promise<HomeMemberStatusResponse> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+  });
+
+  // In a team → real teammates and their live activity.
+  if (membership) {
+    const rows = await prisma.teamMembership.findMany({
+      where: { teamId: membership.teamId },
+      include: { user: true },
+      orderBy: { joinedAt: "asc" },
+    });
+    const members: Member[] = rows.map((m) => ({
+      id: m.userId,
+      label: m.user.name?.trim().slice(0, 1).toUpperCase() || "M",
+      status: mapActivity(m.activity),
+    }));
+    return {
+      memberCount: members.length,
+      memberStatusCounts: countMemberStatuses(members),
+      members: members.slice(0, MEMBER_DISPLAY_LIMIT),
+    };
+  }
+
+  // No team → the static Home-tab roster.
   return {
-    // Full-team figures for the summary text…
     memberCount: homeSnapshot.members.length,
     memberStatusCounts: countMemberStatuses(homeSnapshot.members),
-    // …but only the first few avatars for the member row.
     members: homeSnapshot.members.slice(0, MEMBER_DISPLAY_LIMIT),
   };
 }
