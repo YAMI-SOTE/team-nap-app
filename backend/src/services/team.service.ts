@@ -200,17 +200,22 @@ export async function joinTeam(
     data: { teamId: target.id, userId },
   });
 
-  const memberCount = await prisma.teamMembership.count({
+  const members = await prisma.teamMembership.findMany({
     where: { teamId: target.id },
+    select: { userId: true },
   });
-  addNotification({
-    kind: "member_joined",
-    title: `${user.name ?? "メンバー"}がチームに参加しました`,
-    body: `チームは${memberCount}人になりました`,
-    timestamp: "たった今",
-    read: false,
-    group: "today",
-  });
+  // Notify everyone who was already on the team (not the joiner).
+  for (const m of members) {
+    if (m.userId === userId) continue;
+    addNotification(m.userId, {
+      kind: "member_joined",
+      title: `${user.name ?? "メンバー"}がチームに参加しました`,
+      body: `チームは${members.length}人になりました`,
+      timestamp: "たった今",
+      read: false,
+      group: "today",
+    });
+  }
 
   return (await getCurrentTeam(userId))!;
 }

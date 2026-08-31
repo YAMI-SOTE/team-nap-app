@@ -13,8 +13,9 @@ adapter (`src/lib/prisma.ts`). Persisted models: **`User`, `Team`,
 
 Team-related services are DB-backed: `team.service`, `member.service`,
 `nudge.service`, and the member-status part of `home.service`. The rest
-(`settings`, `schedule`, `notifications`, `naps`, and the team
-summary/ranking snapshots) is still in-memory state in `src/services/*`.
+(`settings`, `schedule`, `naps`, and the team summary/ranking snapshots)
+is still in-memory state in `src/services/*`. `notifications.service` is
+in-memory too but now **keyed by userId** (a `Map`), not one global list.
 
 ## Authentication & sessions
 
@@ -41,12 +42,13 @@ In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
 when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
 for routes not yet moved onto sessions.
 
-**Behind `authenticate`:** all of `/api/v1/teams/*`, plus
-`/api/v1/settings/team` and `/api/v1/settings/team/leave`. Everything else
-(`home`, `schedule`, `stats`, `naps`, `ai`, the rest of `settings`,
-`notifications`) still uses the `X-User-Id` fallback. `npm run db:seed`
-gives every seeded user the password `teamnap-dev`
-(e.g. `dev@teamnap.local`) so team endpoints can be exercised in dev.
+**Behind `authenticate`:** all of `/api/v1/teams/*` and
+`/api/v1/notifications/*`, plus `/api/v1/settings/team` and
+`/api/v1/settings/team/leave`. Everything else (`home`, `schedule`,
+`stats`, `naps`, `ai`, the rest of `settings`) still uses the `X-User-Id`
+fallback. `npm run db:seed` gives every seeded user the password
+`teamnap-dev` (e.g. `dev@teamnap.local`) so those endpoints can be
+exercised in dev.
 
 ## Scripts
 

@@ -5,10 +5,14 @@ import {
   markAllNotificationsReadController,
   markNotificationReadController,
 } from "../controllers/notifications.controller.js";
+import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import { notificationIdParams } from "../schemas/notifications.schema.js";
 
 const router = Router();
+
+// The feed is per-user — session required.
+router.use(authenticate);
 
 router.get("/", getNotificationsController);
 router.post("/read-all", markAllNotificationsReadController);

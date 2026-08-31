@@ -170,7 +170,7 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | 関数 | 主な処理 | エラー |
 | --- | --- | --- |
 | `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409 |
-| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → `member_joined` 通知を積む。 | 既加入 409 / コード不一致 404 |
+| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409 / コード不一致 404 |
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
@@ -210,20 +210,21 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 - `kind` は `"wake" | "rest"`。
 - 自分自身への送信は 400、相手が別チームなら 400、送信者/相手が未加入なら 404。
 - `kind === "wake"` かつ相手の `wakeAssistEnabled` が false なら 409。
-- 成功時は対象向けの通知（`wake_request` / `rest_request`）を積んで
-  `{ success: true }`。**ナッジ自体は永続化しない。**
+- 成功時は **対象（`toUserId`）の**フィードへ通知（`wake_request` /
+  `rest_request`）を積んで `{ success: true }`。**ナッジ自体は永続化しない。**
 
 ---
 
 ## 7. 通知連携
 
-`joinTeam` と `sendNudge` は `notifications.service.addNotification()` を呼ぶ。
-現状の通知ストアは **in-memory**（サーバ再起動で消える）。チーム機能側は
-「通知を積む」以上のことはしていない。
+`joinTeam` と `sendNudge` は `notifications.service.addNotification(userId, …)`
+を呼ぶ。通知フィードは **userId ごと**（`Map`、まだ in-memory でサーバ
+再起動で消える）。`/api/v1/notifications/*` は `authenticate` 必須。
 
-- `joinTeam`: `member_joined` —「〇〇がチームに参加しました / チームは N 人になりました」
-- `sendNudge(wake)`: `wake_request` —「〇〇から「起きて〜」」
-- `sendNudge(rest)`: `rest_request` —「〇〇から「休んでね」」
+- `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
+  —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
+- `sendNudge(wake)`: `wake_request` を **対象（`toUserId`）の**フィードへ —「〇〇から「起きて〜」」
+- `sendNudge(rest)`: `rest_request` を対象のフィードへ —「〇〇から「休んでね」」
 
 ---
 
@@ -237,7 +238,7 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 | メンバー詳細の `nap` | ⚠️ 常に `null`（未実装） |
 | `GET /teams/summary` | ⚠️ `teamSummarySnapshot` 固定値 |
 | `GET /teams/ranking` | ⚠️ `rankingSnapshot` 固定値（`memberX` はダミー、`score` も手書き） |
-| 通知 | ⚠️ in-memory |
+| 通知フィード | ⚠️ userId ごとだがまだ in-memory（`Map`） |
 
 ---
 
@@ -302,7 +303,8 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
   検索（`normalizeCode` を保存列にする等）へ移行する。
 - `summary` / `ranking` を実データ（仮眠履歴）から算出する。
 - メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
-- 通知ストアが in-memory。永続化するとチーム参加通知も残るようになる。
+- 通知フィードは userId ごとになったが、まだ in-memory（`Map`）。
+  DB 化（`Notification` テーブル）すれば再起動で消えなくなる。
 - チームのルートは `authenticate` 必須になった。他機能のルート
   （home / schedule / stats など）はまだ `X-User-Id` フォールバックのまま。
   `ensureUser` はその旧経路向けの保険として残している。

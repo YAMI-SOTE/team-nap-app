@@ -537,7 +537,7 @@ RestRecommendation
 ```text
 settings.service   アカウント / 通知トグル / 睡眠スケジュール / カレンダー連携
 schedule.service   予定・当日スケジュール
-notifications.service  通知フィード（ナッジ・参加通知の宛先）
+notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
 naps.service       仮眠履歴
 team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
 ```

@@ -22,8 +22,8 @@ const COPY: Record<
 
 /**
  * One member nudges a teammate. Both must be in the same team. A wake
- * nudge is refused if the target turned wake support off. Creates an
- * (in-memory) notification for the target; nudges are not persisted.
+ * nudge is refused if the target turned wake support off. Adds a
+ * notification to the *target's* feed; the nudge itself is not persisted.
  */
 export async function sendNudge(
   fromUserId: string,
@@ -55,7 +55,7 @@ export async function sendNudge(
   }
 
   const copy = COPY[kind];
-  addNotification({
+  addNotification(toUserId, {
     kind: copy.notification,
     title: `${from.user.name ?? "メンバー"}から${copy.verb}`,
     body: copy.body,
