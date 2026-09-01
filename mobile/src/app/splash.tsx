@@ -1,23 +1,34 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Image, ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
+import { useAuth } from "@/features/auth/AuthContext";
+
+/** Minimum time the splash is shown, so it doesn't flash on a fast restore. */
+const MIN_SPLASH_MS = 900;
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { status, user } = useAuth();
+  const [minElapsed, setMinElapsed] = useState(false);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      router.replace("/login");
-    }, 1200);
+    const id = setTimeout(() => setMinElapsed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(id);
+  }, []);
 
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [router]);
+  useEffect(() => {
+    if (!minElapsed || status === "loading") return;
+
+    if (status === "signedOut") {
+      router.replace("/login");
+      return;
+    }
+    router.replace(user?.onboardingCompleted ? "/home" : "/onboarding");
+  }, [minElapsed, status, user, router]);
 
   return (
     <View style={styles.container}>

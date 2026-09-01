@@ -4,9 +4,11 @@ import { firstParam } from "../lib/params.js";
 import { requireSessionId, requireUserId } from "../lib/request-user.js";
 import {
   changePassword,
+  getDebugInfo,
   getPublicUser,
   login,
   signUp,
+  updateProfile,
 } from "../services/auth.service.js";
 import {
   confirmReset,
@@ -59,6 +61,17 @@ export async function confirmPasswordResetController(
 
 export async function meController(req: Request, res: Response) {
   res.status(200).json({ user: await getPublicUser(requireUserId(req)) });
+}
+
+export async function updateProfileController(req: Request, res: Response) {
+  const { name, email } = req.body as { name?: string; email?: string };
+  res
+    .status(200)
+    .json({ user: await updateProfile(requireUserId(req), { name, email }) });
+}
+
+export async function debugController(req: Request, res: Response) {
+  res.status(200).json(await getDebugInfo(requireUserId(req)));
 }
 
 export async function logoutController(req: Request, res: Response) {

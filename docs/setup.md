@@ -151,7 +151,39 @@ Frontend が正常に起動してアプリがマウントされると、Expo 側
 
 このログは Frontend から `POST /api/v1/health/frontend-boot` が成功したことを意味します。
 
-## よくある原因
+## API リクエストが必ず失敗する（最優先チェック）
+
+1. **Backend が起動しているか**
+
+   ```bash
+   curl http://localhost:3000/api/v1/health      # {"status":"ok",...} が返るはず
+   docker compose ps                              # backend の STATUS が Up か
+   docker compose logs -f backend                 # 起動失敗の理由を確認
+   ```
+
+   - `docker compose ps` に `backend` が無い/落ちている場合、以前は
+     `ollama-pull` の完了待ちで起動しないことがありました。現在は
+     `backend` は **`db` の healthy だけ**を待ちます（`compose.yaml`）。
+     古い挙動なら `docker compose up -d --build backend` で単体起動できます。
+   - ローカルで `npm start` する場合は先に `npm run build` が必要です
+     （`dist/` が無いと `node dist/server.js` が失敗）。`npm run dev` なら不要。
+
+2. **モバイルの向き先（`EXPO_PUBLIC_API_URL`）が実機/エミュレータで合っているか**
+
+   | 実行環境 | `mobile/.env` の値 |
+   | --- | --- |
+   | iOS シミュレータ / Web | `http://localhost:3000/api/v1` |
+   | Android エミュレータ | `http://10.0.2.2:3000/api/v1` |
+   | 実機（同じ Wi-Fi） | `http://<PCのLAN IP>:3000/api/v1`（例 `http://192.168.1.23:3000/api/v1`） |
+
+   変更後は Expo を再起動（`.env` は起動時のみ読み込み）。
+
+3. **認証が要るエンドポイントで 401 が返る**
+   - `/api/v1/{teams,notifications,onboarding}/*` と `/settings/team*` は
+     `Authorization: Bearer <token>` 必須。モバイルはログイン後
+     `AuthContext` がトークンを付与します（未ログインだと 401）。
+
+## その他よくある原因
 
 - `Invalid environment variables` で Backend が即終了する
   - `backend/.env` の `DATABASE_URL` が未設定です。上記の値を設定してください。

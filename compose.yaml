@@ -7,6 +7,9 @@ services:
     restart: unless-stopped
 
     environment:
+      # `development` keeps dev-only helpers on (password-reset token in the
+      # response, GET /auth/debug). Set to `production` for a real deploy.
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://teamnap:teamnap_dev@db:5432/teamnap
@@ -16,13 +19,12 @@ services:
     ports:
       - "3000:3000"
 
+    # The API only needs Postgres to start. Ollama (and the model pull) come
+    # up on their own schedule — a slow or failing pull must not keep the
+    # API down. AI endpoints degrade until Ollama is ready.
     depends_on:
       db:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
-      ollama-pull:
-        condition: service_completed_successfully
 
   ollama:
     image: ollama/ollama:latest

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import {
+  Alert,
   Image,
   type ImageSourcePropType,
   LayoutChangeEvent,
@@ -15,8 +16,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
+import { useAuth } from "@/features/auth/AuthContext";
+import { completeOnboarding } from "@/services/authApi";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import PillButton from "@/components/PillButton";
+
+/** "07時30分" -> "07:30" for the API. */
+function toClock(label: string): string {
+  return label.replace("時", ":").replace("分", "");
+}
 
 type Slide = {
   key: string;
@@ -41,7 +49,8 @@ const SLIDES: Slide[] = [
     title: "あなたの睡眠リズムを\n教えてください",
     body: "夜の睡眠を邪魔しないように、\nいつ寝ているか教えてね。",
     primaryLabel: "つぎへ",
-    showSkip: true,
+    // Required — no skip. The user must set/confirm their sleep times.
+    showSkip: false,
     illustration: require("../../../assets/onboarding/teamnap-02.png"),
   },
   {
@@ -72,10 +81,15 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
   // 実際に描画された枠の幅を onLayout で測定する。
   // Dimensions.get('window') はWeb環境で実際の表示幅とズレることがあるため、
   // 見た目のコンテナ幅と必ず一致するこちらを正として使う。
@@ -88,10 +102,30 @@ export default function OnboardingScreen() {
     }
   };
 
+  const finishOnboarding = async () => {
+    if (finishing) return;
+    setFinishing(true);
+    setFinishError(null);
+    try {
+      await completeOnboarding({
+        bedtime: toClock(sleepTime),
+        wakeTime: toClock(wakeTime),
+        calendarConnected,
+        notificationsEnabled,
+      });
+      await refresh();
+      router.replace("/home");
+    } catch {
+      setFinishError("設定を保存できませんでした。通信環境をご確認ください。");
+      setFinishing(false);
+    }
+  };
+
   const goToIndex = (nextIndex: number) => {
     if (nextIndex >= SLIDES.length) {
-      // オンボーディング完了 → アカウント作成画面（S01-07）へ
-      router.push("/signup");
+      // Account already exists (onboarding follows signup) — persist the
+      // answers and go home.
+      void finishOnboarding();
       return;
     }
     scrollRef.current?.scrollTo({ x: nextIndex * containerWidth, animated: true });
@@ -107,14 +141,27 @@ export default function OnboardingScreen() {
   const handlePrimaryPress = () => {
     const slide = SLIDES[index];
     if (slide.key === "calendar") {
-      // TODO: カレンダー連携（OAuth等）をバックエンド/ネイティブ連携が
-      // 決まり次第ここに実装する。今は次のスライドへ進むだけ。
-      console.log("TODO: connect calendar");
+      // Show the "連携しますか？" popup. Connecting is optional — either
+      // choice advances to the next slide.
+      Alert.alert(
+        "カレンダーを連携しますか？",
+        "予定を読み取り、チーム全員が空いている時間を見つけやすくなります。連携しなくても続けられます。",
+        [
+          { text: "あとで", style: "cancel", onPress: () => goToIndex(index + 1) },
+          {
+            text: "連携する",
+            onPress: () => {
+              setCalendarConnected(true);
+              goToIndex(index + 1);
+            },
+          },
+        ],
+      );
+      return;
     }
     if (slide.key === "notification") {
-      // TODO: expo-notifications 等でプッシュ通知の許可リクエストを
-      // ここに実装する。今は次のスライドへ進むだけ。
-      console.log("TODO: request notification permission");
+      // TODO: expo-notifications 等で実際の許可リクエストを出す。
+      setNotificationsEnabled(true);
     }
     goToIndex(index + 1);
   };
@@ -189,13 +236,19 @@ export default function OnboardingScreen() {
         </View>
 
         <PillButton
-          label={SLIDES[index].primaryLabel}
+          label={
+            index === SLIDES.length - 1 ? "はじめる" : SLIDES[index].primaryLabel
+          }
           onPress={handlePrimaryPress}
           variant="primary"
+          loading={finishing}
+          disabled={finishing}
         />
 
-        {SLIDES[index].showSkip ? (
-          <Pressable onPress={handleSkip} hitSlop={8}>
+        {finishError ? (
+          <Text style={styles.errorText}>{finishError}</Text>
+        ) : SLIDES[index].showSkip ? (
+          <Pressable onPress={handleSkip} hitSlop={8} disabled={finishing}>
             <Text style={styles.skipText}>あとで設定する</Text>
           </Pressable>
         ) : (
@@ -383,5 +436,10 @@ const styles = StyleSheet.create({
   },
   skipPlaceholder: {
     height: 18,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.error,
+    textAlign: "center",
   },
 });

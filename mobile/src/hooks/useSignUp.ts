@@ -5,6 +5,7 @@ import {
   AuthError,
   LoginResult,
 } from "../services/authService";
+import { useAuth } from "@/features/auth/AuthContext";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -30,6 +31,7 @@ type UseSignUpResult = {
  * useLogin と対になる構成にしている。
  */
 export function useSignUp(): UseSignUpResult {
+  const { signIn } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +63,7 @@ export function useSignUp(): UseSignUpResult {
     setIsSubmitting(true);
     try {
       const result = await signUp({ name: name.trim(), email, password });
+      await signIn(result);
       return result;
     } catch (error) {
       const message =
@@ -77,6 +80,7 @@ export function useSignUp(): UseSignUpResult {
     setIsGoogleSubmitting(true);
     try {
       const result = await signInWithGoogle();
+      await signIn(result);
       return result;
     } catch (error) {
       const message =

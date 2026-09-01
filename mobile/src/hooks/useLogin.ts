@@ -5,6 +5,7 @@ import {
   AuthError,
   LoginResult,
 } from "../services/authService";
+import { useAuth } from "@/features/auth/AuthContext";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,6 +26,7 @@ type UseLoginResult = {
  * 画面コンポーネント側は表示に専念できるようにする。
  */
 export function useLogin(): UseLoginResult {
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,6 +52,7 @@ export function useLogin(): UseLoginResult {
     setIsSubmitting(true);
     try {
       const result = await login({ email, password });
+      await signIn(result);
       return result;
     } catch (error) {
       const message =
@@ -66,6 +69,7 @@ export function useLogin(): UseLoginResult {
     setIsGoogleSubmitting(true);
     try {
       const result = await signInWithGoogle();
+      await signIn(result);
       return result;
     } catch (error) {
       const message =

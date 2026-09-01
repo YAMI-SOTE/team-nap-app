@@ -1,33 +1,31 @@
 /**
- * 認証関連のAPI呼び出しをまとめるサービス層。
+ * 認証サービス層。実際の `/api/v1/auth/*` を叩く（薄いラッパーは
+ * `authApi.ts`）。呼び出し側（useLogin / useSignUp）は戻り値の型
+ * `LoginResult` だけを契約として扱う。
  *
- * TODO(backend): 実際のエンドポイントが決まったら BASE_URL と
- * login() 内の fetch 部分を差し替える。呼び出し側（useLogin フック）は
- * 変更不要になるよう、戻り値の型 (LoginResult) だけ契約として守ること。
- *
- * 想定しているバックエンドとの契約（要すり合わせ）:
- *   POST {BASE_URL}/auth/login
- *   body: { email: string, password: string }
- *   200: { token: string, user: { id: string, name: string } }
- *   401: { message: string }  -> 認証失敗
- *   その他エラー: { message: string }
+ * セッション（トークン）の保存は `AuthContext.signIn()` の役割。ここでは
+ * API 呼び出しとエラー正規化のみ行う。Google ログインは対象外。
  */
 
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.example.com";
+import { ApiError } from "@/services/api";
+import * as authApi from "@/services/authApi";
+
+import type { AuthResult, AuthUser } from "@/types/api";
 
 export type LoginPayload = {
   email: string;
   password: string;
 };
 
-export type LoginResult = {
-  token: string;
-  user: {
-    id: string;
-    name: string;
-  };
+export type SignUpPayload = {
+  name: string;
+  email: string;
+  password: string;
 };
+
+/** `{ token, user: { id, name, email, onboardingCompleted } }` */
+export type LoginResult = AuthResult;
+export type { AuthUser };
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -36,101 +34,58 @@ export class AuthError extends Error {
   }
 }
 
-export type SignUpPayload = {
-  name: string;
-  email: string;
-  password: string;
-};
-
-/**
- * 新規登録API。契約は login() と同様、バックエンド確定後に
- * 本番実装へ差し替える想定（POST {BASE_URL}/auth/signup を想定）。
- * name はユーザーの表示名として送信する。
- */
-export async function signUp({
-  name,
-  email,
-  password,
-}: SignUpPayload): Promise<LoginResult> {
-  // --- 本番実装（バックエンドAPIが確定したらこちらを使う） -----------------
-  // const response = await fetch(`${BASE_URL}/auth/signup`, {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ name, email, password }),
-  // });
-  //
-  // if (!response.ok) {
-  //   const body = await response.json().catch(() => null);
-  //   throw new AuthError(body?.message ?? '登録に失敗しました');
-  // }
-  //
-  // return response.json();
-  // --------------------------------------------------------------------
-
-  // --- 仮実装（API未接続の間のモック） -------------------------------------
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  if (!email.includes("@")) {
-    throw new AuthError("メールアドレスの形式が正しくありません");
+function toAuthError(error: unknown, fallback: string): AuthError {
+  if (error instanceof ApiError) {
+    return new AuthError(error.message);
   }
-
-  return {
-    token: "mock-token",
-    user: { id: "mock-user-id", name },
-  };
-  // --------------------------------------------------------------------
-}
-
-/**
- * Googleログイン。
- *
- * TODO(frontend): 実装にはGoogle Cloud ConsoleでOAuthクライアントID
- * （iOS用・Android用・Web用）の発行が必要。取得後、以下のいずれかで実装する。
- *   - expo-auth-session/providers/google（Expo Go含め動作する定番構成）
- *   - @react-native-google-signin/google-signin（ネイティブ実装、要Dev Client/EASビルド）
- *
- * 取得後の実装イメージ:
- *   1. `npx expo install expo-auth-session expo-crypto` を追加
- *   2. Google.useAuthRequest({ iosClientId, androidClientId, webClientId }) でトークン取得
- *   3. 取得したidTokenをバックエンドに送り、自前セッション（token）に交換する
- *      エンドポイントをバックエンド担当とすり合わせる（例: POST /auth/google）
- *
- * 現状はUIのみのため、呼ばれても未実装エラーを投げる。
- */
-export async function signInWithGoogle(): Promise<LoginResult> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  return {
-    token: "mock-google-token",
-    user: { id: "mock-google-user-id", name: "Google Test User" },
-  };
+  return new AuthError(fallback);
 }
 
 export async function login({
   email,
   password,
 }: LoginPayload): Promise<LoginResult> {
-  // --- 本番実装（バックエンドAPIが確定したらこちらを使う） -----------------
-  // const response = await fetch(`${BASE_URL}/auth/login`, {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ email, password }),
-  // });
-  //
-  // if (!response.ok) {
-  //   const body = await response.json().catch(() => null);
-  //   throw new AuthError(body?.message ?? 'ログインに失敗しました');
-  // }
-  //
-  // return response.json();
-  // --------------------------------------------------------------------
+  try {
+    return await authApi.login(email.trim(), password);
+  } catch (error) {
+    throw toAuthError(error, "通信エラーが発生しました");
+  }
+}
 
-  // --- 仮実装（API未接続の間のモック） -------------------------------------
-  await new Promise((resolve) => setTimeout(resolve, 800));
+export async function signUp({
+  name,
+  email,
+  password,
+}: SignUpPayload): Promise<LoginResult> {
+  try {
+    return await authApi.signUp(name.trim(), email.trim(), password);
+  } catch (error) {
+    throw toAuthError(error, "登録に失敗しました");
+  }
+}
 
-  return {
-    token: "mock-token",
-    user: { id: "mock-user-id", name: "テストユーザー" },
-  };
-  // --------------------------------------------------------------------
+/** Google ログインは未対応（バックエンドの OAuth 実装待ち）。 */
+export async function signInWithGoogle(): Promise<LoginResult> {
+  throw new AuthError("Googleログインは現在ご利用いただけません");
+}
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<{ ok: true; resetToken?: string }> {
+  try {
+    return await authApi.requestPasswordReset(email.trim());
+  } catch (error) {
+    throw toAuthError(error, "リセットメールを送信できませんでした");
+  }
+}
+
+export async function confirmPasswordReset(
+  token: string,
+  password: string,
+): Promise<void> {
+  try {
+    await authApi.confirmPasswordReset(token.trim(), password);
+  } catch (error) {
+    throw toAuthError(error, "パスワードを再設定できませんでした");
+  }
 }

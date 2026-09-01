@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,7 +10,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
-import { useAccountSettings } from "@/hooks/useAccountSettings";
+import { useAuth } from "@/features/auth/AuthContext";
+import { updateProfile } from "@/services/authApi";
+import { ApiError } from "@/services/api";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
@@ -18,29 +20,85 @@ import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * "アカウント情報" — reads the signed-in user (name / email registered at
+ * sign-up) and saves via PATCH /auth/me. Changing the email requires
+ * typing the new address twice.
+ */
 export default function AccountScreen() {
   const router = useRouter();
-  const { data, loading, saving, error, save } = useAccountSettings();
+  const { user, refresh, signOut } = useAuth();
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [emailConfirm, setEmailConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!data) {
+    if (!user) return;
+    setUsername(user.name ?? "");
+    setEmail(user.email);
+    setEmailConfirm("");
+  }, [user]);
+
+  const emailChanged = useMemo(
+    () => user != null && email.trim().toLowerCase() !== user.email.toLowerCase(),
+    [email, user],
+  );
+
+  const handleSave = async () => {
+    if (!user) return;
+    setError(null);
+    setSavedNote(null);
+
+    const nextName = username.trim();
+    if (!nextName) {
+      setError("ユーザー名を入力してください");
+      return;
+    }
+    if (emailChanged) {
+      if (!EMAIL_REGEX.test(email.trim())) {
+        setError("メールアドレスの形式が正しくありません");
+        return;
+      }
+      if (email.trim() !== emailConfirm.trim()) {
+        setError("確認用のメールアドレスが一致しません");
+        return;
+      }
+    }
+
+    const patch: { name?: string; email?: string } = {};
+    if (nextName !== (user.name ?? "")) patch.name = nextName;
+    if (emailChanged) patch.email = email.trim();
+    if (Object.keys(patch).length === 0) {
+      setSavedNote("変更はありません");
       return;
     }
 
-    setUsername(data.username);
-    setEmail(data.email);
-  }, [data]);
+    setSaving(true);
+    try {
+      await updateProfile(patch);
+      await refresh();
+      setEmailConfirm("");
+      setSavedNote("保存しました");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError("このメールアドレスは既に使われています");
+      } else {
+        setError(err instanceof Error ? err.message : "保存できませんでした");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleChangePhoto = () => console.log("TODO: change profile photo");
-  const handleSave = () =>
-    save({
-      username,
-      email,
-    });
-  const handleLogout = () => {
-    // No auth token to clear in the current mock auth — just return to login.
+  const handleLogout = async () => {
+    await signOut();
     router.replace("/login");
   };
   const handleDeleteAccount = () => console.log("TODO: delete the account");
@@ -54,10 +112,7 @@ export default function AccountScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <ScreenHeader
-            title="アカウント情報"
-            onBack={() => router.back()}
-          />
+          <ScreenHeader title="アカウント情報" onBack={() => router.back()} />
 
           <View style={styles.avatar}>
             <View style={styles.avatarPlaceholder} />
@@ -88,6 +143,17 @@ export default function AccountScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {emailChanged ? (
+              <LabeledInput
+                label="新しいメールアドレス（確認）"
+                placeholder="同じメールアドレスをもう一度"
+                value={emailConfirm}
+                onChangeText={setEmailConfirm}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            ) : null}
           </View>
 
           <PillButton
@@ -98,12 +164,14 @@ export default function AccountScreen() {
             loading={saving}
           />
 
-          <View style={styles.spacer} />
-
           <View style={styles.statusBlock}>
-            {loading ? <ActivityIndicator color={colors.primary} /> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {savedNote ? (
+              <Text style={styles.savedText}>{savedNote}</Text>
+            ) : null}
           </View>
+
+          <View style={styles.spacer} />
 
           <View style={styles.danger}>
             <Pressable
@@ -185,6 +253,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.error,
+    textAlign: "center",
+  },
+  savedText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textBrand,
     textAlign: "center",
   },
   logoutText: {

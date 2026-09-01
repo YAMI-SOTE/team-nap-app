@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { Stack } from "expo-router";
 
 import { notifyFrontendBoot } from "@/services/appBoot";
+import { AuthProvider } from "@/features/auth/AuthContext";
 import { NotificationsProvider } from "@/features/notifications/NotificationsProvider";
 
 export default function RootLayout() {
@@ -26,12 +27,14 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <NotificationsProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      />
-    </NotificationsProvider>
+    <AuthProvider>
+      <NotificationsProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+          }}
+        />
+      </NotificationsProvider>
+    </AuthProvider>
   );
 }

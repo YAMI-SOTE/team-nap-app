@@ -29,3 +29,14 @@ export const changePasswordBody = z.object({
   currentPassword: z.string().min(1, "current password is required").max(200),
   newPassword: password,
 });
+
+export const updateProfileBody = z
+  .object({
+    name: z.string().trim().min(1, "name is required").max(50),
+    email,
+  })
+  .partial()
+  .refine(
+    (v) => v.name !== undefined || v.email !== undefined,
+    "name or email is required",
+  );
