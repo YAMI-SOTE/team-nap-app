@@ -61,6 +61,15 @@ async function main() {
     });
   }
 
+  // The primary dev user is treated as a returning user (onboarding done);
+  // the others are left without an Onboarding row so the lazy-backfill /
+  // "route through onboarding" path can be exercised in dev.
+  await prisma.onboarding.upsert({
+    where: { userId: USERS[0].id },
+    update: { completedAt: new Date() },
+    create: { userId: USERS[0].id, completedAt: new Date() },
+  });
+
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
   );

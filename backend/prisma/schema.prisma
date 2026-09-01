@@ -22,6 +22,22 @@ model User {
   memberships  TeamMembership[]
   sessions     Session[]
   passwordResetTokens PasswordResetToken[]
+  onboarding   Onboarding?
+}
+
+/// One row per user, holding the answers collected during onboarding.
+/// Created with defaults at sign-up (and lazily for legacy users), so a
+/// missing/incomplete row means "still needs to go through onboarding".
+/// `completedAt` is set once the user finishes the questions.
+model Onboarding {
+  userId               String    @id
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bedtime              String    @default("23:30")
+  wakeTime             String    @default("07:30")
+  calendarConnected    Boolean   @default(false)
+  notificationsEnabled Boolean   @default(false)
+  completedAt          DateTime?
+  updatedAt            DateTime  @updatedAt
 }
 
 /// Single-use, short-lived token for the "forgot password" flow. Like

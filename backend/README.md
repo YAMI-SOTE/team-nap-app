@@ -45,13 +45,33 @@ In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
 when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
 for routes not yet moved onto sessions.
 
-**Behind `authenticate`:** all of `/api/v1/teams/*` and
-`/api/v1/notifications/*`, plus `/api/v1/settings/team` and
-`/api/v1/settings/team/leave`. Everything else (`home`, `schedule`,
-`stats`, `naps`, `ai`, the rest of `settings`) still uses the `X-User-Id`
-fallback. `npm run db:seed` gives every seeded user the password
-`teamnap-dev` (e.g. `dev@teamnap.local`) so those endpoints can be
-exercised in dev.
+**Behind `authenticate`:** all of `/api/v1/teams/*`,
+`/api/v1/notifications/*`, `/api/v1/onboarding/*`, plus
+`/api/v1/settings/team` and `/api/v1/settings/team/leave`. Everything else
+(`home`, `schedule`, `stats`, `naps`, `ai`, the rest of `settings`) still
+uses the `X-User-Id` fallback. `npm run db:seed` gives every seeded user
+the password `teamnap-dev` (e.g. `dev@teamnap.local`) so those endpoints
+can be exercised in dev.
+
+## Onboarding
+
+Each user has one `Onboarding` row (sleep rhythm + calendar/notification
+opt-ins). It is created with defaults at sign-up and **lazily for anyone
+who predates that**, so `completed` is always answerable — a missing or
+incomplete row means the client must route the user through onboarding
+*after* account creation.
+
+| Method / path | Body | Notes |
+| --- | --- | --- |
+| `GET /api/v1/onboarding` | – | `{ completed, bedtime, wakeTime, calendarConnected, notificationsEnabled, completedAt }`; creates the default row if absent |
+| `PUT /api/v1/onboarding` | any subset of the 4 fields | incremental save; does **not** complete |
+| `POST /api/v1/onboarding/complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | stamps `completedAt` the first time; idempotent afterwards |
+
+**Intended client sequence:** `signup` (or `login`) → `GET /onboarding`
+→ if `!completed`, show the onboarding questions → `POST /onboarding/complete`
+→ home. `npm run db:seed` marks the primary dev user
+(`dev@teamnap.local`) complete and leaves the other seeded users without
+a row, so both the normal and the backfill paths are visible in dev.
 
 ## Scripts
 

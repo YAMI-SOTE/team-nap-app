@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession, revokeAllSessions } from "./session.service.js";
 
 /**
@@ -51,6 +52,7 @@ export async function signUp(
       where: { id: existing.id },
       data: { name: name || existing.name, passwordHash: await hashPassword(input.password) },
     });
+    await ensureOnboarding(user.id);
     const { token } = await createSession(user.id, userAgent);
     return { token, user: toPublicUser(user) };
   }
@@ -58,6 +60,7 @@ export async function signUp(
   const user = await prisma.user.create({
     data: { email, name: name || null, passwordHash: await hashPassword(input.password) },
   });
+  await ensureOnboarding(user.id);
   const { token } = await createSession(user.id, userAgent);
   return { token, user: toPublicUser(user) };
 }

@@ -6,6 +6,7 @@ import healthRoutes from "./health.routes.js";
 import homeRoutes from "./home.routes.js";
 import napRoutes from "./naps.routes.js";
 import notificationRoutes from "./notifications.routes.js";
+import onboardingRoutes from "./onboarding.routes.js";
 import restRoutes from "./rest.routes.js";
 import scheduleRoutes from "./schedule.routes.js";
 import settingsRoutes from "./settings.routes.js";
@@ -24,6 +25,7 @@ router.use("/settings", settingsRoutes);
 router.use("/stats", statsRoutes);
 router.use("/naps", napRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/onboarding", onboardingRoutes);
 router.use("/teams", teamRoutes);
 
 export default router;
