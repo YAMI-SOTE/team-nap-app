@@ -2,6 +2,7 @@ import type { MemberActivity } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
+import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
 import { addNotification } from "./notifications.service.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
@@ -168,15 +169,23 @@ export async function createTeam(
     throw HttpError.conflict("You already belong to a team");
   }
   await ensureUser(userId);
-  const team = await prisma.team.create({
-    data: {
-      name,
-      inviteCode: await uniqueInviteCode(),
-      members: { create: { userId } },
-    },
-    include: teamWithMembers,
-  });
-  return toSettings(team);
+  try {
+    const team = await prisma.team.create({
+      data: {
+        name,
+        inviteCode: await uniqueInviteCode(),
+        members: { create: { userId } },
+      },
+      include: teamWithMembers,
+    });
+    return toSettings(team);
+  } catch (err) {
+    // Lost a race with a concurrent create/join for the same user.
+    if (isUniqueViolation(err)) {
+      throw HttpError.conflict("You already belong to a team");
+    }
+    throw err;
+  }
 }
 
 export async function joinTeam(
@@ -196,9 +205,16 @@ export async function joinTeam(
   }
 
   const user = await ensureUser(userId);
-  await prisma.teamMembership.create({
-    data: { teamId: target.id, userId },
-  });
+  try {
+    await prisma.teamMembership.create({
+      data: { teamId: target.id, userId },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw HttpError.conflict("You already belong to a team");
+    }
+    throw err;
+  }
 
   const members = await prisma.teamMembership.findMany({
     where: { teamId: target.id },

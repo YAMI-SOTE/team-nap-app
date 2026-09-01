@@ -169,8 +169,8 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 
 | 関数 | 主な処理 | エラー |
 | --- | --- | --- |
-| `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409 |
-| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409 / コード不一致 404 |
+| `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409（同時実行で `@@unique` に当たった場合も 409 に変換） |
+| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409（同時実行も 409） / コード不一致 404 |
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
