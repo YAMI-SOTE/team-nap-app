@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useNapHistory } from "@/hooks/useNapHistory";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import EmptyState from "@/components/EmptyState";
 import ScreenHeader from "@/components/ScreenHeader";
 import StatSummary from "@/components/StatSummary";
 import TaskCard from "@/components/TaskCard";
@@ -38,6 +39,12 @@ export default function NapHistoryScreen() {
             <View style={styles.stateBlock}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
+          ) : data && data.days.length === 0 ? (
+            <EmptyState
+              image={require("../../../assets/characters/genki.png")}
+              title="まだ仮眠の記録がありません"
+              body="仮眠を記録すると、ここに履歴が表示されます。"
+            />
           ) : data ? (
             <>
               <StatSummary
@@ -68,10 +75,6 @@ export default function NapHistoryScreen() {
                       icon={<AlarmBadgeIcon size={41} />}
                       time={record.time}
                       subtitle={record.detail}
-                      showCaret
-                      onPress={() =>
-                        console.log(`TODO: open nap ${record.id}`)
-                      }
                     />
                   ))}
                 </View>

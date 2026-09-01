@@ -108,13 +108,21 @@ export default function TeamStatsView({
       </Card>
 
       {/* 今週の達成 */}
-      <IconPill
-        icon={<TrophyIcon size={22} />}
-        backgroundColor={colors.brandSubtle}
-        gap={10}
-      >
-        <Text style={styles.bannerText}>{data.achievementBanner}</Text>
-      </IconPill>
+      {data.achievementBanner ? (
+        <IconPill
+          icon={<TrophyIcon size={22} />}
+          backgroundColor={colors.brandSubtle}
+          gap={10}
+        >
+          <Text style={styles.bannerText}>{data.achievementBanner}</Text>
+        </IconPill>
+      ) : null}
+
+      {!data.hasRecords ? (
+        <Text style={styles.disclaimer}>
+          チームの仮眠データがまだありません。メンバーが仮眠を記録すると集計されます。
+        </Text>
+      ) : null}
 
       <Text style={styles.disclaimer}>{data.disclaimer}</Text>
     </View>

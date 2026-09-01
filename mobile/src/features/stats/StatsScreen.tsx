@@ -13,6 +13,7 @@ import { colors } from "@/theme/colors";
 import { useStats } from "@/hooks/useStats";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
+import EmptyState from "@/components/EmptyState";
 import Logo from "@/components/Logo";
 import SegmentedControl from "@/components/SegmentedControl";
 import PersonalStatsView from "@/features/stats/PersonalStatsView";
@@ -68,11 +69,18 @@ export default function StatsScreen() {
             <View style={styles.stateBlock}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
+          ) : activeTab === "personal" && personal && !personal.hasRecords ? (
+            <EmptyState
+              image={require("../../../assets/characters/genki.png")}
+              title="まだ仮眠の記録がありません"
+              body="15分の仮眠をとると、スコアや集中度の変化がここに表示されます。"
+              actionLabel="はじめての仮眠をとる"
+              onAction={() => router.push("/rest")}
+            />
           ) : activeTab === "personal" && personal ? (
             <PersonalStatsView
               data={personal}
               onSeeAll={() => router.push("/naps/history")}
-              onNapPress={(id) => console.log(`TODO: open nap ${id}`)}
             />
           ) : activeTab === "team" && team ? (
             <TeamStatsView

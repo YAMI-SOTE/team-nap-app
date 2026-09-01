@@ -21,13 +21,11 @@ import type { PersonalStatsResponse } from "@/types/api";
 type PersonalStatsViewProps = {
   data: PersonalStatsResponse;
   onSeeAll: () => void;
-  onNapPress: (id: string) => void;
 };
 
 export default function PersonalStatsView({
   data,
   onSeeAll,
-  onNapPress,
 }: PersonalStatsViewProps) {
   return (
     <View style={styles.container}>
@@ -111,8 +109,6 @@ export default function PersonalStatsView({
             icon={<AlarmBadgeIcon size={41} />}
             time={nap.time}
             subtitle={nap.detail}
-            showCaret
-            onPress={() => onNapPress(nap.id)}
           />
         ))}
       </View>
