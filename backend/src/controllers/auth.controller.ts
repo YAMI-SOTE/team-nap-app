@@ -4,6 +4,7 @@ import { firstParam } from "../lib/params.js";
 import { requireSessionId, requireUserId } from "../lib/request-user.js";
 import {
   changePassword,
+  deleteAccount,
   getDebugInfo,
   getPublicUser,
   login,
@@ -68,6 +69,11 @@ export async function updateProfileController(req: Request, res: Response) {
   res
     .status(200)
     .json({ user: await updateProfile(requireUserId(req), { name, email }) });
+}
+
+export async function deleteAccountController(req: Request, res: Response) {
+  await deleteAccount(requireUserId(req));
+  res.status(204).end();
 }
 
 export async function debugController(req: Request, res: Response) {

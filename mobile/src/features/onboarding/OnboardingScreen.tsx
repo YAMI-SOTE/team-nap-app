@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Image,
   type ImageSourcePropType,
   LayoutChangeEvent,
@@ -19,6 +19,7 @@ import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
 
 /** "07時30分" -> "07:30" for the API. */
@@ -81,15 +82,24 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { status, refresh } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [calendarPromptOpen, setCalendarPromptOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
+
+  // Onboarding runs *after* sign-up — it needs a session to save. If the
+  // user got here without one, send them to create an account first.
+  useEffect(() => {
+    if (status === "signedOut") {
+      router.replace("/signup");
+    }
+  }, [status, router]);
   // 実際に描画された枠の幅を onLayout で測定する。
   // Dimensions.get('window') はWeb環境で実際の表示幅とズレることがあるため、
   // 見た目のコンテナ幅と必ず一致するこちらを正として使う。
@@ -141,22 +151,9 @@ export default function OnboardingScreen() {
   const handlePrimaryPress = () => {
     const slide = SLIDES[index];
     if (slide.key === "calendar") {
-      // Show the "連携しますか？" popup. Connecting is optional — either
-      // choice advances to the next slide.
-      Alert.alert(
-        "カレンダーを連携しますか？",
-        "予定を読み取り、チーム全員が空いている時間を見つけやすくなります。連携しなくても続けられます。",
-        [
-          { text: "あとで", style: "cancel", onPress: () => goToIndex(index + 1) },
-          {
-            text: "連携する",
-            onPress: () => {
-              setCalendarConnected(true);
-              goToIndex(index + 1);
-            },
-          },
-        ],
-      );
+      // Show the "連携しますか？" popup (cross-platform, unlike Alert on web).
+      // Connecting is optional — either choice advances.
+      setCalendarPromptOpen(true);
       return;
     }
     if (slide.key === "notification") {
@@ -170,8 +167,32 @@ export default function OnboardingScreen() {
     goToIndex(index + 1);
   };
 
+  if (status !== "signedIn") {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <ActivityIndicator color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} onLayout={handleLayout}>
+      <ConfirmDialog
+        visible={calendarPromptOpen}
+        title="カレンダーを連携しますか？"
+        message="予定を読み取り、チーム全員が空いている時間を見つけやすくなります。あとから設定でも変更できます。"
+        confirmLabel="連携する"
+        cancelLabel="あとで"
+        onConfirm={() => {
+          setCalendarConnected(true);
+          setCalendarPromptOpen(false);
+          goToIndex(index + 1);
+        }}
+        onCancel={() => {
+          setCalendarPromptOpen(false);
+          goToIndex(index + 1);
+        }}
+      />
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -314,6 +335,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  centered: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   scroll: {
     flex: 1,

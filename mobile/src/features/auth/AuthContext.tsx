@@ -24,6 +24,8 @@ type AuthContextValue = {
   signIn: (result: AuthResult) => Promise<void>;
   /** Revoke the session (best-effort) and clear local state. */
   signOut: () => Promise<void>;
+  /** Permanently delete the account, then clear local state. */
+  deleteAccount: () => Promise<void>;
   /** Re-fetch `/auth/me` (e.g. after completing onboarding). */
   refresh: () => Promise<void>;
 };
@@ -55,6 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // token may already be invalid — clearing locally is enough
     }
+    clearLocal();
+  }, [clearLocal]);
+
+  const deleteAccount = useCallback(async () => {
+    await authApi.deleteAccount();
     clearLocal();
   }, [clearLocal]);
 
@@ -100,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearLocal]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, signIn, signOut, refresh }),
-    [status, user, signIn, signOut, refresh],
+    () => ({ status, user, signIn, signOut, deleteAccount, refresh }),
+    [status, user, signIn, signOut, deleteAccount, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

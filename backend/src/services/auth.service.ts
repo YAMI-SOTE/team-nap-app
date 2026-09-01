@@ -3,6 +3,7 @@ import { HttpError } from "../lib/http-error.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession, revokeAllSessions } from "./session.service.js";
+import { leaveTeam } from "./team.service.js";
 
 /**
  * Email + password sign-up / login. Both issue a session (see
@@ -130,6 +131,18 @@ export async function getDebugInfo(userId: string) {
     passwordHashAlgorithm: user.passwordHash?.split("$")[0] ?? null,
     activeSessions: sessionCount,
   };
+}
+
+/**
+ * Permanently delete the account. Leaves the team first (so an emptied
+ * team is cleaned up), then deletes the `User` — sessions, onboarding and
+ * reset tokens go with it via `onDelete: Cascade`.
+ */
+export async function deleteAccount(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw HttpError.unauthorized("Account no longer exists");
+  await leaveTeam(userId);
+  await prisma.user.delete({ where: { id: userId } });
 }
 
 /**
