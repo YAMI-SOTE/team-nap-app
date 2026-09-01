@@ -13,3 +13,8 @@ export const joinTeamBody = z.object({
 export const statusBody = z.object({
   status: z.enum(["online", "resting"]),
 });
+
+export const napSuggestionBody = z.object({
+  /** Proposed nap length in minutes. */
+  minutes: z.number().int().min(5).max(60).default(15),
+});

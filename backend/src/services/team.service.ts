@@ -2,6 +2,7 @@ import type { MemberActivity } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
+import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
 import { addNotification } from "./notifications.service.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
@@ -168,15 +169,23 @@ export async function createTeam(
     throw HttpError.conflict("You already belong to a team");
   }
   await ensureUser(userId);
-  const team = await prisma.team.create({
-    data: {
-      name,
-      inviteCode: await uniqueInviteCode(),
-      members: { create: { userId } },
-    },
-    include: teamWithMembers,
-  });
-  return toSettings(team);
+  try {
+    const team = await prisma.team.create({
+      data: {
+        name,
+        inviteCode: await uniqueInviteCode(),
+        members: { create: { userId } },
+      },
+      include: teamWithMembers,
+    });
+    return toSettings(team);
+  } catch (err) {
+    // Lost a race with a concurrent create/join for the same user.
+    if (isUniqueViolation(err)) {
+      throw HttpError.conflict("You already belong to a team");
+    }
+    throw err;
+  }
 }
 
 export async function joinTeam(
@@ -196,9 +205,16 @@ export async function joinTeam(
   }
 
   const user = await ensureUser(userId);
-  await prisma.teamMembership.create({
-    data: { teamId: target.id, userId },
-  });
+  try {
+    await prisma.teamMembership.create({
+      data: { teamId: target.id, userId },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw HttpError.conflict("You already belong to a team");
+    }
+    throw err;
+  }
 
   const members = await prisma.teamMembership.findMany({
     where: { teamId: target.id },
@@ -275,6 +291,44 @@ export async function getMyStatus(
     throw HttpError.notFound("You do not belong to a team");
   }
   return { status: mapActivity(membership.activity) };
+}
+
+/**
+ * Broadcast a "let's nap together" suggestion — one `team_nap_suggestion`
+ * notification into every other team member's feed. Backs the
+ * "◯分仮眠を提案" button on the Team screen.
+ */
+export async function suggestTeamNap(
+  userId: string,
+  minutes: number,
+): Promise<{ success: true; notified: number }> {
+  step("service", "team.suggestTeamNap", { minutes });
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+    include: {
+      user: true,
+      team: { include: { members: { select: { userId: true } } } },
+    },
+  });
+  if (!membership) {
+    throw HttpError.notFound("You do not belong to a team");
+  }
+
+  const proposer = membership.user.name ?? "メンバー";
+  let notified = 0;
+  for (const m of membership.team.members) {
+    if (m.userId === userId) continue;
+    addNotification(m.userId, {
+      kind: "team_nap_suggestion",
+      title: `${proposer}さんからチーム仮眠の提案`,
+      body: `${minutes}分、みんなで仮眠しませんか？`,
+      timestamp: "たった今",
+      read: false,
+      group: "today",
+    });
+    notified += 1;
+  }
+  return { success: true, notified };
 }
 
 // ---------------------------------------------------------------------------
