@@ -120,6 +120,7 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | `POST /teams` | `{ name }` | **201** | `createTeam` | `TeamSettingsResponse` |
 | `PUT /teams` | `{ name }` | 200 | `renameTeam` | `TeamSettingsResponse` |
 | `POST /teams/join` | `{ inviteCode }` | 200 | `joinTeam` | `TeamSettingsResponse` |
+| `POST /teams/nap-suggestion` | `{ minutes? }`（5〜60、既定 15） | 200 / 404 | `suggestTeamNap` | `{ success: true, notified }` |
 | `GET /teams/me/status` | – | 200 | `getMyStatus` | `{ status: MemberStatus }` |
 | `PUT /teams/me/status` | `{ status: "online" \| "resting" }` | 200 | `setActivity` | `TeamSettingsResponse` |
 | `GET /teams/members/:id` | – | 200 / 404 | `getMemberDetail` | `MemberDetailResponse` |
@@ -174,6 +175,7 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
+| `suggestTeamNap(userId, minutes)` | 自分以外の全メンバーのフィードへ `team_nap_suggestion` 通知を積む → `{ success, notified }`。 | チーム無し 404 |
 
 ### 5.4 招待コード
 
@@ -217,14 +219,17 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ## 7. 通知連携
 
-`joinTeam` と `sendNudge` は `notifications.service.addNotification(userId, …)`
-を呼ぶ。通知フィードは **userId ごと**（`Map`、まだ in-memory でサーバ
-再起動で消える）。`/api/v1/notifications/*` は `authenticate` 必須。
+`joinTeam` / `sendNudge` / `suggestTeamNap` は
+`notifications.service.addNotification(userId, …)` を呼ぶ。通知フィードは
+**userId ごと**（`Map`、まだ in-memory でサーバ再起動で消える）。
+`/api/v1/notifications/*` は `authenticate` 必須。
 
 - `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
   —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
 - `sendNudge(wake)`: `wake_request` を **対象（`toUserId`）の**フィードへ —「〇〇から「起きて〜」」
 - `sendNudge(rest)`: `rest_request` を対象のフィードへ —「〇〇から「休んでね」」
+- `suggestTeamNap`: `team_nap_suggestion` を **自分以外の全メンバーの**フィードへ
+  —「〇〇さんからチーム仮眠の提案 / N分、みんなで仮眠しませんか？」
 
 ---
 
@@ -308,3 +313,10 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 - チームのルートは `authenticate` 必須になった。他機能のルート
   （home / schedule / stats など）はまだ `X-User-Id` フォールバックのまま。
   `ensureUser` はその旧経路向けの保険として残している。
+- **メンバー管理**（メンバー除名・オーナー/権限・譲渡）は未実装。`role` /
+  `ownerId` 列も無いため `renameTeam` はメンバーなら誰でも可能。
+  `TeamSettingsScreen` の「メンバーを管理」は現状 TODO。
+- 「◯分仮眠を提案」ボタンのバックエンド（`POST /teams/nap-suggestion`）は
+  実装済み。モバイル側の呼び出し接続は未対応（認証接続と同じ TODO）。
+- `home/member-status` はチームのデータだが、まだ `authenticate` の外
+  （`X-User-Id` フォールバック）。認証移行時に一緒に見直す。

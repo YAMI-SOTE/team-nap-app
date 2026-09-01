@@ -293,6 +293,44 @@ export async function getMyStatus(
   return { status: mapActivity(membership.activity) };
 }
 
+/**
+ * Broadcast a "let's nap together" suggestion — one `team_nap_suggestion`
+ * notification into every other team member's feed. Backs the
+ * "◯分仮眠を提案" button on the Team screen.
+ */
+export async function suggestTeamNap(
+  userId: string,
+  minutes: number,
+): Promise<{ success: true; notified: number }> {
+  step("service", "team.suggestTeamNap", { minutes });
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+    include: {
+      user: true,
+      team: { include: { members: { select: { userId: true } } } },
+    },
+  });
+  if (!membership) {
+    throw HttpError.notFound("You do not belong to a team");
+  }
+
+  const proposer = membership.user.name ?? "メンバー";
+  let notified = 0;
+  for (const m of membership.team.members) {
+    if (m.userId === userId) continue;
+    addNotification(m.userId, {
+      kind: "team_nap_suggestion",
+      title: `${proposer}さんからチーム仮眠の提案`,
+      body: `${minutes}分、みんなで仮眠しませんか？`,
+      timestamp: "たった今",
+      read: false,
+      group: "today",
+    });
+    notified += 1;
+  }
+  return { success: true, notified };
+}
+
 // ---------------------------------------------------------------------------
 // 仮眠上手ランキング — still a static per-team snapshot (out of scope to
 // compute from real nap data).
