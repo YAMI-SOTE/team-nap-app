@@ -43,17 +43,22 @@ export default function SignUpScreen() {
 
   const isBusy = isSubmitting || isGoogleSubmitting;
 
+  // A fresh account is never onboarded — always go through onboarding first.
   const handleSubmit = async () => {
     const result: LoginResult | null = await submit();
     if (result) {
-      router.replace("/home");
+      router.replace(
+        result.user.onboardingCompleted ? "/home" : "/onboarding",
+      );
     }
   };
 
   const handleGoogleSubmit = async () => {
     const result: LoginResult | null = await submitWithGoogle();
     if (result) {
-      router.replace("/home");
+      router.replace(
+        result.user.onboardingCompleted ? "/home" : "/onboarding",
+      );
     }
   };
 
