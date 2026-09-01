@@ -14,6 +14,8 @@ export type PublicUser = {
   id: string;
   name: string | null;
   email: string;
+  /** false until the user finishes onboarding — the client gates on this. */
+  onboardingCompleted: boolean;
 };
 
 export type AuthResult = {
@@ -21,12 +23,20 @@ export type AuthResult = {
   user: PublicUser;
 };
 
-function toPublicUser(u: {
+type UserWithOnboarding = {
   id: string;
   name: string | null;
   email: string;
-}): PublicUser {
-  return { id: u.id, name: u.name, email: u.email };
+  onboarding: { completedAt: Date | null } | null;
+};
+
+function toPublicUser(u: UserWithOnboarding): PublicUser {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    onboardingCompleted: u.onboarding?.completedAt != null,
+  };
 }
 
 function normalizeEmail(email: string): string {
@@ -48,25 +58,28 @@ export async function signUp(
     if (existing.passwordHash) {
       throw HttpError.conflict("That email is already registered");
     }
-    const user = await prisma.user.update({
+    await prisma.user.update({
       where: { id: existing.id },
       data: { name: name || existing.name, passwordHash: await hashPassword(input.password) },
     });
-    await ensureOnboarding(user.id);
-    const { token } = await createSession(user.id, userAgent);
-    return { token, user: toPublicUser(user) };
+    await ensureOnboarding(existing.id);
+    const { token } = await createSession(existing.id, userAgent);
+    return { token, user: await getPublicUser(existing.id) };
   }
 
-  const user = await prisma.user.create({
+  const created = await prisma.user.create({
     data: { email, name: name || null, passwordHash: await hashPassword(input.password) },
   });
-  await ensureOnboarding(user.id);
-  const { token } = await createSession(user.id, userAgent);
-  return { token, user: toPublicUser(user) };
+  await ensureOnboarding(created.id);
+  const { token } = await createSession(created.id, userAgent);
+  return { token, user: await getPublicUser(created.id) };
 }
 
 export async function getPublicUser(userId: string): Promise<PublicUser> {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { onboarding: { select: { completedAt: true } } },
+  });
   if (!user) {
     throw HttpError.unauthorized("Account no longer exists");
   }
@@ -101,7 +114,10 @@ export async function login(
   userAgent?: string | null,
 ): Promise<AuthResult> {
   const email = normalizeEmail(input.email);
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { onboarding: { select: { completedAt: true } } },
+  });
 
   // Same error + a hash comparison whether or not the user exists, so the
   // response does not reveal which emails are registered.
