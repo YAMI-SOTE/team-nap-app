@@ -229,7 +229,27 @@ aiAdvice:
 ${JSON.stringify(data, null, 2)}
 `;
 
-  const response = await callGemma(prompt);
+  const fallbackHeadline: Record<HomeAiData["teamEvaluation"], string> = {
+    good: "いい調子です",
+    normal: "まずまずです",
+    needs_improvement: "もうひと息です",
+  };
+  const fallbackAdvice: Record<HomeAiData["teamEvaluation"], string> = {
+    good: "チーム全体として良い状態です。",
+    normal: "チーム全体として標準的な状態です。",
+    needs_improvement: "チーム全体として改善の余地があります。",
+  };
+
+  let response: string;
+  try {
+    response = await callGemma(prompt);
+  } catch {
+    // Ollama unavailable / slow → serve the canned copy instead of failing.
+    return {
+      headline: ["今日のチームは", fallbackHeadline[data.teamEvaluation]],
+      aiAdvice: fallbackAdvice[data.teamEvaluation],
+    };
+  }
 
   try {
     const jsonStart = response.indexOf("{");
@@ -259,15 +279,6 @@ ${JSON.stringify(data, null, 2)}
       throw new Error("Invalid home AI response");
     }
 
-    const fallbackHeadline: Record<
-      HomeAiData["teamEvaluation"],
-      string
-    > = {
-      good: "いい調子です",
-      normal: "まずまずです",
-      needs_improvement: "もうひと息です",
-    };
-
     const generatedHeadline = parsed.headline.trim();
 
     const headline =
@@ -280,7 +291,11 @@ ${JSON.stringify(data, null, 2)}
       aiAdvice: parsed.aiAdvice.trim(),
     };
   } catch {
-    throw new Error("Failed to parse home AI response");
+    // Malformed model output → canned copy rather than a 500.
+    return {
+      headline: ["今日のチームは", fallbackHeadline[data.teamEvaluation]],
+      aiAdvice: fallbackAdvice[data.teamEvaluation],
+    };
   }
 }
 
@@ -288,21 +303,33 @@ ${JSON.stringify(data, null, 2)}
 // Ollama / Gemma
 // ---------------------------------------------------------------------------
 
+/** Give up on the model after this long so a slow/absent Ollama never wedges a request. */
+const OLLAMA_TIMEOUT_MS = 8000;
+
 async function callGemma(prompt: string): Promise<string> {
-  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      prompt,
-      stream: false,
-      options: {
-        temperature: 0.2,
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: {
+          temperature: 0.2,
+        },
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     throw new Error(`Ollama request failed: ${response.status}`);

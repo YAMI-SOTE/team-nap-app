@@ -9,12 +9,14 @@ type HomeSnapshot = {
   headline: [string, string];
   teamScore: number;
   aiAdvice: string;
-  members: Member[];
 };
 
 export type HomeSummaryResponse = {
   todayLabel: string;
   headline: [string, string];
+  /** `false` for a solo account — the Home screen then hides every team block. */
+  hasTeam: boolean;
+  /** `0` when `hasTeam` is false (the score/advice blocks are not shown). */
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
@@ -54,34 +56,25 @@ function evaluateTeamScore(teamScore: number): TeamEvaluation {
 /** Max member avatars returned for the Home / Team / Stats member rows. */
 const MEMBER_DISPLAY_LIMIT = 6;
 
+// Placeholder team-score snapshot (still static — the real weekly score
+// is not computed yet). Only used for accounts that belong to a team.
 const homeSnapshot: HomeSnapshot = {
   headline: ["今日のチームは", "いい調子です"],
   teamScore: 20,
   aiAdvice: "AIアドバイスを表示する場所",
-  members: [
-    { id: "a", label: "A", status: "offline" },
-    { id: "b", label: "B", status: "working" },
-    { id: "c", label: "C", status: "resting" },
-    { id: "d", label: "D", status: "working" },
-    { id: "e", label: "E", status: "offline" },
-    { id: "f", label: "F", status: "working" },
-    { id: "g", label: "G", status: "resting" },
-    { id: "h", label: "H", status: "working" },
-  ],
 };
 
-export async function getHomeSummary(): Promise<HomeSummaryResponse> {
-  const freeSlot = getNextFreeSlot();
-
-  const teamEvaluation = evaluateTeamScore(homeSnapshot.teamScore);
-
-  const homeComments = await generateHomeComments({
-    teamScore: homeSnapshot.teamScore,
-    teamEvaluation,
+export async function getHomeSummary(
+  userId: string,
+): Promise<HomeSummaryResponse> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
   });
+  const hasTeam = membership !== null;
 
   let nextFree: HomeSummaryResponse["nextFree"] = null;
-  if (freeSlot) {
+  const freeSlot = getNextFreeSlot();
+  if (hasTeam && freeSlot) {
     const untilStart = timeUntil(freeSlot.start, new Date());
     nextFree = {
       start: freeSlot.start,
@@ -92,9 +85,29 @@ export async function getHomeSummary(): Promise<HomeSummaryResponse> {
     };
   }
 
+  // Solo account → no team score, no team AI advice, personal greeting only.
+  if (!hasTeam) {
+    return {
+      todayLabel: jstTodayLabel(new Date()),
+      headline: ["今日も", "おつかれさまです"],
+      hasTeam: false,
+      teamScore: 0,
+      aiAdvice: "",
+      teamScoreMax: TEAM_SCORE_MAX,
+      nextFree: null,
+    };
+  }
+
+  const teamEvaluation = evaluateTeamScore(homeSnapshot.teamScore);
+  const homeComments = await generateHomeComments({
+    teamScore: homeSnapshot.teamScore,
+    teamEvaluation,
+  });
+
   return {
     todayLabel: jstTodayLabel(new Date()),
     headline: homeComments.headline,
+    hasTeam: true,
     teamScore: homeSnapshot.teamScore,
     aiAdvice: homeComments.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
@@ -128,11 +141,11 @@ export async function getHomeMemberStatus(
     };
   }
 
-  // No team → the static Home-tab roster.
+  // Solo account → no roster at all. The Home screen hides the member block.
   return {
-    memberCount: homeSnapshot.members.length,
-    memberStatusCounts: countMemberStatuses(homeSnapshot.members),
-    members: homeSnapshot.members.slice(0, MEMBER_DISPLAY_LIMIT),
+    memberCount: 0,
+    memberStatusCounts: countMemberStatuses([]),
+    members: [],
   };
 }
 
