@@ -24,7 +24,8 @@ Mobile App から PostgreSQL へ直接アクセスすることはありません
 > Onboarding / NapRecord** の7モデルです（マイグレーション
 > `20260830091652_team_feature` / `20260831095742_auth_sessions` /
 > `20260901163406_password_reset_tokens` / `20260901163741_onboarding_profile`
-> / `20260901195734_nap_records`）。
+> / `20260901195734_nap_records` /
+> `20260901210222_nap_records_allow_multiple_per_day`）。
 > `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
 > 単回・短命トークン、`Onboarding` はサインアップ直後に集める初期設定、
 > `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`（`src/services/`）。
@@ -263,8 +264,9 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 #### NapRecord
 
-1 回の仮眠につき 1 行。仮眠時間・目覚めの評価・仮眠前後の集中度差に加えて、
-そのとき生成した **AI アドバイス本文（`aiAdvice`）** を保存します
+1 回の仮眠につき 1 行（**同じ日に複数回**記録できます）。仮眠時間・目覚めの
+評価・仮眠前後の集中度差に加えて、そのとき生成した
+**AI アドバイス本文（`aiAdvice`）** を保存します
 （`src/services/naps.service.ts`）。統計・スケジュール・ふりかえり画面は
 すべてこのテーブルの認証ユーザー分を参照します。
 
@@ -281,8 +283,8 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 | aiAdvice     | String?    | 生成した振り返りアドバイス本文（AI 差し替え時もこの列） |
 | createdAt    | DateTime   | `now()`                                                |
 
-制約: `@@unique([userId, date])`（1 日 1 件。重複記録は 409
-「この日の仮眠は既に記録されています」）。
+インデックス: `@@index([userId, date])`。1 日 1 件などの制約はありません
+（1 日に何度でも記録可）。
 
 記録フロー: 休憩タイマー終了 → 評価画面で `POST /api/v1/naps`
 （`wakeStars` + `focusDeltaPt` を含む）→ サービス層が
@@ -381,7 +383,6 @@ model NapRecord {
   aiAdvice     String?
   createdAt    DateTime @default(now())
 
-  @@unique([userId, date])
   @@index([userId, date])
 }
 
@@ -605,6 +606,7 @@ git add backend/prisma && git commit
 20260901163406_password_reset_tokens  PasswordResetToken テーブル
 20260901163741_onboarding_profile     Onboarding テーブル
 20260901195734_nap_records            NapRecord テーブル
+20260901210222_nap_records_allow_multiple_per_day  NapRecord の (userId, date) UNIQUE を撤去
 ```
 
 ---
