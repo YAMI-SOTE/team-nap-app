@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDaySchedule } from "@/services/schedule";
 import { isConnectionError } from "@/services/api";
@@ -9,11 +9,22 @@ import type { DayScheduleResponse } from "@/types/api";
 export function useSchedule(date: Date) {
   const [data, setData] = useState<DayScheduleResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  /** True from the moment `reload()` is called until that fetch settles. */
+  const [revalidating, setRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+  // Bumping the key re-runs the effect below. A resolved promise lets the
+  // caller (pull-to-refresh) await the fetch.
+  const resolversRef = useRef<Array<() => void>>([]);
+  const reload = useCallback(() => {
+    setRevalidating(true);
+    setReloadKey((k) => k + 1);
+    return new Promise<void>((resolve) => {
+      resolversRef.current.push(resolve);
+    });
+  }, []);
 
   // Re-fetch whenever the selected calendar day changes.
   const dayKey = toISODate(date);
@@ -36,7 +47,13 @@ export function useSchedule(date: Date) {
           setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setRevalidating(false);
+          const resolvers = resolversRef.current;
+          resolversRef.current = [];
+          resolvers.forEach((r) => r());
+        }
       }
     }
 
@@ -47,5 +64,5 @@ export function useSchedule(date: Date) {
     };
   }, [dayKey, reloadKey]);
 
-  return { data, loading, error, connectionError, reload };
+  return { data, loading, revalidating, error, connectionError, reload };
 }
