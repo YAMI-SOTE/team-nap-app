@@ -258,6 +258,7 @@ docker compose down
 - [docs/setup.md](docs/setup.md)
 - [docs/ai-development.md](docs/ai-development.md)
 - [docs/db.md](docs/db.md)
+- [docs/auth.ja.md](docs/auth.ja.md) — 認証・セッション・オンボーディング（バックエンド）
 - [docs/team-feature.ja.md](docs/team-feature.ja.md) — チーム機能のバックエンド実装
 - [docs/settings-architecture.md](docs/settings-architecture.md)
 
