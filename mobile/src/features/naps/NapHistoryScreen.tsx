@@ -75,6 +75,13 @@ export default function NapHistoryScreen() {
                       icon={<AlarmBadgeIcon size={41} />}
                       time={record.time}
                       subtitle={record.detail}
+                      showCaret
+                      onPress={() =>
+                        router.push({
+                          pathname: "/naps/reflection",
+                          params: { id: record.id },
+                        })
+                      }
                     />
                   ))}
                 </View>

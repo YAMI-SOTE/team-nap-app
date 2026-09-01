@@ -81,6 +81,12 @@ export default function StatsScreen() {
             <PersonalStatsView
               data={personal}
               onSeeAll={() => router.push("/naps/history")}
+              onNapPress={(id) =>
+                router.push({
+                  pathname: "/naps/reflection",
+                  params: { id },
+                })
+              }
             />
           ) : activeTab === "team" && team ? (
             <TeamStatsView

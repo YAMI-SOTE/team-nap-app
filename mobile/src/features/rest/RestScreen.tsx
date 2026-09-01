@@ -13,7 +13,6 @@ import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
-import { createNap } from "@/services/naps";
 import { toClockTime, toISODate } from "@/utils/date";
 
 // 15分（900秒）
@@ -31,7 +30,6 @@ export default function RestScreen() {
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordedRef = useRef(false);
   const prevTimeLeftRef = useRef(INITIAL_TIME);
 
   const buildNapWindow = (elapsedSeconds: number) => {
@@ -46,26 +44,8 @@ export default function RestScreen() {
     };
   };
 
-  /**
-   * Record the finished nap. Best-effort: the backend keeps only one nap
-   * per day, so a repeat (409) or an offline error is logged, not shown.
-   */
-  const recordNap = (elapsedSeconds: number) => {
-    if (recordedRef.current) return;
-    const { minutes, date, start, end } = buildNapWindow(elapsedSeconds);
-    if (minutes < 1) return;
-
-    recordedRef.current = true;
-    createNap({ date, start, end, minutes }).catch((err) => {
-      recordedRef.current = false;
-      console.log(
-        "nap not recorded (already logged today or offline):",
-        err instanceof Error ? err.message : err,
-      );
-    });
-  };
-
-  // 仮眠のサマリー・評価画面（S02-03_Nap_Rating）へ遷移する。
+  // The nap is recorded on the rating screen (with the wake / focus
+  // rating), which then opens the ふりかえり screen with the AI advice.
   const goToRating = (elapsedSeconds: number) => {
     const { minutes, start, end } = buildNapWindow(elapsedSeconds);
     router.replace({
@@ -74,12 +54,11 @@ export default function RestScreen() {
     });
   };
 
-  // Record when the countdown reaches zero on its own (終了 records itself).
+  // When the countdown reaches zero on its own, go to the rating screen.
   useEffect(() => {
     const prev = prevTimeLeftRef.current;
     prevTimeLeftRef.current = timeLeft;
     if (timeLeft === 0 && prev > 0 && prev <= 2) {
-      recordNap(INITIAL_TIME);
       goToRating(INITIAL_TIME);
     }
   }, [timeLeft]);
@@ -138,14 +117,12 @@ export default function RestScreen() {
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
-    recordedRef.current = false;
     prevTimeLeftRef.current = INITIAL_TIME;
   };
 
   const handleEnd = () => {
     setIsActive(false);
     const elapsedSeconds = INITIAL_TIME - timeLeft;
-    recordNap(elapsedSeconds);
     setTimeLeft(0);
     goToRating(elapsedSeconds);
   };
