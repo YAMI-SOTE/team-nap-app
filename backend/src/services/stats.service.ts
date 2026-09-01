@@ -1,4 +1,4 @@
-import { isoDateOffset } from "../lib/datetime.js";
+import { calendarWeek, calendarWeekAgo } from "../lib/datetime.js";
 import { getHomeMemberStatus } from "./home.service.js";
 import { getNapSummary, listNaps, type NapEntry } from "./naps.service.js";
 import { hasTeam } from "./team.service.js";
@@ -10,7 +10,8 @@ import type { Member } from "../types/domain.js";
  * is false so the client shows the "まだ仮眠の記録がありません" state.
  */
 
-const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+// 今週 = the calendar week, Sunday → Saturday (see lib/datetime calendarWeek).
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 const STARS = (n: number) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
 
 export type StatFocus = { before: number; after: number; deltaPt: number };
@@ -49,18 +50,14 @@ const round = (n: number) => Math.round(n);
 const avg = (xs: number[]) =>
   xs.length === 0 ? 0 : xs.reduce((s, x) => s + x, 0) / xs.length;
 
-/** Mon–Sun of the week containing today, as "YYYY-MM-DD". */
-function currentWeekDays(): string[] {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  const toISO = (d: Date) =>
-    `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return toISO(d);
-  });
+/** napCount·15 + avgWakeStars·8 + avgFocusDelta, clamped to 0–100. */
+function restScore(entries: NapEntry[]): number {
+  if (entries.length === 0) return 0;
+  const raw =
+    entries.length * 15 +
+    avg(entries.map((n) => n.wakeStars)) * 8 +
+    avg(entries.map((n) => n.focusDeltaPt));
+  return Math.max(0, Math.min(100, round(raw)));
 }
 
 export async function getPersonalStats(
@@ -70,56 +67,44 @@ export async function getPersonalStats(
   const naps = await listNaps(userId);
   const hasRecords = naps.length > 0;
 
+  // 今週 = the calendar week, Sunday → Saturday.
+  const thisWeek = calendarWeek();
+  const lastWeek = calendarWeekAgo(1);
+  const inRange = (iso: string, r: { start: string; end: string }) =>
+    iso >= r.start && iso <= r.end;
+  const thisWeekNaps = naps.filter((n) => inRange(n.date, thisWeek));
+  const lastWeekCount = naps.filter((n) => inRange(n.date, lastWeek)).length;
+
+  // 仮眠前後の集中度 — all-time (a general indicator, not "今週").
   const avgDelta = round(avg(naps.map((n) => n.focusDeltaPt)));
   const before = hasRecords ? 50 : 0;
 
-  // This week vs last week nap count → delta label.
-  const thisWeekStart = isoDateOffset(-6);
-  const lastWeekStart = isoDateOffset(-13);
-  const lastWeekCount = naps.filter(
-    (n) => n.date >= lastWeekStart && n.date < thisWeekStart,
-  ).length;
-  const weekDelta = summary.weekCount - lastWeekCount;
+  const weekDelta = thisWeekNaps.length - lastWeekCount;
   const scoreDeltaLabel =
-    !hasRecords || (summary.weekCount === 0 && lastWeekCount === 0)
+    !hasRecords || (thisWeekNaps.length === 0 && lastWeekCount === 0)
       ? ""
       : `先週より ${weekDelta >= 0 ? "+" : ""}${weekDelta}回`;
 
-  // Weekly line: the individual's **daily rest score** (0–100) for each
-  // day of the current week, computed the same way as the weekly score
-  // (napCount·15 + avgWakeStars·8 + avgFocusDelta) so the two agree.
-  // Days with no nap are 0.
+  // Weekly line: the individual's daily rest score (0–100) for each day
+  // of this calendar week (Sun → Sat). Days with no nap are 0.
   const napsByDate = new Map<string, NapEntry[]>();
-  for (const n of naps) {
+  for (const n of thisWeekNaps) {
     const list = napsByDate.get(n.date) ?? [];
     list.push(n);
     napsByDate.set(n.date, list);
   }
-  const conditionValues = currentWeekDays().map((iso) => {
-    const dayNaps = napsByDate.get(iso) ?? [];
-    if (dayNaps.length === 0) return 0;
-    const dayScore =
-      dayNaps.length * 15 +
-      avg(dayNaps.map((n) => n.wakeStars)) * 8 +
-      avg(dayNaps.map((n) => n.focusDeltaPt));
-    return Math.max(0, Math.min(100, round(dayScore)));
-  });
-
-  // Simple derived score from real activity (0–100).
-  const score = hasRecords
-    ? Math.min(
-        100,
-        round(summary.weekCount * 15 + summary.avgWakeRating * 8 + avgDelta),
-      )
-    : 0;
+  const conditionValues = thisWeek.days.map((iso) =>
+    restScore(napsByDate.get(iso) ?? []),
+  );
 
   return {
     hasRecords,
-    score,
+    // 今週の仮眠スコア: this week's naps, same formula as the daily points.
+    score: restScore(thisWeekNaps),
     scoreMax: 100,
     scoreDeltaLabel,
     focus: { before, after: before + avgDelta, deltaPt: avgDelta },
-    napCount: summary.weekCount,
+    napCount: thisWeekNaps.length,
     avgNapMinutes: summary.avgMinutes,
     wakeRating: summary.avgWakeRating,
     condition: { values: conditionValues, labels: WEEKDAY_LABELS },

@@ -6,7 +6,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
-import { isoDateOffset, jstDateLabelFromISO } from "../lib/datetime.js";
+import { jstDateLabelFromISO } from "../lib/datetime.js";
 import { buildAdvice } from "./nap-advice.service.js";
 
 export type NapEntry = {
@@ -114,10 +114,9 @@ function average(values: number[]): number {
 export async function getNapSummary(userId: string) {
   const naps = await listNaps(userId);
   return {
+    /** All-time count (used by the 仮眠履歴 summary). */
     monthlyCount: naps.length,
     avgMinutes: Math.round(average(naps.map((n) => n.minutes))),
     avgWakeRating: Math.round(average(naps.map((n) => n.wakeStars)) * 10) / 10,
-    /** Naps within the last 7 days. */
-    weekCount: naps.filter((n) => n.date >= isoDateOffset(-6)).length,
   };
 }

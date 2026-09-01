@@ -30,6 +30,36 @@ export function isoDateOffset(days: number): string {
   return toISO(date);
 }
 
+/**
+ * The calendar week — **Sunday through Saturday** — containing `ref`.
+ * This is the single definition of "今週" across the app (stats count,
+ * condition graph, "先週より" delta, schedule week strip).
+ */
+export function calendarWeek(ref: Date = new Date()): {
+  /** Sunday, "YYYY-MM-DD". */
+  start: string;
+  /** Saturday, "YYYY-MM-DD". */
+  end: string;
+  /** The 7 day strings, Sunday → Saturday. */
+  days: string[];
+} {
+  const sunday = new Date(ref);
+  sunday.setDate(ref.getDate() - ref.getDay()); // getDay(): 0 = Sunday
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
+    return toISO(d);
+  });
+  return { start: days[0], end: days[6], days };
+}
+
+/** The calendar week `weeksAgo` weeks before the one containing today. */
+export function calendarWeekAgo(weeksAgo: number): ReturnType<typeof calendarWeek> {
+  const ref = new Date();
+  ref.setDate(ref.getDate() - weeksAgo * 7);
+  return calendarWeek(ref);
+}
+
 /** "M月D日 (曜)" for the given date, rendered in JST. */
 export function jstTodayLabel(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("ja-JP", {
