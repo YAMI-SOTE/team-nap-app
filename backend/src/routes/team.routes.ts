@@ -12,7 +12,6 @@ import {
   setStatusController,
   wakeNudgeController,
 } from "../controllers/team.controller.js";
-import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import { memberIdParams } from "../schemas/member.schema.js";
 import {
@@ -23,9 +22,6 @@ import {
 } from "../schemas/team.schema.js";
 
 const router = Router();
-
-// Every team endpoint acts on behalf of the authenticated user.
-router.use(authenticate);
 
 router.get("/summary", getTeamSummaryController);
 router.get("/ranking", getTeamRankingController);

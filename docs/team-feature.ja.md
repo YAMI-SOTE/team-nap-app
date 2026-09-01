@@ -305,6 +305,10 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 - メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
 - 通知フィードは userId ごとになったが、まだ in-memory（`Map`）。
   DB 化（`Notification` テーブル）すれば再起動で消えなくなる。
-- チームのルートは `authenticate` 必須になった。他機能のルート
-  （home / schedule / stats など）はまだ `X-User-Id` フォールバックのまま。
-  `ensureUser` はその旧経路向けの保険として残している。
+- 認証は `routes/index.ts` で `/health` と `/auth` 以外の全ルートに
+  一括適用（`router.use(authenticate)`）。home / schedule / stats / naps /
+  settings も含めすべて `Authorization: Bearer` 必須。呼び出しユーザーは
+  常にセッションの `userId`。`ensureUser` は歴史的経緯で残しているだけ
+  （実質 no-op）。
+- `home/member-status` は認証後 `req.auth.userId` の**実チーム**を返す
+  （以前は `DEV_USER_ID` の固定チームが漏れていた）。

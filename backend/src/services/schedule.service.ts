@@ -4,7 +4,6 @@
  * the same events the CRUD endpoints mutate.
  */
 
-import { isoDateOffset } from "../lib/datetime.js";
 import { listNaps } from "./naps.service.js";
 
 /**
@@ -61,34 +60,13 @@ const SEPTEMBER_SAMPLE: Array<Omit<ScheduleEvent, "id">> = [
   { date: "2026-09-14", title: "デモ準備", start: "13:00", end: "14:30", allDay: false },
 ];
 
+/**
+ * The seed is exactly `SEPTEMBER_SAMPLE` — no relative-to-today filler.
+ * That kept the calendar and docs/test-account.md out of sync (an event
+ * would appear "today" that isn't in the documented schedule).
+ */
 function seedEvents(): ScheduleEvent[] {
-  const templates: Array<Omit<ScheduleEvent, "id" | "date">> = [
-    { title: "定例ミーティング", start: "10:00", end: "11:00", allDay: false },
-    { title: "1on1", start: "13:00", end: "14:00", allDay: false },
-    { title: "資料確認", start: "16:00", end: "17:00", allDay: false },
-    { title: "レビュー会", start: "11:00", end: "12:00", allDay: false },
-    { title: "設計相談", start: "15:00", end: "15:30", allDay: false },
-  ];
-
-  const events: ScheduleEvent[] = SEPTEMBER_SAMPLE.map((e, i) => ({
-    id: `sep-${i}`,
-    ...e,
-  }));
-  let seq = 0;
-  // Populate ~5 of the 7 days this week (deterministic).
-  for (let offset = -3; offset <= 3; offset += 1) {
-    if ((offset + 5) % 4 === 0) {
-      continue;
-    }
-    const date = isoDateOffset(offset);
-    const count = offset === 0 ? 3 : 1 + ((offset + 5) % 2);
-    for (let i = 0; i < count; i += 1) {
-      const template = templates[(seq + i) % templates.length];
-      events.push({ id: `evt-${seq}-${i}`, date, ...template });
-    }
-    seq += 1;
-  }
-  return events;
+  return SEPTEMBER_SAMPLE.map((e, i) => ({ id: `sep-${i}`, ...e }));
 }
 
 let events: ScheduleEvent[] = seedEvents();

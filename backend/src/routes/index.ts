@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { authenticate } from "../middleware/authenticate.middleware.js";
 import aiRoutes from "./ai.routes.js";
 import authRoutes from "./auth.routes.js";
 import healthRoutes from "./health.routes.js";
@@ -15,8 +16,13 @@ import teamRoutes from "./team.routes.js";
 
 const router = Router();
 
+// Public.
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
+
+// Everything below acts on behalf of the signed-in user.
+router.use(authenticate);
+
 router.use("/ai", aiRoutes);
 router.use("/home", homeRoutes);
 router.use("/rest", restRoutes);

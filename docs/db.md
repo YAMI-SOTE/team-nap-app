@@ -566,9 +566,9 @@ Team
 TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
 ```
 
-`/api/v1/teams/*` / `/api/v1/notifications/*` / `/api/v1/onboarding/*` /
-`/api/v1/settings/team*` は `authenticate` 必須。他機能のルートはまだ
-`X-User-Id` フォールバック。
+`/health` と `/auth`（signup / login / password-reset）以外の
+**全 `/api/v1` ルートが `authenticate` 必須**（`routes/index.ts` で一括）。
+呼び出しユーザーは常にセッションの `userId`。
 
 次に追加を検討:
 
