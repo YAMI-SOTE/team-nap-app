@@ -87,6 +87,52 @@ export async function getPublicUser(userId: string): Promise<PublicUser> {
 }
 
 /**
+ * Update the signed-in user's display name and/or email. Email is
+ * normalized and must stay unique (409 on clash). The confirm-email-twice
+ * check is a client-side concern; the API only takes the final value.
+ */
+export async function updateProfile(
+  userId: string,
+  input: { name?: string; email?: string },
+): Promise<PublicUser> {
+  const data: { name?: string; email?: string } = {};
+  if (input.name !== undefined) data.name = input.name.trim();
+  if (input.email !== undefined) {
+    const email = normalizeEmail(input.email);
+    const clash = await prisma.user.findUnique({ where: { email } });
+    if (clash && clash.id !== userId) {
+      throw HttpError.conflict("That email is already registered");
+    }
+    data.email = email;
+  }
+  if (Object.keys(data).length === 0) return getPublicUser(userId);
+
+  await prisma.user.update({ where: { id: userId }, data });
+  return getPublicUser(userId);
+}
+
+/**
+ * Dev-only inspection: the caller's stored password hash + session count.
+ * Registered only when `NODE_ENV !== "production"`.
+ */
+export async function getDebugInfo(userId: string) {
+  const [user, sessionCount] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      include: { onboarding: { select: { completedAt: true } } },
+    }),
+    prisma.session.count({ where: { userId, revokedAt: null } }),
+  ]);
+  if (!user) throw HttpError.unauthorized("Account no longer exists");
+  return {
+    user: toPublicUser(user),
+    passwordHash: user.passwordHash,
+    passwordHashAlgorithm: user.passwordHash?.split("$")[0] ?? null,
+    activeSessions: sessionCount,
+  };
+}
+
+/**
  * Change the password of a logged-in user. Verifies the current password,
  * then revokes every *other* session (the calling one stays valid).
  */

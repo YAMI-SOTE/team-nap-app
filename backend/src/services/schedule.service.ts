@@ -37,6 +37,30 @@ export type ScheduleEvent = {
 
 export type EventDraft = Omit<ScheduleEvent, "id">;
 
+/**
+ * Fixed sample schedule for the first two weeks of September 2026, for
+ * manual testing (see docs/test-account.md). Sept 3, 5, 6, 10, 12, 13
+ * are deliberately left free so the "team can nap" / free-slot flows have
+ * empty days to land on.
+ */
+const SEPTEMBER_SAMPLE: Array<Omit<ScheduleEvent, "id">> = [
+  { date: "2026-09-01", title: "定例ミーティング", start: "10:00", end: "11:00", allDay: false },
+  { date: "2026-09-01", title: "レビュー会", start: "15:00", end: "16:00", allDay: false },
+  { date: "2026-09-02", title: "1on1", start: "13:00", end: "13:30", allDay: false },
+  // 2026-09-03 (木) — free
+  { date: "2026-09-04", title: "スプリントプランニング", start: "10:00", end: "12:00", allDay: false },
+  // 2026-09-05 (土) / 2026-09-06 (日) — free
+  { date: "2026-09-07", title: "週次定例", start: "09:30", end: "10:30", allDay: false },
+  { date: "2026-09-07", title: "設計相談", start: "14:00", end: "15:00", allDay: false },
+  { date: "2026-09-08", title: "顧客MTG", start: "11:00", end: "12:00", allDay: false },
+  { date: "2026-09-09", title: "コードレビュー", start: "16:00", end: "17:00", allDay: false },
+  // 2026-09-10 (木) — free
+  { date: "2026-09-11", title: "スプリント振り返り", start: "15:00", end: "16:00", allDay: false },
+  // 2026-09-12 (土) / 2026-09-13 (日) — free
+  { date: "2026-09-14", title: "週次定例", start: "09:30", end: "10:30", allDay: false },
+  { date: "2026-09-14", title: "デモ準備", start: "13:00", end: "14:30", allDay: false },
+];
+
 function seedEvents(): ScheduleEvent[] {
   const templates: Array<Omit<ScheduleEvent, "id" | "date">> = [
     { title: "定例ミーティング", start: "10:00", end: "11:00", allDay: false },
@@ -46,7 +70,10 @@ function seedEvents(): ScheduleEvent[] {
     { title: "設計相談", start: "15:00", end: "15:30", allDay: false },
   ];
 
-  const events: ScheduleEvent[] = [];
+  const events: ScheduleEvent[] = SEPTEMBER_SAMPLE.map((e, i) => ({
+    id: `sep-${i}`,
+    ...e,
+  }));
   let seq = 0;
   // Populate ~5 of the 7 days this week (deterministic).
   for (let offset = -3; offset <= 3; offset += 1) {

@@ -33,7 +33,9 @@ with `onboardingCompleted: false` through onboarding before `home`.
 | `POST /auth/signup` | – | `{ name, email, password }` → 201 `{ token, user }`; `password` ≥ 8; 409 if email taken |
 | `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
 | `GET /auth/me` | Bearer | `{ user }` |
+| `PATCH /auth/me` | Bearer | `{ name?, email? }` → `{ user }`; email normalized, 409 if taken by another account |
 | `POST /auth/password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`; 400 if `currentPassword` wrong. Keeps the calling session, revokes the rest |
+| `GET /auth/debug` | Bearer | **dev only** (404 in production): `{ user, passwordHash, passwordHashAlgorithm, activeSessions }` |
 | `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
 | `DELETE /auth/sessions/:id` | Bearer | revoke one session → 204 (404 if not yours/active) |
 | `POST /auth/logout` | Bearer | revoke the current session → 204 |

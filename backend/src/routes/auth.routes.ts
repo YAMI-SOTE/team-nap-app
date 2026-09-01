@@ -1,8 +1,10 @@
 import { Router } from "express";
 
+import { env } from "../config/env.js";
 import {
   changePasswordController,
   confirmPasswordResetController,
+  debugController,
   listSessionsController,
   loginController,
   logoutController,
@@ -11,6 +13,7 @@ import {
   requestPasswordResetController,
   revokeSessionController,
   signUpController,
+  updateProfileController,
 } from "../controllers/auth.controller.js";
 import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
@@ -21,6 +24,7 @@ import {
   passwordResetRequestBody,
   sessionIdParams,
   signUpBody,
+  updateProfileBody,
 } from "../schemas/auth.schema.js";
 
 const router = Router();
@@ -41,6 +45,12 @@ router.post(
 
 // Session-scoped.
 router.get("/me", authenticate, meController);
+router.patch(
+  "/me",
+  authenticate,
+  validate({ body: updateProfileBody }),
+  updateProfileController,
+);
 router.post(
   "/password",
   authenticate,
@@ -56,5 +66,10 @@ router.delete(
   validate({ params: sessionIdParams }),
   revokeSessionController,
 );
+
+// Dev-only: inspect the stored password hash + session count.
+if (env.NODE_ENV !== "production") {
+  router.get("/debug", authenticate, debugController);
+}
 
 export default router;

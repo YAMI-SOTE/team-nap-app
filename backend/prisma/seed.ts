@@ -33,6 +33,22 @@ const MEMBERSHIPS = [
   { userId: USERS[5].id, activity: "online" as const, wakeAssistEnabled: true },
 ];
 
+/**
+ * A ready-to-use test account (documented in docs/test-account.md). Fully
+ * onboarded, on its own team, distinct password so it can't be confused
+ * with the `*-dev` fixtures.
+ */
+const SAMPLE = {
+  id: "20000000-0000-0000-0000-000000000001",
+  email: "sample@teamnap.app",
+  name: "サンプル 太郎",
+  password: "samplepass123",
+  teamInviteCode: "NAP-2001",
+  teamName: "サンプルチーム",
+  bedtime: "23:00",
+  wakeTime: "07:00",
+};
+
 async function main() {
   const passwordHash = await hashPassword(DEV_PASSWORD);
   for (const u of USERS) {
@@ -70,11 +86,54 @@ async function main() {
     create: { userId: USERS[0].id, completedAt: new Date() },
   });
 
+  // --- Sample test account (docs/test-account.md) --------------------------
+  await prisma.user.upsert({
+    where: { id: SAMPLE.id },
+    update: {
+      email: SAMPLE.email,
+      name: SAMPLE.name,
+      passwordHash: await hashPassword(SAMPLE.password),
+    },
+    create: {
+      id: SAMPLE.id,
+      email: SAMPLE.email,
+      name: SAMPLE.name,
+      passwordHash: await hashPassword(SAMPLE.password),
+    },
+  });
+  const sampleTeam = await prisma.team.upsert({
+    where: { inviteCode: SAMPLE.teamInviteCode },
+    update: { name: SAMPLE.teamName },
+    create: { name: SAMPLE.teamName, inviteCode: SAMPLE.teamInviteCode },
+  });
+  await prisma.teamMembership.upsert({
+    where: { userId: SAMPLE.id },
+    update: { teamId: sampleTeam.id },
+    create: { teamId: sampleTeam.id, userId: SAMPLE.id, activity: "online" },
+  });
+  await prisma.onboarding.upsert({
+    where: { userId: SAMPLE.id },
+    update: {
+      completedAt: new Date(),
+      bedtime: SAMPLE.bedtime,
+      wakeTime: SAMPLE.wakeTime,
+    },
+    create: {
+      userId: SAMPLE.id,
+      completedAt: new Date(),
+      bedtime: SAMPLE.bedtime,
+      wakeTime: SAMPLE.wakeTime,
+    },
+  });
+
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
   );
   console.log(
     `Login: ${USERS[0].email} / ${DEV_PASSWORD} (same password for every seeded user).`,
+  );
+  console.log(
+    `Sample account: ${SAMPLE.email} / ${SAMPLE.password} (team "${SAMPLE.teamName}", ${SAMPLE.teamInviteCode}).`,
   );
 }
 
