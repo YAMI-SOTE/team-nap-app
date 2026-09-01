@@ -23,7 +23,7 @@ export function currentUserId(req: Request): string {
  */
 export function requireUserId(req: Request): string {
   if (!req.auth?.userId) {
-    throw HttpError.unauthorized("Authentication required");
+    throw HttpError.unauthorized("ログインが必要です");
   }
   return req.auth.userId;
 }
@@ -31,7 +31,7 @@ export function requireUserId(req: Request): string {
 /** The current session id; only present behind `authenticate`. */
 export function requireSessionId(req: Request): string {
   if (!req.auth?.sessionId) {
-    throw HttpError.unauthorized("Authentication required");
+    throw HttpError.unauthorized("ログインが必要です");
   }
   return req.auth.sessionId;
 }

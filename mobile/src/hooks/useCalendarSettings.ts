@@ -26,7 +26,7 @@ export function useCalendarSettings() {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       } finally {
         if (active) {
@@ -52,7 +52,7 @@ export function useCalendarSettings() {
       const result = await action();
       setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
     } finally {
       setSaving(false);
     }

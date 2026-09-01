@@ -85,7 +85,7 @@ export type NapInput = {
  */
 export function createNap(input: NapInput): NapEntry {
   if (hasNapOn(input.date)) {
-    throw HttpError.conflict("A nap is already recorded for this date");
+    throw HttpError.conflict("この日の仮眠は既に記録されています");
   }
 
   const nap: NapEntry = {

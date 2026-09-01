@@ -1,17 +1,17 @@
 import { z } from "zod";
 
-const email = z.string().trim().toLowerCase().email().max(254);
-const password = z.string().min(8, "password must be at least 8 characters").max(200);
+const email = z.string().trim().toLowerCase().email("メールアドレスの形式が正しくありません").max(254);
+const password = z.string().min(8, "パスワードは8文字以上で入力してください").max(200);
 
 export const signUpBody = z.object({
-  name: z.string().trim().min(1, "name is required").max(50),
+  name: z.string().trim().min(1, "名前を入力してください").max(50),
   email,
   password,
 });
 
 export const loginBody = z.object({
   email,
-  password: z.string().min(1, "password is required").max(200),
+  password: z.string().min(1, "パスワードを入力してください").max(200),
 });
 
 export const sessionIdParams = z.object({
@@ -21,22 +21,22 @@ export const sessionIdParams = z.object({
 export const passwordResetRequestBody = z.object({ email });
 
 export const passwordResetConfirmBody = z.object({
-  token: z.string().min(1, "token is required"),
+  token: z.string().min(1, "トークンが必要です"),
   password,
 });
 
 export const changePasswordBody = z.object({
-  currentPassword: z.string().min(1, "current password is required").max(200),
+  currentPassword: z.string().min(1, "現在のパスワードを入力してください").max(200),
   newPassword: password,
 });
 
 export const updateProfileBody = z
   .object({
-    name: z.string().trim().min(1, "name is required").max(50),
+    name: z.string().trim().min(1, "名前を入力してください").max(50),
     email,
   })
   .partial()
   .refine(
     (v) => v.name !== undefined || v.email !== undefined,
-    "name or email is required",
+    "名前またはメールアドレスを入力してください",
   );

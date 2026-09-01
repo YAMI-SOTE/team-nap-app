@@ -26,7 +26,7 @@ export function useSchedule(date: Date) {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       } finally {
         if (active) {

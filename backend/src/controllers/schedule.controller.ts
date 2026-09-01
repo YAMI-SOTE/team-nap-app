@@ -21,7 +21,7 @@ export function getDayScheduleController(req: Request, res: Response) {
 export function getEventController(req: Request, res: Response) {
   const draft = getEvent(firstParam(req, "id"));
   if (!draft) {
-    throw HttpError.notFound("Event not found");
+    throw HttpError.notFound("予定が見つかりません");
   }
   res.status(200).json(draft);
 }
@@ -33,14 +33,14 @@ export function createEventController(req: Request, res: Response) {
 export function updateEventController(req: Request, res: Response) {
   const updated = updateEvent(firstParam(req, "id"), req.body as EventDraft);
   if (!updated) {
-    throw HttpError.notFound("Event not found");
+    throw HttpError.notFound("予定が見つかりません");
   }
   res.status(200).json(updated);
 }
 
 export function deleteEventController(req: Request, res: Response) {
   if (!deleteEvent(firstParam(req, "id"))) {
-    throw HttpError.notFound("Event not found");
+    throw HttpError.notFound("予定が見つかりません");
   }
   res.status(204).end();
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "expected HH:MM");
+const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "時刻は HH:MM 形式で入力してください");
 
 export const accountSettingsBody = z.object({
   username: z.string(),

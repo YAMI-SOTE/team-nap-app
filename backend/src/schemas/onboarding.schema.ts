@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "expected HH:MM");
+const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "時刻は HH:MM 形式で入力してください");
 
 const fields = {
   bedtime: clockTime,
@@ -13,7 +13,7 @@ const fields = {
 export const updateOnboardingBody = z
   .object(fields)
   .partial()
-  .refine((v) => Object.keys(v).length > 0, "at least one field is required");
+  .refine((v) => Object.keys(v).length > 0, "変更する項目を入力してください");
 
 /** Finish onboarding — the sleep-rhythm answers are required. */
 export const completeOnboardingBody = z.object({

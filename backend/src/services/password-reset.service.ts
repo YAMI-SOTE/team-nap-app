@@ -58,7 +58,7 @@ export async function confirmReset(
     where: { tokenHash: hashToken(token) },
   });
   if (!row || row.usedAt || row.expiresAt.getTime() <= Date.now()) {
-    throw HttpError.badRequest("Invalid or expired reset token");
+    throw HttpError.badRequest("リセット用リンクが無効または期限切れです");
   }
 
   const passwordHash = await hashPassword(newPassword);

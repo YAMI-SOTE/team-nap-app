@@ -35,7 +35,7 @@ export function useStats() {
         if (isConnectionError(err)) {
           setConnectionError(true);
         } else {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       })
       .finally(() => {

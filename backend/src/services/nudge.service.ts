@@ -31,7 +31,7 @@ export async function sendNudge(
   kind: NudgeKind,
 ): Promise<{ success: true }> {
   if (fromUserId === toUserId) {
-    throw HttpError.badRequest("You cannot nudge yourself");
+    throw HttpError.badRequest("自分には送れません");
   }
 
   const [from, to] = await Promise.all([
@@ -45,13 +45,13 @@ export async function sendNudge(
     }),
   ]);
 
-  if (!from) throw HttpError.notFound("You do not belong to a team");
-  if (!to) throw HttpError.notFound("Member not found");
+  if (!from) throw HttpError.notFound("チームに参加していません");
+  if (!to) throw HttpError.notFound("メンバーが見つかりません");
   if (from.teamId !== to.teamId) {
-    throw HttpError.badRequest("That member is not on your team");
+    throw HttpError.badRequest("そのメンバーは同じチームではありません");
   }
   if (kind === "wake" && !to.wakeAssistEnabled) {
-    throw HttpError.conflict("That member has wake support turned off");
+    throw HttpError.conflict("相手が「起こしてもらう」設定をオフにしています");
   }
 
   const copy = COPY[kind];

@@ -47,7 +47,7 @@ export function useEventEditor(id: string | undefined) {
       })
       .catch((err) => {
         if (active) {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       })
       .finally(() => {
@@ -68,7 +68,7 @@ export function useEventEditor(id: string | undefined) {
       await saveEvent({ ...draft, id });
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return false;
     } finally {
       setSaving(false);
@@ -85,7 +85,7 @@ export function useEventEditor(id: string | undefined) {
       await deleteEvent(id);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return false;
     } finally {
       setSaving(false);

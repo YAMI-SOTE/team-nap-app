@@ -66,7 +66,7 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    let message = `API request failed: ${response.status}`;
+    let message = "通信に失敗しました（" + response.status + "）";
     try {
       const body = await response.json();
       if (body?.error) message = body.error;
