@@ -11,14 +11,30 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
+
+/**
+ * Vertical mint→white wash behind the onboarding pages
+ * (Figma "Content", from #e5f6f5 via #f9fcfb 62% to white).
+ */
+function OnboardingBackdrop() {
+  return (
+    <LinearGradient
+      colors={["#E5F6F5", "#F9FCFB", colors.white]}
+      locations={[0, 0.62, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 /** "07時30分" -> "07:30" for the API. */
 function toClock(label: string): string {
@@ -149,7 +165,7 @@ export default function OnboardingScreen() {
   if (status !== "signedIn") {
     return (
       <View style={[styles.root, styles.centered]}>
-        <AuroraBackdrop />
+        <OnboardingBackdrop />
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -160,7 +176,7 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.root} onLayout={handleLayout}>
-      <AuroraBackdrop />
+      <OnboardingBackdrop />
 
       <ConfirmDialog
         visible={calendarPromptOpen}
@@ -196,7 +212,14 @@ export default function OnboardingScreen() {
                   key={s.key}
                   style={[styles.page, { width: containerWidth }]}
                 >
-                  <View style={styles.illustrationCircle}>
+                  {/* Central backdrop — soft mint glow + thin ring + a
+                      few scattered dots (Figma "Backdrop / glow|ring"). */}
+                  <View style={styles.centerpiece}>
+                    <View style={styles.glow} />
+                    <View style={styles.ring} />
+                    <View style={[styles.bgDot, styles.bgDotA]} />
+                    <View style={[styles.bgDot, styles.bgDotB]} />
+                    <View style={[styles.bgDot, styles.bgDotC]} />
                     <Image
                       source={s.illustration}
                       style={styles.illustrationImage}
@@ -205,6 +228,7 @@ export default function OnboardingScreen() {
                   </View>
                   <View style={styles.bubble}>
                     <Text style={styles.bubbleText}>{s.bubble}</Text>
+                    <View style={styles.bubbleTail} />
                   </View>
                 </View>
               ))}
@@ -339,34 +363,90 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: 24,
   },
-  illustrationCircle: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: "rgba(255,255,255,0.45)",
+  centerpiece: {
+    width: 300,
+    height: 300,
     alignItems: "center",
     justifyContent: "center",
   },
+  glow: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "#DDF1EF",
+    opacity: 0.7,
+  },
+  ring: {
+    position: "absolute",
+    width: 232,
+    height: 232,
+    borderRadius: 116,
+    borderWidth: 1.5,
+    borderColor: "rgba(0,156,160,0.18)",
+  },
+  bgDot: {
+    position: "absolute",
+    borderRadius: 999,
+    backgroundColor: "rgba(0,156,160,0.22)",
+  },
+  bgDotA: {
+    width: 12,
+    height: 12,
+    top: 8,
+    right: 40,
+  },
+  bgDotB: {
+    width: 7,
+    height: 7,
+    top: 64,
+    left: 22,
+  },
+  bgDotC: {
+    width: 9,
+    height: 9,
+    bottom: 40,
+    right: 24,
+  },
   illustrationImage: {
-    width: 176,
-    height: 176,
+    width: 200,
+    height: 200,
   },
   bubble: {
     position: "absolute",
-    top: 60,
-    right: 28,
+    top: 56,
+    right: 24,
     maxWidth: 150,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: "#C4EAE9",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    transform: [{ rotate: "-2deg" }],
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bubbleTail: {
+    position: "absolute",
+    left: 20,
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.white,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#C4EAE9",
+    transform: [{ rotate: "45deg" }],
   },
   bubbleText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: "700",
+    color: colors.textPrimary,
   },
   cardSafe: {
     backgroundColor: colors.surface,
