@@ -220,9 +220,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    minHeight: 46,
     fontSize: 15,
     color: colors.textPrimary,
+    includeFontPadding: false,
+    textAlignVertical: "center",
     marginBottom: spacing.sm,
   },
   errorText: {

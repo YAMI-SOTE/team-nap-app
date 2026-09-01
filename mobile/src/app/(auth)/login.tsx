@@ -225,8 +225,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
+    minHeight: 48,
     fontSize: 16,
     color: colors.textPrimary,
+    includeFontPadding: false,
+    textAlignVertical: "center",
     marginBottom: spacing.lg,
   },
   forgotLink: {
