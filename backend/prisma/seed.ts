@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import { hashPassword } from "../src/lib/password.js";
+import { buildAdvice } from "../src/services/nap-advice.service.js";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -83,6 +84,94 @@ const SAMPLE_MEMBERS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Sample nap history for サンプル 太郎 (sample@teamnap.app)
+//
+// Gives the personal 統計 screen real numbers to show: a weekly 仮眠スコア,
+// the 今週のコンディション line (one point per day), a 先週より delta, and
+// rows under 最近の仮眠 / 仮眠履歴. Dates are anchored to the current week's
+// Monday so "this week" always has data; nothing in the future is seeded.
+// ---------------------------------------------------------------------------
+const SAMPLE_NAP_USER_ID = SAMPLE_MEMBERS[0].id; // サンプル 太郎
+
+type NapSpec = {
+  /** Days from the week's Monday (0 = Mon … 6 = Sun). */
+  offset: number;
+  start: string;
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+};
+
+// Relative to *this* week's Monday.
+const THIS_WEEK_NAPS: NapSpec[] = [
+  { offset: 0, start: "13:45", minutes: 20, wakeStars: 3, focusDeltaPt: 0 },
+  { offset: 1, start: "14:15", minutes: 15, wakeStars: 4, focusDeltaPt: 10 },
+  { offset: 2, start: "13:00", minutes: 15, wakeStars: 5, focusDeltaPt: 20 },
+  { offset: 2, start: "16:10", minutes: 22, wakeStars: 3, focusDeltaPt: 0 }, // second nap same day
+  { offset: 3, start: "14:00", minutes: 17, wakeStars: 4, focusDeltaPt: 10 },
+  { offset: 4, start: "13:30", minutes: 25, wakeStars: 2, focusDeltaPt: -10 },
+];
+
+// Relative to *last* week's Monday.
+const LAST_WEEK_NAPS: NapSpec[] = [
+  { offset: 0, start: "13:30", minutes: 20, wakeStars: 3, focusDeltaPt: 0 },
+  { offset: 1, start: "14:00", minutes: 18, wakeStars: 4, focusDeltaPt: 10 },
+  { offset: 3, start: "15:00", minutes: 14, wakeStars: 5, focusDeltaPt: 20 },
+  { offset: 4, start: "14:30", minutes: 16, wakeStars: 4, focusDeltaPt: 10 },
+];
+
+function isoAddDays(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
+}
+
+function addMinutes(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = h * 60 + m + mins;
+  return `${`${Math.floor(total / 60) % 24}`.padStart(2, "0")}:${`${total % 60}`.padStart(2, "0")}`;
+}
+
+async function seedSampleNaps() {
+  const today = new Date();
+  const todayISO = isoAddDays(today, 0);
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+
+  const rows = [
+    ...THIS_WEEK_NAPS.map((n) => ({ ...n, base: thisMonday })),
+    ...LAST_WEEK_NAPS.map((n) => ({ ...n, base: lastMonday })),
+  ]
+    .map((n) => {
+      const date = isoAddDays(n.base, n.offset);
+      return {
+        userId: SAMPLE_NAP_USER_ID,
+        date,
+        start: n.start,
+        end: addMinutes(n.start, n.minutes),
+        minutes: n.minutes,
+        wakeStars: n.wakeStars,
+        focusDeltaPt: n.focusDeltaPt,
+        aiAdvice: buildAdvice({
+          minutes: n.minutes,
+          wakeStars: n.wakeStars,
+          focusDeltaPt: n.focusDeltaPt,
+          start: n.start,
+        }),
+      };
+    })
+    // Never seed a nap dated in the future (e.g. Fri when today is Wed).
+    .filter((r) => r.date <= todayISO);
+
+  // Re-seedable: clear this account's history first.
+  await prisma.napRecord.deleteMany({ where: { userId: SAMPLE_NAP_USER_ID } });
+  await prisma.napRecord.createMany({ data: rows });
+  return rows.length;
+}
+
 async function main() {
   const passwordHash = await hashPassword(DEV_PASSWORD);
   for (const u of USERS) {
@@ -159,8 +248,13 @@ async function main() {
     });
   }
 
+  const sampleNapCount = await seedSampleNaps();
+
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
+  );
+  console.log(
+    `Seeded ${sampleNapCount} nap records for ${SAMPLE_MEMBERS[0].email} (this week + last week).`,
   );
   console.log(
     `Login: ${USERS[0].email} / ${DEV_PASSWORD} (same password for every seeded user).`,

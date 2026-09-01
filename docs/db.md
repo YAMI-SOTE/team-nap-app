@@ -78,7 +78,10 @@ Prisma Migrateによって生成されたMigrationを保存します。**Gitで�
 
 ### `backend/prisma/seed.ts`
 
-開発用のユーザーとチームを投入します（`npm run db:seed`）。
+開発用のユーザー・チームに加え、`sample@teamnap.app`（サンプル 太郎）へ
+**今週＋先週の `NapRecord`**（`aiAdvice` 込み、日付は実行時の週に合わせて生成、
+再実行可）を投入します（`npm run db:seed`）。統計・仮眠履歴・コンディション
+グラフをすぐ確認するための唯一のシード済みアカウントです。
 `prisma.config.ts` の `migrations.seed` にも登録されているため
 `prisma migrate reset` 時にも実行されます。
 
