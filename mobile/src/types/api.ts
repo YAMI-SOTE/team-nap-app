@@ -5,6 +5,37 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+export interface AuthUser {
+  id: string;
+  name: string | null;
+  email: string;
+  /** false until onboarding is finished — the client gates routing on this. */
+  onboardingCompleted: boolean;
+}
+
+/** `POST /auth/signup` and `POST /auth/login`. */
+export interface AuthResult {
+  token: string;
+  user: AuthUser;
+}
+
+/** `GET /auth/debug` (dev only). */
+export interface AuthDebugResponse {
+  user: AuthUser;
+  passwordHash: string | null;
+  passwordHashAlgorithm: string | null;
+  activeSessions: number;
+}
+
+export interface OnboardingResponse {
+  completed: boolean;
+  bedtime: string;
+  wakeTime: string;
+  calendarConnected: boolean;
+  notificationsEnabled: boolean;
+  completedAt: string | null;
+}
+
 export type HomeMemberStatus = "working" | "resting" | "offline";
 
 export interface HomeMember {
