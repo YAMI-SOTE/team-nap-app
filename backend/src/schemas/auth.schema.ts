@@ -17,3 +17,10 @@ export const loginBody = z.object({
 export const sessionIdParams = z.object({
   id: z.string().uuid(),
 });
+
+export const passwordResetRequestBody = z.object({ email });
+
+export const passwordResetConfirmBody = z.object({
+  token: z.string().min(1, "token is required"),
+  password,
+});

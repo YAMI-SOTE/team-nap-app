@@ -21,6 +21,22 @@ model User {
   createdAt    DateTime         @default(now())
   memberships  TeamMembership[]
   sessions     Session[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// Single-use, short-lived token for the "forgot password" flow. Like
+/// `Session`, only the SHA-256 hash of the emailed token is stored.
+/// See src/services/password-reset.service.ts.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 /// An issued bearer token. The raw token is returned to the client once;

@@ -32,6 +32,9 @@ const envSchema = z.object({
   // Lifetime of an issued session token, in hours (default 30 days).
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(720),
 
+  // Lifetime of a password-reset token, in minutes (default 1 hour).
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
+
   // API-flow debug tracer (src/lib/api-flow.ts). Off by default; set to
   // "1" or "true" to log a per-request layer-by-layer trace.
   DEBUG_API_FLOW: z

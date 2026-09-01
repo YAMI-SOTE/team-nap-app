@@ -4,6 +4,10 @@ import { firstParam } from "../lib/params.js";
 import { requireSessionId, requireUserId } from "../lib/request-user.js";
 import { getPublicUser, login, signUp } from "../services/auth.service.js";
 import {
+  confirmReset,
+  requestReset,
+} from "../services/password-reset.service.js";
+import {
   listSessions,
   revokeAllSessions,
   revokeSession,
@@ -25,6 +29,25 @@ export async function signUpController(req: Request, res: Response) {
 export async function loginController(req: Request, res: Response) {
   const { email, password } = req.body as { email: string; password: string };
   res.status(200).json(await login({ email, password }, userAgentOf(req)));
+}
+
+export async function requestPasswordResetController(
+  req: Request,
+  res: Response,
+) {
+  const { email } = req.body as { email: string };
+  const result = await requestReset(email);
+  // 202: "if that email exists, a reset link is on its way".
+  res.status(202).json({ ok: true, ...result });
+}
+
+export async function confirmPasswordResetController(
+  req: Request,
+  res: Response,
+) {
+  const { token, password } = req.body as { token: string; password: string };
+  await confirmReset(token, password);
+  res.status(204).end();
 }
 
 // --- session-scoped (mounted behind `authenticate`) -------------------------

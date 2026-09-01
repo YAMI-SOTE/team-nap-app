@@ -19,9 +19,12 @@ Backend API  ──(Prisma 7 + @prisma/adapter-pg)──▶  PostgreSQL
 Mobile App から PostgreSQL へ直接アクセスすることはありません。
 
 > **実装状況（2026-08時点）**
-> 実際にDBへ永続化しているのは **User / Team / TeamMembership / Session** の4モデルです
-> （マイグレーション `20260830091652_team_feature` と `20260831095742_auth_sessions`）。
-> `Session` は認証トークン（`src/services/session.service.ts`）。
+> 実際にDBへ永続化しているのは
+> **User / Team / TeamMembership / Session / PasswordResetToken** の5モデルです
+> （マイグレーション `20260830091652_team_feature` /
+> `20260831095742_auth_sessions` / `20260901163406_password_reset_tokens`）。
+> `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
+> 単回・短命トークン（`src/services/`）。
 > スケジュール・睡眠設定・休息履歴・休息提案などは、まだ各 `src/services/*` の
 > インメモリ状態で持っており、本ドキュメントの後半では「今後の予定」として扱います。
 
@@ -210,6 +213,24 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 `authenticate` は `tokenHash` で引き、`revokedAt == null` かつ未期限切れの
 ものだけを有効とみなします。
+
+#### PasswordResetToken
+
+「パスワードを忘れた」フロー用の単回・短命トークン
+（`src/services/password-reset.service.ts`）。`Session` と同様、生トークンは
+返さず SHA-256 ハッシュのみ保存。
+
+| 列        | 型         | 備考                                            |
+| --------- | ---------- | ---------------------------------------------- |
+| id        | String PK  | `uuid()`                                       |
+| userId    | String FK  | `onDelete: Cascade`。`@@index([userId])`         |
+| tokenHash | String     | `@unique`。`sha256(token)` の hex               |
+| expiresAt | DateTime   | `now() + PASSWORD_RESET_TTL_MINUTES`（既定 60分）|
+| usedAt    | DateTime?  | 使用時に設定。再発行時は既存の未使用分も used 扱い |
+| createdAt | DateTime   | `now()`                                        |
+
+`confirm` 成功時にパスワードを更新し、そのユーザーの **全セッションを失効**
+させます。`request` は該当メールが無くても常に 202 を返します（存在秘匿）。
 
 #### Team
 
@@ -475,8 +496,9 @@ git add backend/prisma && git commit
 現在のマイグレーション:
 
 ```text
-20260830091652_team_feature    User / Team / TeamMembership / MemberActivity を作成
-20260831095742_auth_sessions   User.passwordHash 追加 + Session テーブル
+20260830091652_team_feature         User / Team / TeamMembership / MemberActivity を作成
+20260831095742_auth_sessions        User.passwordHash 追加 + Session テーブル
+20260901163406_password_reset_tokens  PasswordResetToken テーブル
 ```
 
 ---

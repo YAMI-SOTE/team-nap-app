@@ -33,6 +33,8 @@ stored. Sessions expire after `SESSION_TTL_HOURS` and can be revoked.
 | `DELETE /auth/sessions/:id` | Bearer | revoke one session → 204 (404 if not yours/active) |
 | `POST /auth/logout` | Bearer | revoke the current session → 204 |
 | `POST /auth/logout-others` | Bearer | revoke every *other* session → `{ revoked }` |
+| `POST /auth/password-reset/request` | – | `{ email }` → always 202 `{ ok }` (never reveals if the email exists). Outside production the body also carries `resetToken` for testing; the token is always logged to the server console |
+| `POST /auth/password-reset/confirm` | – | `{ token, password }` → 204. Single-use, expires after `PASSWORD_RESET_TTL_MINUTES`; on success **all** of that user's sessions are revoked. 400 if the token is unknown/used/expired |
 
 To require a session on a route, mount `authenticate`
 (`src/middleware/authenticate.middleware.ts`): it resolves
@@ -76,6 +78,7 @@ Read and validated once in `src/config/env.ts` (zod). Copy
 | `DATABASE_URL` | yes      | –                        | Prisma connection string. Host is `db` inside Compose, `localhost` locally |
 | `DEV_USER_ID`  |          | `00000000-0000-0000-0000-000000000001` | Caller identity when `X-User-Id` is missing; matches `prisma/seed.ts` |
 | `SESSION_TTL_HOURS` |     | `720`                   | Lifetime of an issued session token (30 days) |
+| `PASSWORD_RESET_TTL_MINUTES` | | `60`               | Lifetime of a password-reset token |
 | `NODE_ENV`     |          | `development`            | `development \| production \| test` |
 | `PORT`         |          | `3000`                   |                                |
 | `HOST`         |          | `0.0.0.0`                |                                |
