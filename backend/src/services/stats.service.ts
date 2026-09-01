@@ -10,7 +10,7 @@ import type { Member } from "../types/domain.js";
  * is false so the client shows the "まだ仮眠の記録がありません" state.
  */
 
-const WEEKDAY_LABELS = ["月", "火", "水", "木", "金"];
+const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 const STARS = (n: number) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
 
 export type StatFocus = { before: number; after: number; deltaPt: number };
@@ -49,14 +49,14 @@ const round = (n: number) => Math.round(n);
 const avg = (xs: number[]) =>
   xs.length === 0 ? 0 : xs.reduce((s, x) => s + x, 0) / xs.length;
 
-/** Mon–Fri of the week containing today, as "YYYY-MM-DD". */
-function currentWeekWeekdays(): string[] {
+/** Mon–Sun of the week containing today, as "YYYY-MM-DD". */
+function currentWeekDays(): string[] {
   const now = new Date();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
   const toISO = (d: Date) =>
     `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
-  return Array.from({ length: 5 }, (_, i) => {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     return toISO(d);
@@ -85,11 +85,20 @@ export async function getPersonalStats(
       ? ""
       : `先週より ${weekDelta >= 0 ? "+" : ""}${weekDelta}回`;
 
-  // Weekly line: each weekday's nap quality (wakeStars → 0–100), 0 if none.
-  const napByDate = new Map<string, NapEntry>(naps.map((n) => [n.date, n]));
-  const conditionValues = currentWeekWeekdays().map((iso) => {
-    const nap = napByDate.get(iso);
-    return nap ? nap.wakeStars * 20 : 0;
+  // Weekly line ("仮眠後の集中度"): for each day of the current week, the
+  // average post-nap focus of that day's naps mapped to 0–100
+  // (focusDeltaPt −20..+20 → 0..100). Days with no nap read as 0.
+  const napsByDate = new Map<string, NapEntry[]>();
+  for (const n of naps) {
+    const list = napsByDate.get(n.date) ?? [];
+    list.push(n);
+    napsByDate.set(n.date, list);
+  }
+  const conditionValues = currentWeekDays().map((iso) => {
+    const dayNaps = napsByDate.get(iso) ?? [];
+    if (dayNaps.length === 0) return 0;
+    const dayDelta = avg(dayNaps.map((n) => n.focusDeltaPt));
+    return Math.max(0, Math.min(100, round(50 + dayDelta * 2.5)));
   });
 
   // Simple derived score from real activity (0–100).
@@ -136,7 +145,7 @@ export async function getTeamStats(
     napCount: 0,
     avgNapMinutes: 0,
     everyoneNappedDays: 0,
-    condition: { values: [0, 0, 0, 0, 0], labels: WEEKDAY_LABELS },
+    condition: { values: [0, 0, 0, 0, 0, 0, 0], labels: WEEKDAY_LABELS },
     achievementBanner: "",
     disclaimer:
       "チーム全体で休めているかを見る指標です。個人を比較するものではありません。",
