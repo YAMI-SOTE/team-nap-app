@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
+import { useAuth } from "@/features/auth/AuthContext";
 import { colors } from "@/theme/colors";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Logo from "@/components/Logo";
 import SettingsSection from "@/components/SettingsSection";
 import SettingsRow from "@/components/SettingsRow";
@@ -14,9 +17,13 @@ import NotificationBell from "@/components/NotificationBell";
 export default function SettingsScreen() {
   const router = useRouter();
   const { data, loading, error, setNotification } = useNotificationSettings();
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    // No auth token to clear in the current mock auth — just return to login.
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  const confirmLogout = async () => {
+    setLogoutOpen(false);
+    await signOut();
     router.replace("/login");
   };
 
@@ -94,7 +101,11 @@ export default function SettingsScreen() {
               label="チーム設定"
               onPress={() => router.push("/settings/team")}
             />
-            <SettingsRow label="ログアウト" danger onPress={handleLogout} />
+            <SettingsRow
+              label="ログアウト"
+              danger
+              onPress={() => setLogoutOpen(true)}
+            />
           </SettingsSection>
 
           <View style={styles.footer}>
@@ -103,6 +114,17 @@ export default function SettingsScreen() {
           </View>
         </View>
       </SafeAreaView>
+
+      <ConfirmDialog
+        visible={logoutOpen}
+        title="ログアウトしますか？"
+        message="このデバイスのセッションを終了します。もう一度ログインが必要になります。"
+        confirmLabel="ログアウト"
+        confirmAgainLabel="本当にログアウトする"
+        doubleConfirm
+        onConfirm={confirmLogout}
+        onCancel={() => setLogoutOpen(false)}
+      />
     </View>
   );
 }
