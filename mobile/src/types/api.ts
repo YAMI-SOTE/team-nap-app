@@ -99,10 +99,8 @@ export interface NotificationSettingsResponse {
   wakeSupport: boolean;
 }
 
-export interface AccountSettingsResponse {
-  username: string;
-  email: string;
-}
+// Account name / email use AuthUser (GET /auth/me) — there is no
+// /settings/account endpoint.
 
 export interface SleepScheduleResponse {
   bedtime: string;

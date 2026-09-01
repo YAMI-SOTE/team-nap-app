@@ -50,13 +50,22 @@ model NapRecord {
 /// Created with defaults at sign-up (and lazily for legacy users), so a
 /// missing/incomplete row means "still needs to go through onboarding".
 /// `completedAt` is set once the user finishes the questions.
+/// Also backs the Settings screens (sleep schedule, notification toggles,
+/// calendar links) so they share one per-user row with onboarding rather
+/// than a global in-memory copy.
 model Onboarding {
   userId               String    @id
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bedtime              String    @default("23:30")
   wakeTime             String    @default("07:30")
+  napCutoffHour        Int       @default(15)
   calendarConnected    Boolean   @default(false)
+  calendarDeviceConnected Boolean @default(false)
   notificationsEnabled Boolean   @default(false)
+  notifyNapSuggestion     Boolean @default(true)
+  notifyNapEnd            Boolean @default(true)
+  notifyTeamNapSuggestion Boolean @default(true)
+  notifyWakeSupport       Boolean @default(true)
   completedAt          DateTime?
   updatedAt            DateTime  @updatedAt
 }

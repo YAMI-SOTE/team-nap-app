@@ -4,62 +4,71 @@ import { requireUserId } from "../lib/request-user.js";
 import {
   connectDeviceCalendar,
   disconnectGoogleCalendar,
-  getAccountSettings,
   getCalendarIntegration,
   getNotificationSettings,
   getSleepSchedule,
   getTeamSettings,
   leaveTeam,
   syncGoogleCalendar,
-  updateAccountSettings,
   updateNotificationSettings,
   updateSleepSchedule,
 } from "../services/settings.service.js";
 
-export function getAccountSettingsController(_req: Request, res: Response) {
-  res.status(200).json(getAccountSettings());
-}
-
-export function updateAccountSettingsController(req: Request, res: Response) {
-  res.status(200).json(updateAccountSettings(req.body));
-}
-
-export function getNotificationSettingsController(_req: Request, res: Response) {
-  res.status(200).json(getNotificationSettings());
-}
-
-export function updateNotificationSettingsController(
+export async function getNotificationSettingsController(
   req: Request,
   res: Response,
 ) {
-  res.status(200).json(updateNotificationSettings(req.body));
+  res.status(200).json(await getNotificationSettings(requireUserId(req)));
 }
 
-export function getSleepScheduleController(_req: Request, res: Response) {
-  res.status(200).json(getSleepSchedule());
-}
-
-export function updateSleepScheduleController(req: Request, res: Response) {
-  res.status(200).json(updateSleepSchedule(req.body));
-}
-
-export function getCalendarIntegrationController(_req: Request, res: Response) {
-  res.status(200).json(getCalendarIntegration());
-}
-
-export function syncGoogleCalendarController(_req: Request, res: Response) {
-  res.status(200).json(syncGoogleCalendar());
-}
-
-export function disconnectGoogleCalendarController(
-  _req: Request,
+export async function updateNotificationSettingsController(
+  req: Request,
   res: Response,
 ) {
-  res.status(200).json(disconnectGoogleCalendar());
+  res
+    .status(200)
+    .json(await updateNotificationSettings(requireUserId(req), req.body));
 }
 
-export function connectDeviceCalendarController(_req: Request, res: Response) {
-  res.status(200).json(connectDeviceCalendar());
+export async function getSleepScheduleController(req: Request, res: Response) {
+  res.status(200).json(await getSleepSchedule(requireUserId(req)));
+}
+
+export async function updateSleepScheduleController(
+  req: Request,
+  res: Response,
+) {
+  res
+    .status(200)
+    .json(await updateSleepSchedule(requireUserId(req), req.body));
+}
+
+export async function getCalendarIntegrationController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await getCalendarIntegration(requireUserId(req)));
+}
+
+export async function syncGoogleCalendarController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await syncGoogleCalendar(requireUserId(req)));
+}
+
+export async function disconnectGoogleCalendarController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await disconnectGoogleCalendar(requireUserId(req)));
+}
+
+export async function connectDeviceCalendarController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await connectDeviceCalendar(requireUserId(req)));
 }
 
 export async function getTeamSettingsController(req: Request, res: Response) {
