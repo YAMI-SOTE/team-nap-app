@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
-import { createSession } from "./session.service.js";
+import { createSession, revokeAllSessions } from "./session.service.js";
 
 /**
  * Email + password sign-up / login. Both issue a session (see
@@ -68,6 +68,29 @@ export async function getPublicUser(userId: string): Promise<PublicUser> {
     throw HttpError.unauthorized("Account no longer exists");
   }
   return toPublicUser(user);
+}
+
+/**
+ * Change the password of a logged-in user. Verifies the current password,
+ * then revokes every *other* session (the calling one stays valid).
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+  keepSessionId: string,
+): Promise<{ revokedOtherSessions: number }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+    throw HttpError.badRequest("Current password is incorrect");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await hashPassword(newPassword) },
+  });
+  const revokedOtherSessions = await revokeAllSessions(userId, keepSessionId);
+  return { revokedOtherSessions };
 }
 
 export async function login(

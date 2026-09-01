@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+  changePasswordController,
   confirmPasswordResetController,
   listSessionsController,
   loginController,
@@ -14,6 +15,7 @@ import {
 import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
+  changePasswordBody,
   loginBody,
   passwordResetConfirmBody,
   passwordResetRequestBody,
@@ -39,6 +41,12 @@ router.post(
 
 // Session-scoped.
 router.get("/me", authenticate, meController);
+router.post(
+  "/password",
+  authenticate,
+  validate({ body: changePasswordBody }),
+  changePasswordController,
+);
 router.post("/logout", authenticate, logoutController);
 router.post("/logout-others", authenticate, logoutOthersController);
 router.get("/sessions", authenticate, listSessionsController);

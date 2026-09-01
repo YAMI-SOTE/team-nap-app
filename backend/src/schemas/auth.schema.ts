@@ -24,3 +24,8 @@ export const passwordResetConfirmBody = z.object({
   token: z.string().min(1, "token is required"),
   password,
 });
+
+export const changePasswordBody = z.object({
+  currentPassword: z.string().min(1, "current password is required").max(200),
+  newPassword: password,
+});

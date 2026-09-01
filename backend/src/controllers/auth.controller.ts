@@ -2,7 +2,12 @@ import type { Request, Response } from "express";
 
 import { firstParam } from "../lib/params.js";
 import { requireSessionId, requireUserId } from "../lib/request-user.js";
-import { getPublicUser, login, signUp } from "../services/auth.service.js";
+import {
+  changePassword,
+  getPublicUser,
+  login,
+  signUp,
+} from "../services/auth.service.js";
 import {
   confirmReset,
   requestReset,
@@ -59,6 +64,20 @@ export async function meController(req: Request, res: Response) {
 export async function logoutController(req: Request, res: Response) {
   await revokeSession(requireUserId(req), requireSessionId(req));
   res.status(204).end();
+}
+
+export async function changePasswordController(req: Request, res: Response) {
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword: string;
+    newPassword: string;
+  };
+  const result = await changePassword(
+    requireUserId(req),
+    currentPassword,
+    newPassword,
+    requireSessionId(req),
+  );
+  res.status(200).json(result);
 }
 
 export async function logoutOthersController(req: Request, res: Response) {

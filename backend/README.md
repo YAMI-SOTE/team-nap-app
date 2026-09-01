@@ -29,6 +29,7 @@ stored. Sessions expire after `SESSION_TTL_HOURS` and can be revoked.
 | `POST /auth/signup` | – | `{ name, email, password }` → 201 `{ token, user }`; `password` ≥ 8; 409 if email taken |
 | `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
 | `GET /auth/me` | Bearer | `{ user: { id, name, email } }` |
+| `POST /auth/password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`; 400 if `currentPassword` wrong. Keeps the calling session, revokes the rest |
 | `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
 | `DELETE /auth/sessions/:id` | Bearer | revoke one session → 204 (404 if not yours/active) |
 | `POST /auth/logout` | Bearer | revoke the current session → 204 |
