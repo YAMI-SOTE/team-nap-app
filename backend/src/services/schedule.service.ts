@@ -59,7 +59,7 @@ function dayOfMonth(dateISO: string): number {
   return Number(dateISO.split("-")[2]);
 }
 
-export function getDaySchedule(dateISO: string) {
+export async function getDaySchedule(userId: string, dateISO: string) {
   const tasks = events
     .filter((e) => e.date === dateISO)
     .sort((a, b) => a.start.localeCompare(b.start))
@@ -78,9 +78,10 @@ export function getDaySchedule(dateISO: string) {
   }
 
   // days this week that have a recorded nap (green ring on the strip).
+  const naps = await listNaps(userId);
   const weekNapDays = [
     ...new Set(
-      listNaps()
+      naps
         .filter((nap) => inWeek(nap.date))
         .map((nap) => dayOfMonth(nap.date)),
     ),

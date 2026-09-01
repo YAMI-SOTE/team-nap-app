@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { firstParam } from "../lib/params.js";
+import { requireUserId } from "../lib/request-user.js";
 import { HttpError } from "../lib/http-error.js";
 import { todayISO } from "../lib/datetime.js";
 import {
@@ -12,10 +13,10 @@ import {
   type EventDraft,
 } from "../services/schedule.service.js";
 
-export function getDayScheduleController(req: Request, res: Response) {
+export async function getDayScheduleController(req: Request, res: Response) {
   const date =
     typeof req.query.date === "string" ? req.query.date : todayISO();
-  res.status(200).json(getDaySchedule(date));
+  res.status(200).json(await getDaySchedule(requireUserId(req), date));
 }
 
 export function getEventController(req: Request, res: Response) {

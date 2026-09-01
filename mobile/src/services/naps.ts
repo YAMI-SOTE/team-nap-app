@@ -2,12 +2,18 @@ import { api } from "@/services/api";
 
 import type {
   CreateNapPayload,
+  NapDetailResponse,
   NapEntryResponse,
   NapHistoryResponse,
 } from "@/types/api";
 
 export async function getNapHistory(): Promise<NapHistoryResponse> {
   return api.get<NapHistoryResponse>("/naps/history");
+}
+
+/** One nap record + its stored AI advice (ふりかえり screen). */
+export async function getNap(id: string): Promise<NapDetailResponse> {
+  return api.get<NapDetailResponse>(`/naps/${encodeURIComponent(id)}`);
 }
 
 /**

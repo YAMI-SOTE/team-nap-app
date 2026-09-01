@@ -14,3 +14,7 @@ export const createNapBody = z.object({
   wakeStars: z.number().int().min(0).max(5).default(3),
   focusDeltaPt: z.number().int().default(0),
 });
+
+export const napIdParams = z.object({
+  id: z.string().uuid(),
+});

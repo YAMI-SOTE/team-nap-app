@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-import { currentUserId } from "../lib/request-user.js";
+import { requireUserId } from "../lib/request-user.js";
 import {
   getPersonalStats,
   getStats,
@@ -9,13 +9,13 @@ import {
 
 /** Combined endpoint — the client's stats screen needs both tabs. */
 export async function getStatsController(req: Request, res: Response) {
-  res.status(200).json(await getStats(currentUserId(req)));
+  res.status(200).json(await getStats(requireUserId(req)));
 }
 
-export function getPersonalStatsController(_req: Request, res: Response) {
-  res.status(200).json(getPersonalStats());
+export async function getPersonalStatsController(req: Request, res: Response) {
+  res.status(200).json(await getPersonalStats(requireUserId(req)));
 }
 
 export async function getTeamStatsController(req: Request, res: Response) {
-  res.status(200).json(await getTeamStats(currentUserId(req)));
+  res.status(200).json(await getTeamStats(requireUserId(req)));
 }

@@ -305,6 +305,14 @@ export interface NapEntryResponse {
   minutes: number;
   wakeStars: number;
   focusDeltaPt: number;
+  /** AI advice generated + stored at record time (ふりかえり screen). */
+  aiAdvice: string | null;
+}
+
+/** `GET /naps/:id` — a single record + its stored advice. */
+export interface NapDetailResponse extends NapEntryResponse {
+  /** "15分の仮眠 ・ 14:32〜14:47" */
+  summaryLabel: string;
 }
 
 export interface NapHistoryDay {

@@ -1,11 +1,13 @@
 /**
- * Single source of truth for the signed-in user's nap records.
- * `naps.controller` serves the full history; `stats.service` derives the
- * personal nap metrics from here so the two stay in sync.
+ * Nap records — DB-backed and per-user. `naps.controller` serves the
+ * history and a single record; `stats.service` derives the personal nap
+ * metrics from `listNaps` so the two stay in sync.
  */
 
-import { isoDateOffset, jstDateLabelFromISO } from "../lib/datetime.js";
+import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
+import { isoDateOffset, jstDateLabelFromISO } from "../lib/datetime.js";
+import { buildAdvice } from "./nap-advice.service.js";
 
 export type NapEntry = {
   id: string;
@@ -22,22 +24,53 @@ export type NapEntry = {
   wakeStars: number;
   /** Focus improvement in points. */
   focusDeltaPt: number;
+  /** AI advice generated at record time. */
+  aiAdvice: string | null;
 };
 
-// Newest first. Invariant: at most one entry per calendar date.
-// Empty by default — nothing recorded in the past. Entries appear only
-// after the user records a nap via `createNap`.
-const naps: NapEntry[] = [];
+type Row = {
+  id: string;
+  date: string;
+  start: string;
+  end: string;
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+  aiAdvice: string | null;
+};
 
-let createdNapSeq = 1;
-
-export function listNaps(): NapEntry[] {
-  return naps;
+function toEntry(row: Row): NapEntry {
+  return {
+    id: row.id,
+    date: row.date,
+    dateLabel: jstDateLabelFromISO(row.date),
+    start: row.start,
+    end: row.end,
+    minutes: row.minutes,
+    wakeStars: row.wakeStars,
+    focusDeltaPt: row.focusDeltaPt,
+    aiAdvice: row.aiAdvice,
+  };
 }
 
-/** Whether a nap is already recorded for the given "YYYY-MM-DD". */
-export function hasNapOn(dateISO: string): boolean {
-  return naps.some((nap) => nap.date === dateISO);
+/** Newest first. */
+export async function listNaps(userId: string): Promise<NapEntry[]> {
+  const rows = await prisma.napRecord.findMany({
+    where: { userId },
+    orderBy: { date: "desc" },
+  });
+  return rows.map(toEntry);
+}
+
+export async function getNap(
+  userId: string,
+  id: string,
+): Promise<NapEntry> {
+  const row = await prisma.napRecord.findUnique({ where: { id } });
+  if (!row || row.userId !== userId) {
+    throw HttpError.notFound("仮眠の記録が見つかりません");
+  }
+  return toEntry(row);
 }
 
 export type NapInput = {
@@ -53,37 +86,40 @@ export type NapInput = {
 };
 
 /**
- * Record a nap. Only one nap per date is allowed — a second on the same
- * date is a 409.
+ * Record a nap. One per calendar date per user — a second on the same
+ * date is a 409. Generates and stores the AI advice at the same time.
  */
-export function createNap(input: NapInput): NapEntry {
-  if (hasNapOn(input.date)) {
+export async function createNap(
+  userId: string,
+  input: NapInput,
+): Promise<NapEntry> {
+  const existing = await prisma.napRecord.findUnique({
+    where: { userId_date: { userId, date: input.date } },
+  });
+  if (existing) {
     throw HttpError.conflict("この日の仮眠は既に記録されています");
   }
 
-  const nap: NapEntry = {
-    id: `nap-new-${createdNapSeq++}`,
-    date: input.date,
-    dateLabel: jstDateLabelFromISO(input.date),
-    start: input.start,
-    end: input.end,
+  const aiAdvice = buildAdvice({
     minutes: input.minutes,
     wakeStars: input.wakeStars,
     focusDeltaPt: input.focusDeltaPt,
-  };
+    start: input.start,
+  });
 
-  naps.unshift(nap);
-  return nap;
+  const row = await prisma.napRecord.create({
+    data: { userId, ...input, aiAdvice },
+  });
+  return toEntry(row);
 }
 
 function average(values: number[]): number {
-  if (values.length === 0) {
-    return 0;
-  }
+  if (values.length === 0) return 0;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-export function getNapSummary() {
+export async function getNapSummary(userId: string) {
+  const naps = await listNaps(userId);
   return {
     monthlyCount: naps.length,
     avgMinutes: Math.round(average(naps.map((n) => n.minutes))),

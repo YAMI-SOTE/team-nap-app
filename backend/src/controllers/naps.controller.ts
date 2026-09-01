@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 
+import { firstParam } from "../lib/params.js";
+import { requireUserId } from "../lib/request-user.js";
 import {
   createNap,
+  getNap,
   getNapSummary,
   listNaps,
   type NapEntry,
@@ -18,8 +21,9 @@ function toRecord(nap: NapEntry) {
   };
 }
 
-export function getNapHistoryController(_req: Request, res: Response) {
-  const naps = listNaps();
+export async function getNapHistoryController(req: Request, res: Response) {
+  const userId = requireUserId(req);
+  const naps = await listNaps(userId);
 
   const byDay = new Map<string, { dateLabel: string; records: NapEntry[] }>();
   for (const nap of naps) {
@@ -35,7 +39,7 @@ export function getNapHistoryController(_req: Request, res: Response) {
       records: bucket.records.map(toRecord),
     }));
 
-  const summary = getNapSummary();
+  const summary = await getNapSummary(userId);
 
   res.status(200).json({
     summary: {
@@ -47,6 +51,34 @@ export function getNapHistoryController(_req: Request, res: Response) {
   });
 }
 
-export function createNapController(req: Request, res: Response) {
-  res.status(201).json(createNap(req.body as NapInput));
+/** `GET /naps/:id` — one record + its stored AI advice (ふりかえり screen). */
+export async function getNapController(req: Request, res: Response) {
+  const nap = await getNap(requireUserId(req), firstParam(req, "id"));
+  res.status(200).json({
+    id: nap.id,
+    date: nap.date,
+    dateLabel: nap.dateLabel,
+    start: nap.start,
+    end: nap.end,
+    minutes: nap.minutes,
+    wakeStars: nap.wakeStars,
+    focusDeltaPt: nap.focusDeltaPt,
+    summaryLabel: `${nap.minutes}分の仮眠 ・ ${nap.start}〜${nap.end}`,
+    aiAdvice: nap.aiAdvice,
+  });
+}
+
+export async function createNapController(req: Request, res: Response) {
+  const nap = await createNap(requireUserId(req), req.body as NapInput);
+  res.status(201).json({
+    id: nap.id,
+    date: nap.date,
+    dateLabel: nap.dateLabel,
+    start: nap.start,
+    end: nap.end,
+    minutes: nap.minutes,
+    wakeStars: nap.wakeStars,
+    focusDeltaPt: nap.focusDeltaPt,
+    aiAdvice: nap.aiAdvice,
+  });
 }

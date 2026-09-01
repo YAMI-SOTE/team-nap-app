@@ -63,9 +63,11 @@ function currentWeekWeekdays(): string[] {
   });
 }
 
-export function getPersonalStats(): PersonalStatsResponse {
-  const summary = getNapSummary();
-  const naps = listNaps();
+export async function getPersonalStats(
+  userId: string,
+): Promise<PersonalStatsResponse> {
+  const summary = await getNapSummary(userId);
+  const naps = await listNaps(userId);
   const hasRecords = naps.length > 0;
 
   const avgDelta = round(avg(naps.map((n) => n.focusDeltaPt)));
@@ -145,9 +147,10 @@ export async function getStats(userId: string): Promise<{
   personal: PersonalStatsResponse;
   team: TeamStatsResponse | null;
 }> {
-  return {
-    personal: getPersonalStats(),
+  const [personal, team] = await Promise.all([
+    getPersonalStats(userId),
     // No team joined → the stats screen shows only the 個人 tab.
-    team: (await hasTeam(userId)) ? await getTeamStats(userId) : null,
-  };
+    hasTeam(userId).then((t) => (t ? getTeamStats(userId) : null)),
+  ]);
+  return { personal, team };
 }
