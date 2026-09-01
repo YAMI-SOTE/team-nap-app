@@ -310,13 +310,18 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 - メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
 - 通知フィードは userId ごとになったが、まだ in-memory（`Map`）。
   DB 化（`Notification` テーブル）すれば再起動で消えなくなる。
-- チームのルートは `authenticate` 必須になった。他機能のルート
-  （home / schedule / stats など）はまだ `X-User-Id` フォールバックのまま。
-  `ensureUser` はその旧経路向けの保険として残している。
-- **メンバー管理**（メンバー除名・オーナー/権限・譲渡）は未実装。`role` /
-  `ownerId` 列も無いため `renameTeam` はメンバーなら誰でも可能。
-  `TeamSettingsScreen` の「メンバーを管理」は現状 TODO。
-- 「◯分仮眠を提案」ボタンのバックエンド（`POST /teams/nap-suggestion`）は
-  実装済み。モバイル側の呼び出し接続は未対応（認証接続と同じ TODO）。
-- `home/member-status` はチームのデータだが、まだ `authenticate` の外
-  （`X-User-Id` フォールバック）。認証移行時に一緒に見直す。
+- 認証は `routes/index.ts` で `/health` と `/auth` 以外の全ルートに
+  一括適用（`router.use(authenticate)`）。home / schedule / stats / naps /
+  settings も含めすべて `Authorization: Bearer` 必須。呼び出しユーザーは
+  常にセッションの `userId`。`ensureUser` は歴史的経緯で残しているだけ
+  （実質 no-op）。
+- `home/member-status` は認証後 `req.auth.userId` の**実チーム**を返す
+  （以前は `DEV_USER_ID` の固定チームが漏れていた）。
+- **在席ステータスのライブ更新は未実装**。`PUT/GET /teams/me/status` は
+  あるがフロント未接続、ポーリング/WebSocket も無いのでメンバーの
+  「作業中/仮眠中」表示は画面を開いた時点のスナップショット。
+- **メンバー管理**（除名・オーナー/権限・譲渡）は未実装。`role` /
+  `ownerId` 列も無く `renameTeam` はメンバーなら誰でも可能。
+  `TeamSettingsScreen` の「メンバーを管理」は TODO。
+- 「◯分仮眠を提案」は `POST /teams/nap-suggestion` + `NapProposalSheet`
+  で接続済み。

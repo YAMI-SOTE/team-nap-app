@@ -102,7 +102,7 @@ export async function revokeSession(
     data: { revokedAt: new Date() },
   });
   if (result.count === 0) {
-    throw HttpError.notFound("Session not found");
+    throw HttpError.notFound("セッションが見つかりません");
   }
 }
 

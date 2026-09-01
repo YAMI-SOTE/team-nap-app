@@ -12,6 +12,8 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useStats } from "@/hooks/useStats";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConnectionErrorView from "@/components/ConnectionErrorView";
+import EmptyState from "@/components/EmptyState";
 import Logo from "@/components/Logo";
 import SegmentedControl from "@/components/SegmentedControl";
 import PersonalStatsView from "@/features/stats/PersonalStatsView";
@@ -27,11 +29,16 @@ type StatsTab = (typeof TABS)[number]["key"];
 
 export default function StatsScreen() {
   const router = useRouter();
-  const { personal, team, hasTeam, loading, error } = useStats();
+  const { personal, team, hasTeam, loading, error, connectionError, reload } =
+    useStats();
   const [tab, setTab] = useState<StatsTab>("personal");
 
   // Without a team there is no チーム tab — only 個人.
   const activeTab: StatsTab = hasTeam ? tab : "personal";
+
+  if (connectionError) {
+    return <ConnectionErrorView onRetry={reload} />;
+  }
 
   return (
     <View style={styles.root}>
@@ -62,11 +69,24 @@ export default function StatsScreen() {
             <View style={styles.stateBlock}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
+          ) : activeTab === "personal" && personal && !personal.hasRecords ? (
+            <EmptyState
+              image={require("../../../assets/characters/genki.png")}
+              title="まだ仮眠の記録がありません"
+              body="15分の仮眠をとると、スコアや集中度の変化がここに表示されます。"
+              actionLabel="はじめての仮眠をとる"
+              onAction={() => router.push("/rest")}
+            />
           ) : activeTab === "personal" && personal ? (
             <PersonalStatsView
               data={personal}
               onSeeAll={() => router.push("/naps/history")}
-              onNapPress={(id) => console.log(`TODO: open nap ${id}`)}
+              onNapPress={(id) =>
+                router.push({
+                  pathname: "/naps/reflection",
+                  params: { id },
+                })
+              }
             />
           ) : activeTab === "team" && team ? (
             <TeamStatsView

@@ -16,6 +16,7 @@ import { ApiError } from "@/services/api";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
@@ -29,7 +30,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export default function AccountScreen() {
   const router = useRouter();
-  const { user, refresh, signOut } = useAuth();
+  const { user, refresh, signOut, deleteAccount } = useAuth();
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -37,6 +38,9 @@ export default function AccountScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -97,11 +101,27 @@ export default function AccountScreen() {
   };
 
   const handleChangePhoto = () => console.log("TODO: change profile photo");
-  const handleLogout = async () => {
+
+  const confirmLogout = async () => {
+    setLogoutOpen(false);
     await signOut();
     router.replace("/login");
   };
-  const handleDeleteAccount = () => console.log("TODO: delete the account");
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      setDeleteOpen(false);
+      router.replace("/login");
+    } catch (err) {
+      setDeleting(false);
+      setDeleteOpen(false);
+      setError(
+        err instanceof Error ? err.message : "アカウントを削除できませんでした",
+      );
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -175,14 +195,14 @@ export default function AccountScreen() {
 
           <View style={styles.danger}>
             <Pressable
-              onPress={handleLogout}
+              onPress={() => setLogoutOpen(true)}
               accessibilityRole="button"
               hitSlop={6}
             >
               <Text style={styles.logoutText}>ログアウト</Text>
             </Pressable>
             <Pressable
-              onPress={handleDeleteAccount}
+              onPress={() => setDeleteOpen(true)}
               accessibilityRole="button"
               hitSlop={6}
             >
@@ -191,6 +211,29 @@ export default function AccountScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <ConfirmDialog
+        visible={logoutOpen}
+        title="ログアウトしますか？"
+        message="このデバイスのセッションを終了します。もう一度ログインが必要になります。"
+        confirmLabel="ログアウト"
+        confirmAgainLabel="本当にログアウトする"
+        doubleConfirm
+        onConfirm={confirmLogout}
+        onCancel={() => setLogoutOpen(false)}
+      />
+      <ConfirmDialog
+        visible={deleteOpen}
+        title="アカウントを削除しますか？"
+        message="アカウント・チームメンバー情報・設定がすべて削除されます。この操作は取り消せません。"
+        confirmLabel="アカウントを削除"
+        confirmAgainLabel="完全に削除する"
+        destructive
+        doubleConfirm
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteOpen(false)}
+      />
     </View>
   );
 }

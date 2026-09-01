@@ -1,5 +1,8 @@
 # セットアップ
 
+> 機能を手で確認する手順は [testing-guide.md](./testing-guide.md)、
+> テスト用アカウント / スケジュールは [test-account.md](./test-account.md)。
+
 ## 最短セットアップ
 
 いちばん簡単な起動手順はこれです。

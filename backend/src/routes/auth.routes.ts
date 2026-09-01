@@ -5,6 +5,7 @@ import {
   changePasswordController,
   confirmPasswordResetController,
   debugController,
+  deleteAccountController,
   listSessionsController,
   loginController,
   logoutController,
@@ -51,6 +52,7 @@ router.patch(
   validate({ body: updateProfileBody }),
   updateProfileController,
 );
+router.delete("/me", authenticate, deleteAccountController);
 router.post(
   "/password",
   authenticate,

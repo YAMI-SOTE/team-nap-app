@@ -23,6 +23,27 @@ model User {
   sessions     Session[]
   passwordResetTokens PasswordResetToken[]
   onboarding   Onboarding?
+  naps         NapRecord[]
+}
+
+/// A recorded nap. One per user per calendar date. `aiAdvice` holds the
+/// suggestion generated at record time (see src/services/nap-advice.service.ts),
+/// shown on the ふりかえり screen and reachable later from the history list.
+model NapRecord {
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  date         String   // "YYYY-MM-DD"
+  start        String   // "HH:MM"
+  end          String   // "HH:MM"
+  minutes      Int
+  wakeStars    Int      @default(0)
+  focusDeltaPt Int      @default(0)
+  aiAdvice     String?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 /// One row per user, holding the answers collected during onboarding.

@@ -40,7 +40,7 @@ export function validate(schemas: ValidationSchemas): RequestHandler {
       if (error instanceof z.ZodError) {
         step("validate", "failed", { checked });
         next(
-          HttpError.badRequest("Invalid request", z.flattenError(error)),
+          HttpError.badRequest("入力内容を確認してください", z.flattenError(error)),
         );
         return;
       }

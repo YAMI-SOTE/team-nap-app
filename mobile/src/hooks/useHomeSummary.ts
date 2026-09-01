@@ -43,7 +43,7 @@ export function useHomeSummary() {
           return;
         }
 
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
       } finally {
         if (active) {
           setLoading(false);

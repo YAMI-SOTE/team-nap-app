@@ -90,7 +90,7 @@ async function uniqueInviteCode(): Promise<string> {
     const clash = await prisma.team.findUnique({ where: { inviteCode: code } });
     if (!clash) return code;
   }
-  throw new HttpError(500, "Could not allocate an invite code");
+  throw new HttpError(500, "招待コードを発行できませんでした");
 }
 
 /**
@@ -166,7 +166,7 @@ export async function createTeam(
 ): Promise<TeamSettingsResponse> {
   step("service", "team.createTeam", { name });
   if (await hasTeam(userId)) {
-    throw HttpError.conflict("You already belong to a team");
+    throw HttpError.conflict("既にチームに参加しています");
   }
   await ensureUser(userId);
   try {
@@ -182,7 +182,7 @@ export async function createTeam(
   } catch (err) {
     // Lost a race with a concurrent create/join for the same user.
     if (isUniqueViolation(err)) {
-      throw HttpError.conflict("You already belong to a team");
+      throw HttpError.conflict("既にチームに参加しています");
     }
     throw err;
   }
@@ -194,14 +194,14 @@ export async function joinTeam(
 ): Promise<TeamSettingsResponse> {
   step("service", "team.joinTeam", { inviteCode });
   if (await hasTeam(userId)) {
-    throw HttpError.conflict("You already belong to a team");
+    throw HttpError.conflict("既にチームに参加しています");
   }
 
   const wanted = normalizeCode(inviteCode);
   const teams = await prisma.team.findMany();
   const target = teams.find((t) => normalizeCode(t.inviteCode) === wanted);
   if (!target) {
-    throw HttpError.notFound("Invalid invite code");
+    throw HttpError.notFound("招待コードが正しくありません");
   }
 
   const user = await ensureUser(userId);
@@ -211,7 +211,7 @@ export async function joinTeam(
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      throw HttpError.conflict("You already belong to a team");
+      throw HttpError.conflict("既にチームに参加しています");
     }
     throw err;
   }
@@ -242,7 +242,7 @@ export async function renameTeam(
 ): Promise<TeamSettingsResponse> {
   const membership = await findMembership(userId);
   if (!membership) {
-    throw HttpError.notFound("No team to rename");
+    throw HttpError.notFound("変更するチームがありません");
   }
   await prisma.team.update({
     where: { id: membership.teamId },
@@ -275,7 +275,7 @@ export async function setActivity(
     where: { userId },
   });
   if (!membership) {
-    throw HttpError.notFound("You do not belong to a team");
+    throw HttpError.notFound("チームに参加していません");
   }
   await prisma.teamMembership.update({ where: { userId }, data: { activity } });
   return (await getCurrentTeam(userId))!;
@@ -288,7 +288,7 @@ export async function getMyStatus(
     where: { userId },
   });
   if (!membership) {
-    throw HttpError.notFound("You do not belong to a team");
+    throw HttpError.notFound("チームに参加していません");
   }
   return { status: mapActivity(membership.activity) };
 }
@@ -311,7 +311,7 @@ export async function suggestTeamNap(
     },
   });
   if (!membership) {
-    throw HttpError.notFound("You do not belong to a team");
+    throw HttpError.notFound("チームに参加していません");
   }
 
   const proposer = membership.user.name ?? "メンバー";

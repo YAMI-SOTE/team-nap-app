@@ -15,14 +15,14 @@ import { resolveSession, touchSession } from "../services/session.service.js";
 export const authenticate: RequestHandler = async (req, _res, next) => {
   const token = bearerToken(req.header("authorization"));
   if (!token) {
-    next(HttpError.unauthorized("Authentication required"));
+    next(HttpError.unauthorized("ログインが必要です"));
     return;
   }
 
   const session = await resolveSession(token);
   if (!session) {
     step("error", "auth: invalid session");
-    next(HttpError.unauthorized("Invalid or expired session"));
+    next(HttpError.unauthorized("セッションが無効または期限切れです"));
     return;
   }
 

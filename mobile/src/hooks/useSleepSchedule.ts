@@ -24,7 +24,7 @@ export function useSleepSchedule() {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       } finally {
         if (active) {
@@ -49,7 +49,7 @@ export function useSleepSchedule() {
       setData(result);
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return null;
     } finally {
       setSaving(false);

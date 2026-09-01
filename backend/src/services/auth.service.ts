@@ -3,6 +3,7 @@ import { HttpError } from "../lib/http-error.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession, revokeAllSessions } from "./session.service.js";
+import { leaveTeam } from "./team.service.js";
 
 /**
  * Email + password sign-up / login. Both issue a session (see
@@ -56,7 +57,7 @@ export async function signUp(
     // password). Let that user claim the account by setting a password;
     // otherwise the email is genuinely taken.
     if (existing.passwordHash) {
-      throw HttpError.conflict("That email is already registered");
+      throw HttpError.conflict("このメールアドレスは既に登録されています");
     }
     await prisma.user.update({
       where: { id: existing.id },
@@ -81,7 +82,7 @@ export async function getPublicUser(userId: string): Promise<PublicUser> {
     include: { onboarding: { select: { completedAt: true } } },
   });
   if (!user) {
-    throw HttpError.unauthorized("Account no longer exists");
+    throw HttpError.unauthorized("アカウントが存在しません");
   }
   return toPublicUser(user);
 }
@@ -101,7 +102,7 @@ export async function updateProfile(
     const email = normalizeEmail(input.email);
     const clash = await prisma.user.findUnique({ where: { email } });
     if (clash && clash.id !== userId) {
-      throw HttpError.conflict("That email is already registered");
+      throw HttpError.conflict("このメールアドレスは既に登録されています");
     }
     data.email = email;
   }
@@ -123,13 +124,25 @@ export async function getDebugInfo(userId: string) {
     }),
     prisma.session.count({ where: { userId, revokedAt: null } }),
   ]);
-  if (!user) throw HttpError.unauthorized("Account no longer exists");
+  if (!user) throw HttpError.unauthorized("アカウントが存在しません");
   return {
     user: toPublicUser(user),
     passwordHash: user.passwordHash,
     passwordHashAlgorithm: user.passwordHash?.split("$")[0] ?? null,
     activeSessions: sessionCount,
   };
+}
+
+/**
+ * Permanently delete the account. Leaves the team first (so an emptied
+ * team is cleaned up), then deletes the `User` — sessions, onboarding and
+ * reset tokens go with it via `onDelete: Cascade`.
+ */
+export async function deleteAccount(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw HttpError.unauthorized("アカウントが存在しません");
+  await leaveTeam(userId);
+  await prisma.user.delete({ where: { id: userId } });
 }
 
 /**
@@ -144,7 +157,7 @@ export async function changePassword(
 ): Promise<{ revokedOtherSessions: number }> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
-    throw HttpError.badRequest("Current password is incorrect");
+    throw HttpError.badRequest("現在のパスワードが正しくありません");
   }
 
   await prisma.user.update({
@@ -172,7 +185,7 @@ export async function login(
     user?.passwordHash ?? "scrypt$00$00",
   );
   if (!user || !ok) {
-    throw HttpError.unauthorized("Incorrect email or password");
+    throw HttpError.unauthorized("メールアドレスまたはパスワードが正しくありません");
   }
 
   const { token } = await createSession(user.id, userAgent);

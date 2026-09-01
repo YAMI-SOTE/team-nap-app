@@ -1,11 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Image,
   type ImageSourcePropType,
   LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,13 +11,30 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
+
+/**
+ * Vertical mint→white wash behind the onboarding pages
+ * (Figma "Content", from #e5f6f5 via #f9fcfb 62% to white).
+ */
+function OnboardingBackdrop() {
+  return (
+    <LinearGradient
+      colors={["#E5F6F5", "#F9FCFB", colors.white]}
+      locations={[0, 0.62, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 /** "07時30分" -> "07:30" for the API. */
 function toClock(label: string): string {
@@ -28,6 +43,8 @@ function toClock(label: string): string {
 
 type Slide = {
   key: string;
+  /** Speech bubble text from the character. */
+  bubble: string;
   title: string;
   body: string;
   primaryLabel: string;
@@ -38,6 +55,7 @@ type Slide = {
 const SLIDES: Slide[] = [
   {
     key: "why-nap",
+    bubble: "ねむい…でも\n言い出しにくい",
     title: "仕事中って休みにくいよね",
     body: "休みたいけど…\n自分だけ寝るのも、ちょっと気まずい。\n\nTEAM NAPは、\nみんなで休みやすい時間を見つけます。",
     primaryLabel: "つぎへ",
@@ -46,15 +64,17 @@ const SLIDES: Slide[] = [
   },
   {
     key: "sleep-rhythm",
+    bubble: "いつも何時に\n寝てるにゃ？",
     title: "あなたの睡眠リズムを\n教えてください",
     body: "夜の睡眠を邪魔しないように、\nいつ寝ているか教えてね。",
     primaryLabel: "つぎへ",
-    // Required — no skip. The user must set/confirm their sleep times.
+    // Required — the sleep times must be set/confirmed before continuing.
     showSkip: false,
     illustration: require("../../../assets/onboarding/teamnap-02.png"),
   },
   {
     key: "calendar",
+    bubble: "14:30、\nみんな空いてる！",
     title: "チームの“休める瞬間”を\n探そう！",
     body: "カレンダーを連携すると、\nみんなが休める時間を見つけられます。",
     primaryLabel: "カレンダーを連携する",
@@ -63,6 +83,7 @@ const SLIDES: Slide[] = [
   },
   {
     key: "notification",
+    bubble: "そろそろ\n休憩の時間だよ",
     title: "通知をオンにしよう！",
     body: "仮眠が終わる時間や\nチームからの仮眠提案をお知らせします。",
     primaryLabel: "通知をオンにする",
@@ -71,8 +92,6 @@ const SLIDES: Slide[] = [
   },
 ];
 
-// 起床時間・就寝時間の選択肢。
-// TODO: components に共通のピッカー部品があれば、そちらに差し替える。
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const hour = String(Math.floor(i / 2)).padStart(2, "0");
   const minute = i % 2 === 0 ? "00" : "30";
@@ -81,25 +100,26 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { status, refresh } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [calendarPromptOpen, setCalendarPromptOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
-  // 実際に描画された枠の幅を onLayout で測定する。
-  // Dimensions.get('window') はWeb環境で実際の表示幅とズレることがあるため、
-  // 見た目のコンテナ幅と必ず一致するこちらを正として使う。
   const [containerWidth, setContainerWidth] = useState(0);
 
+  // Onboarding runs *after* sign-up — it needs a session to save.
+  useEffect(() => {
+    if (status === "signedOut") router.replace("/signup");
+  }, [status, router]);
+
   const handleLayout = (e: LayoutChangeEvent) => {
-    const measuredWidth = e.nativeEvent.layout.width;
-    if (measuredWidth > 0 && measuredWidth !== containerWidth) {
-      setContainerWidth(measuredWidth);
-    }
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== containerWidth) setContainerWidth(w);
   };
 
   const finishOnboarding = async () => {
@@ -123,8 +143,6 @@ export default function OnboardingScreen() {
 
   const goToIndex = (nextIndex: number) => {
     if (nextIndex >= SLIDES.length) {
-      // Account already exists (onboarding follows signup) — persist the
-      // answers and go home.
       void finishOnboarding();
       return;
     }
@@ -132,130 +150,148 @@ export default function OnboardingScreen() {
     setIndex(nextIndex);
   };
 
-  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (containerWidth === 0) return;
-    const nextIndex = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
-    setIndex(nextIndex);
-  };
-
   const handlePrimaryPress = () => {
     const slide = SLIDES[index];
     if (slide.key === "calendar") {
-      // Show the "連携しますか？" popup. Connecting is optional — either
-      // choice advances to the next slide.
-      Alert.alert(
-        "カレンダーを連携しますか？",
-        "予定を読み取り、チーム全員が空いている時間を見つけやすくなります。連携しなくても続けられます。",
-        [
-          { text: "あとで", style: "cancel", onPress: () => goToIndex(index + 1) },
-          {
-            text: "連携する",
-            onPress: () => {
-              setCalendarConnected(true);
-              goToIndex(index + 1);
-            },
-          },
-        ],
-      );
+      setCalendarPromptOpen(true);
       return;
     }
     if (slide.key === "notification") {
-      // TODO: expo-notifications 等で実際の許可リクエストを出す。
       setNotificationsEnabled(true);
     }
     goToIndex(index + 1);
   };
 
-  const handleSkip = () => {
-    goToIndex(index + 1);
-  };
+  if (status !== "signedIn") {
+    return (
+      <View style={[styles.root, styles.centered]}>
+        <OnboardingBackdrop />
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const slide = SLIDES[index];
+  const isLast = index === SLIDES.length - 1;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]} onLayout={handleLayout}>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-        style={styles.scroll}
-      >
-        {containerWidth === 0
-          ? null
-          : SLIDES.map((slide) => (
-          <ScrollView
-            key={slide.key}
-            style={{ width: containerWidth, flex: 1 }}
-            contentContainerStyle={styles.slide}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled
-          >
-            <View style={styles.illustrationWrap}>
-              <AuroraBackdrop />
-              <Image
-                source={slide.illustration}
-                style={styles.illustrationImage}
-                resizeMode="contain"
+    <View style={styles.root} onLayout={handleLayout}>
+      <OnboardingBackdrop />
+
+      <ConfirmDialog
+        visible={calendarPromptOpen}
+        title="カレンダーを連携しますか？"
+        message="予定を読み取り、チーム全員が空いている時間を見つけやすくなります。あとから設定でも変更できます。"
+        confirmLabel="連携する"
+        cancelLabel="あとで"
+        onConfirm={() => {
+          setCalendarConnected(true);
+          setCalendarPromptOpen(false);
+          goToIndex(index + 1);
+        }}
+        onCancel={() => {
+          setCalendarPromptOpen(false);
+          goToIndex(index + 1);
+        }}
+      />
+
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        {/* Illustration area (paged) */}
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={false}
+          style={styles.pager}
+        >
+          {containerWidth === 0
+            ? null
+            : SLIDES.map((s) => (
+                <View
+                  key={s.key}
+                  style={[styles.page, { width: containerWidth }]}
+                >
+                  {/* Central backdrop — soft mint glow + thin ring + a
+                      few scattered dots (Figma "Backdrop / glow|ring"). */}
+                  <View style={styles.centerpiece}>
+                    <View style={styles.glow} />
+                    <View style={styles.ring} />
+                    <View style={[styles.bgDot, styles.bgDotA]} />
+                    <View style={[styles.bgDot, styles.bgDotB]} />
+                    <View style={[styles.bgDot, styles.bgDotC]} />
+                    <Image
+                      source={s.illustration}
+                      style={styles.illustrationImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.bubble}>
+                    <Text style={styles.bubbleText}>{s.bubble}</Text>
+                    <View style={styles.bubbleTail} />
+                  </View>
+                </View>
+              ))}
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Bottom card — content follows the current slide */}
+      <SafeAreaView edges={["bottom"]} style={styles.cardSafe}>
+        <View style={styles.card}>
+          <Text style={styles.title}>{slide.title}</Text>
+          <Text style={styles.body}>{slide.body}</Text>
+
+          {slide.key === "sleep-rhythm" ? (
+            <View style={styles.timeRow}>
+              <TimeField
+                label="起床時間"
+                value={wakeTime}
+                options={TIME_OPTIONS}
+                onChange={setWakeTime}
+              />
+              <TimeField
+                label="就寝時間"
+                value={sleepTime}
+                options={TIME_OPTIONS}
+                onChange={setSleepTime}
               />
             </View>
+          ) : null}
 
-            <View style={styles.textBlock}>
-              <Text style={styles.title}>{slide.title}</Text>
-              <Text style={styles.body}>{slide.body}</Text>
+          <View style={styles.dots}>
+            {SLIDES.map((s, i) => (
+              <View
+                key={s.key}
+                style={[styles.dot, i === index && styles.dotActive]}
+              />
+            ))}
+          </View>
 
-              {slide.key === "sleep-rhythm" ? (
-                <View style={styles.timeRow}>
-                  <TimeField
-                    label="起床時間"
-                    value={wakeTime}
-                    options={TIME_OPTIONS}
-                    onChange={setWakeTime}
-                  />
-                  <TimeField
-                    label="就寝時間"
-                    value={sleepTime}
-                    options={TIME_OPTIONS}
-                    onChange={setSleepTime}
-                  />
-                </View>
-              ) : null}
-            </View>
-          </ScrollView>
-        ))}
-      </ScrollView>
+          <PillButton
+            label={isLast ? "はじめる" : slide.primaryLabel}
+            onPress={handlePrimaryPress}
+            variant="primary"
+            elevated={false}
+            loading={finishing}
+            disabled={finishing}
+          />
 
-      <View style={styles.footer}>
-        <View style={styles.dots}>
-          {SLIDES.map((slide, i) => (
-            <View
-              key={slide.key}
-              style={[styles.dot, i === index && styles.dotActive]}
-            />
-          ))}
+          {finishError ? (
+            <Text style={styles.errorText}>{finishError}</Text>
+          ) : slide.showSkip ? (
+            <Pressable
+              onPress={() => goToIndex(index + 1)}
+              hitSlop={8}
+              disabled={finishing}
+            >
+              <Text style={styles.skipText}>あとで設定する</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.skipPlaceholder} />
+          )}
         </View>
-
-        <PillButton
-          label={
-            index === SLIDES.length - 1 ? "はじめる" : SLIDES[index].primaryLabel
-          }
-          onPress={handlePrimaryPress}
-          variant="primary"
-          loading={finishing}
-          disabled={finishing}
-        />
-
-        {finishError ? (
-          <Text style={styles.errorText}>{finishError}</Text>
-        ) : SLIDES[index].showSkip ? (
-          <Pressable onPress={handleSkip} hitSlop={8} disabled={finishing}>
-            <Text style={styles.skipText}>あとで設定する</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.skipPlaceholder} />
-        )}
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -266,11 +302,8 @@ type TimeFieldProps = {
   onChange: (value: string) => void;
 };
 
-// 簡易的な時刻選択。選択肢を順送りするだけの自己完結コンポーネント。
-// TODO: チーム共通のピッカー部品が見つかったら差し替える。
 function TimeField({ label, value, options, onChange }: TimeFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
-
   return (
     <View style={styles.timeField}>
       <Text style={styles.timeLabel}>{label}</Text>
@@ -280,7 +313,6 @@ function TimeField({ label, value, options, onChange }: TimeFieldProps) {
       >
         <Text style={styles.timeValue}>{value}</Text>
       </Pressable>
-
       {isOpen ? (
         <View style={styles.timeDropdown}>
           <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
@@ -311,49 +343,147 @@ function TimeField({ label, value, options, onChange }: TimeFieldProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: colors.surface,
   },
-  scroll: {
-    flex: 1,
-  },
-  slide: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingTop: 24,
-  },
-  illustrationWrap: {
-    height: 200,
-    marginBottom: 32,
+  centered: {
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+  },
+  safeArea: {
+    flex: 1,
+  },
+  pager: {
+    flex: 1,
+  },
+  page: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 24,
+  },
+  centerpiece: {
+    width: 300,
+    height: 300,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  glow: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "#DDF1EF",
+    opacity: 0.7,
+  },
+  ring: {
+    position: "absolute",
+    width: 232,
+    height: 232,
+    borderRadius: 116,
+    borderWidth: 1.5,
+    borderColor: "rgba(0,156,160,0.18)",
+  },
+  bgDot: {
+    position: "absolute",
+    borderRadius: 999,
+    backgroundColor: "rgba(0,156,160,0.22)",
+  },
+  bgDotA: {
+    width: 12,
+    height: 12,
+    top: 8,
+    right: 40,
+  },
+  bgDotB: {
+    width: 7,
+    height: 7,
+    top: 64,
+    left: 22,
+  },
+  bgDotC: {
+    width: 9,
+    height: 9,
+    bottom: 40,
+    right: 24,
   },
   illustrationImage: {
-    width: "70%",
-    height: "100%",
+    width: 200,
+    height: 200,
   },
-  textBlock: {
+  bubble: {
+    position: "absolute",
+    top: 56,
+    right: 24,
+    maxWidth: 150,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#C4EAE9",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    transform: [{ rotate: "-2deg" }],
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bubbleTail: {
+    position: "absolute",
+    left: 20,
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.white,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#C4EAE9",
+    transform: [{ rotate: "45deg" }],
+  },
+  bubbleText: {
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  cardSafe: {
+    backgroundColor: colors.surface,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 28,
+    paddingTop: 28,
+    paddingBottom: 20,
     gap: 12,
+    alignItems: "center",
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 12,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: colors.textPrimary,
+    color: colors.textBrand,
     textAlign: "center",
     lineHeight: 30,
   },
   body: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 21,
   },
   timeRow: {
     flexDirection: "row",
     gap: 16,
-    marginTop: 20,
+    marginTop: 4,
+    alignSelf: "stretch",
   },
   timeField: {
     flex: 1,
@@ -378,7 +508,7 @@ const styles = StyleSheet.create({
   },
   timeDropdown: {
     position: "absolute",
-    top: 68,
+    bottom: 52,
     left: 0,
     right: 0,
     maxHeight: 180,
@@ -409,16 +539,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "700",
   },
-  footer: {
-    paddingHorizontal: 28,
-    paddingBottom: 24,
-    paddingTop: 12,
-    gap: 16,
-    alignItems: "center",
-  },
   dots: {
     flexDirection: "row",
     gap: 6,
+    marginTop: 4,
   },
   dot: {
     width: 6,

@@ -34,6 +34,7 @@ with `onboardingCompleted: false` through onboarding before `home`.
 | `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
 | `GET /auth/me` | Bearer | `{ user }` |
 | `PATCH /auth/me` | Bearer | `{ name?, email? }` → `{ user }`; email normalized, 409 if taken by another account |
+| `DELETE /auth/me` | Bearer | permanently delete the account (leaves the team first; sessions / onboarding / reset tokens cascade) → 204 |
 | `POST /auth/password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`; 400 if `currentPassword` wrong. Keeps the calling session, revokes the rest |
 | `GET /auth/debug` | Bearer | **dev only** (404 in production): `{ user, passwordHash, passwordHashAlgorithm, activeSessions }` |
 | `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
@@ -43,21 +44,19 @@ with `onboardingCompleted: false` through onboarding before `home`.
 | `POST /auth/password-reset/request` | – | `{ email }` → always 202 `{ ok }` (never reveals if the email exists). Outside production the body also carries `resetToken` for testing; the token is always logged to the server console |
 | `POST /auth/password-reset/confirm` | – | `{ token, password }` → 204. Single-use, expires after `PASSWORD_RESET_TTL_MINUTES`; on success **all** of that user's sessions are revoked. 400 if the token is unknown/used/expired |
 
-To require a session on a route, mount `authenticate`
-(`src/middleware/authenticate.middleware.ts`): it resolves
-`Authorization: Bearer <token>` and sets `req.auth = { userId, sessionId }`.
-In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
-(`src/lib/request-user.ts`). `currentUserId(req)` returns `req.auth.userId`
-when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
-for routes not yet moved onto sessions.
+**Auth is global.** `routes/index.ts` mounts `authenticate`
+(`src/middleware/authenticate.middleware.ts`) after `/health` and `/auth`,
+so **every other `/api/v1/*` route requires `Authorization: Bearer <token>`**
+and gets `req.auth = { userId, sessionId }`. Handlers use
+`requireUserId(req)` / `requireSessionId(req)` (`src/lib/request-user.ts`).
+`currentUserId(req)` still exists (prefers `req.auth.userId`, else the
+`X-User-Id` header / `env.DEV_USER_ID`) for the pure unit context, but on a
+live request `req.auth` is always set.
 
-**Behind `authenticate`:** all of `/api/v1/teams/*`,
-`/api/v1/notifications/*`, `/api/v1/onboarding/*`, plus
-`/api/v1/settings/team` and `/api/v1/settings/team/leave`. Everything else
-(`home`, `schedule`, `stats`, `naps`, `ai`, the rest of `settings`) still
-uses the `X-User-Id` fallback. `npm run db:seed` gives every seeded user
-the password `teamnap-dev` (e.g. `dev@teamnap.local`) so those endpoints
-can be exercised in dev.
+Only `/api/v1/health/*` and `/api/v1/auth/{signup,login,password-reset/*}`
+are public. `npm run db:seed` gives every seeded user the password
+`teamnap-dev` (e.g. `dev@teamnap.local`), plus a dedicated
+`sample@teamnap.app` / `samplepass123` (see `docs/test-account.md`).
 
 ## Onboarding
 

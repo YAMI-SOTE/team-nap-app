@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import { todayISO } from "../lib/datetime.js";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
-const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "expected HH:MM");
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付は YYYY-MM-DD 形式で入力してください");
+const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "時刻は HH:MM 形式で入力してください");
 
 /**
  * Event create/update body. Defaults mirror the old

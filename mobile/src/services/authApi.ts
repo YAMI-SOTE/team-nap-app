@@ -35,6 +35,10 @@ export function logout(): Promise<void> {
   return api.post<void>("/auth/logout", {});
 }
 
+export function deleteAccount(): Promise<void> {
+  return api.del<void>("/auth/me");
+}
+
 export function requestPasswordReset(
   email: string,
 ): Promise<{ ok: true; resetToken?: string }> {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
+  Image,
   LayoutChangeEvent,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,6 @@ import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
-import { createNap } from "@/services/naps";
 import { toClockTime, toISODate } from "@/utils/date";
 
 // 15分（900秒）
@@ -26,12 +26,15 @@ const FIGMA_FRAME_WIDTH = 402;
 const FIGMA_CARD_SIZE = 312;
 const FIGMA_RING_INSET = 16;
 
+// フレーム背景 #fafafa / カード背景 #f7fafa（--tn-bg-canvas）。
+const SCREEN_BG = "#FAFAFA";
+const CARD_BG = "#F7FAFA";
+
 export default function RestScreen() {
   const router = useRouter();
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordedRef = useRef(false);
   const prevTimeLeftRef = useRef(INITIAL_TIME);
 
   const buildNapWindow = (elapsedSeconds: number) => {
@@ -46,26 +49,8 @@ export default function RestScreen() {
     };
   };
 
-  /**
-   * Record the finished nap. Best-effort: the backend keeps only one nap
-   * per day, so a repeat (409) or an offline error is logged, not shown.
-   */
-  const recordNap = (elapsedSeconds: number) => {
-    if (recordedRef.current) return;
-    const { minutes, date, start, end } = buildNapWindow(elapsedSeconds);
-    if (minutes < 1) return;
-
-    recordedRef.current = true;
-    createNap({ date, start, end, minutes }).catch((err) => {
-      recordedRef.current = false;
-      console.log(
-        "nap not recorded (already logged today or offline):",
-        err instanceof Error ? err.message : err,
-      );
-    });
-  };
-
-  // 仮眠のサマリー・評価画面（S02-03_Nap_Rating）へ遷移する。
+  // The nap is recorded on the rating screen (with the wake / focus
+  // rating), which then opens the ふりかえり screen with the AI advice.
   const goToRating = (elapsedSeconds: number) => {
     const { minutes, start, end } = buildNapWindow(elapsedSeconds);
     router.replace({
@@ -74,12 +59,11 @@ export default function RestScreen() {
     });
   };
 
-  // Record when the countdown reaches zero on its own (終了 records itself).
+  // When the countdown reaches zero on its own, go to the rating screen.
   useEffect(() => {
     const prev = prevTimeLeftRef.current;
     prevTimeLeftRef.current = timeLeft;
     if (timeLeft === 0 && prev > 0 && prev <= 2) {
-      recordNap(INITIAL_TIME);
       goToRating(INITIAL_TIME);
     }
   }, [timeLeft]);
@@ -97,7 +81,8 @@ export default function RestScreen() {
   };
 
   // Figmaのフレーム幅(402px)に対する比率で、実画面幅にスケーリングする。
-  const scale = screenWidth > 0 ? screenWidth / FIGMA_FRAME_WIDTH : 0;
+  // カードは画面幅の 78% 前後（312 / 402）に収まるよう上限も設ける。
+  const scale = screenWidth > 0 ? Math.min(screenWidth / FIGMA_FRAME_WIDTH, 1.1) : 0;
   const CARD_SIZE = FIGMA_CARD_SIZE * scale;
   const TIMER_SIZE = CARD_SIZE - FIGMA_RING_INSET * 2 * scale;
   const RADIUS = Math.max((TIMER_SIZE - STROKE_WIDTH) / 2, 0);
@@ -128,6 +113,9 @@ export default function RestScreen() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
+  // Clock time the timer will reach 0 → shown in the speech bubble.
+  const wakeAt = toClockTime(new Date(Date.now() + timeLeft * 1000));
+
   const progress = timeLeft / INITIAL_TIME;
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
@@ -138,14 +126,12 @@ export default function RestScreen() {
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
-    recordedRef.current = false;
     prevTimeLeftRef.current = INITIAL_TIME;
   };
 
   const handleEnd = () => {
     setIsActive(false);
     const elapsedSeconds = INITIAL_TIME - timeLeft;
-    recordNap(elapsedSeconds);
     setTimeLeft(0);
     goToRating(elapsedSeconds);
   };
@@ -158,11 +144,10 @@ export default function RestScreen() {
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      {/* 背景はイラスト1枚を全画面に敷く想定（Figma上は現状チェッカー柄＝未設定のプレースホルダー）。
-          TODO: 実際の挿絵アセットが用意でき次第、containerの背景をImageに差し替える。 */}
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        {/* NavigationBar */}
         <View style={styles.headerRow}>
           <Pressable
             onPress={() => router.back()}
@@ -170,7 +155,11 @@ export default function RestScreen() {
             accessibilityRole="button"
             accessibilityLabel="戻る"
           >
-            <Ionicons name="chevron-back" size={24} color={colors.white} />
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={colors.textPrimary}
+            />
           </Pressable>
           <Text style={styles.mainTitle}>仮眠中</Text>
           <View style={styles.headerSpacer} />
@@ -182,6 +171,22 @@ export default function RestScreen() {
             contentContainerStyle={styles.body}
             showsVerticalScrollIndicator={false}
           >
+            {/* Illustration — 眠る猫 ＋ 起床時刻の吹き出し（しっぽ付き） */}
+            <View style={styles.illustration}>
+              <Image
+                source={require("../../../assets/characters/sleeping-cat.png")}
+                style={styles.illustrationImage}
+                resizeMode="contain"
+              />
+              <View style={styles.bubble}>
+                <Text style={styles.bubbleText}>
+                  ゆっくり休んでね{"\n"}
+                  {wakeAt} に起こすよ
+                </Text>
+                <View style={styles.bubbleTail} />
+              </View>
+            </View>
+
             {/* タイマー円（背景に浮かぶ独立した白い丸カード） */}
             <View
               style={[
@@ -206,7 +211,7 @@ export default function RestScreen() {
                   cx={TIMER_SIZE / 2}
                   cy={TIMER_SIZE / 2}
                   r={RADIUS}
-                  stroke={colors.primary}
+                  stroke={colors.borderBrand}
                   strokeWidth={STROKE_WIDTH}
                   fill="none"
                   strokeDasharray={CIRCUMFERENCE}
@@ -263,7 +268,7 @@ export default function RestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surfaceSunken,
+    backgroundColor: SCREEN_BG,
   },
   safeArea: {
     flex: 1,
@@ -284,18 +289,66 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: colors.white,
+    color: colors.textPrimary,
   },
   body: {
     flexGrow: 1,
     alignItems: "center",
+    paddingHorizontal: 24,
     paddingBottom: 24,
   },
+  illustration: {
+    width: "100%",
+    height: 200,
+    marginTop: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  illustrationImage: {
+    width: 224,
+    height: 192,
+  },
+  bubble: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    maxWidth: 150,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#C4EAE9",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    transform: [{ rotate: "-2deg" }],
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bubbleTail: {
+    position: "absolute",
+    left: 22,
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: colors.white,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#C4EAE9",
+    transform: [{ rotate: "45deg" }],
+  },
+  bubbleText: {
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
   timerCard: {
-    marginTop: 160,
+    marginTop: 24,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: CARD_BG,
     shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -329,7 +382,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "flex-end",
     gap: 32,
-    marginTop: 64,
+    marginTop: 40,
   },
   buttonContainer: {
     alignItems: "center",
@@ -340,11 +393,11 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.white,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDefault,
     shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -352,8 +405,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   playPauseButton: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.borderBrand,
+    borderColor: colors.borderBrand,
     width: 80,
     height: 80,
     borderRadius: 40,

@@ -20,7 +20,7 @@ export async function personalRestCommentController(
     res.status(200).json({ comment });
   } catch (error) {
     console.error("Personal AI comment generation failed:", error);
-    throw HttpError.badGateway("Failed to generate personal AI comment");
+    throw HttpError.badGateway("AIコメントの生成に失敗しました");
   }
 }
 
@@ -31,6 +31,6 @@ export async function teamRestCommentController(req: Request, res: Response) {
     res.status(200).json({ comment });
   } catch (error) {
     console.error("Team AI comment generation failed:", error);
-    throw HttpError.badGateway("Failed to generate team AI comment");
+    throw HttpError.badGateway("AIコメントの生成に失敗しました");
   }
 }

@@ -19,7 +19,7 @@ export function useHealth() {
 
         setData(result);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
       } finally {
         setLoading(false);
       }

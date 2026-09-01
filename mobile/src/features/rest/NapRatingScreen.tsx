@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
+import { createNap } from "@/services/naps";
+import { toISODate } from "@/utils/date";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Card from "@/components/Card";
 import CharacterSlot from "@/components/CharacterSlot";
@@ -36,15 +38,44 @@ export default function NapRatingScreen() {
 
   const [wakeStars, setWakeStars] = useState(4);
   const [focusLevel, setFocusLevel] = useState(4);
+  const [submitting, setSubmitting] = useState(false);
 
   const summary =
     minutes && start && end ? `${minutes}分の仮眠 ・ ${start}〜${end}` : null;
 
-  const finish = () => {
-    // TODO: 目覚め評価(wakeStars)・集中度(focusLevel)を記録するAPIが
-    // 用意でき次第、ここでバックエンドに送信する（仮眠自体は
-    // RestScreen 側で記録済みのため、ここでは createNap を再呼び出ししない）。
-    router.replace("/home");
+  /**
+   * Record the nap with the rating. The backend generates + stores the AI
+   * advice, then we go to the ふりかえり screen for that record. On a
+   * "already recorded today" (409) or any error, just go home.
+   */
+  const finish = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+
+    const focusDeltaPt = (focusLevel - 3) * 10; // 1..5 -> -20..+20
+    const mins = Number(minutes ?? 0);
+
+    if (!start || !end || mins < 1) {
+      router.replace("/home");
+      return;
+    }
+
+    try {
+      const nap = await createNap({
+        date: toISODate(new Date()),
+        start,
+        end,
+        minutes: mins,
+        wakeStars,
+        focusDeltaPt,
+      });
+      router.replace({
+        pathname: "/naps/reflection",
+        params: { id: nap.id },
+      });
+    } catch {
+      router.replace("/home");
+    }
   };
 
   return (
@@ -122,10 +153,17 @@ export default function NapRatingScreen() {
           <PillButton
             label="記録する"
             onPress={finish}
+            loading={submitting}
+            disabled={submitting}
             style={styles.submitButton}
           />
 
-          <Pressable onPress={finish} hitSlop={8} testID="nap-rating-skip">
+          <Pressable
+            onPress={finish}
+            disabled={submitting}
+            hitSlop={8}
+            testID="nap-rating-skip"
+          >
             <Text style={styles.skipText}>あとで入力する</Text>
           </Pressable>
         </ScrollView>

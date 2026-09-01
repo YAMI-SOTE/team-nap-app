@@ -27,6 +27,11 @@ export class ApiError extends Error {
   }
 }
 
+/** True when the request never reached the server (offline / backend down). */
+export function isConnectionError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 0;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -45,17 +50,23 @@ async function request<T>(
     headers["X-User-Id"] = config.userId;
   }
 
-  const response = await fetch(`${config.apiUrl}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiUrl}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    // fetch rejects (no status) when the request never reached the server.
+    throw new ApiError(0, "サーバーに接続できません");
+  }
 
   if (response.status === 401) {
     unauthorizedHandler?.();
   }
 
   if (!response.ok) {
-    let message = `API request failed: ${response.status}`;
+    let message = "通信に失敗しました（" + response.status + "）";
     try {
       const body = await response.json();
       if (body?.error) message = body.error;

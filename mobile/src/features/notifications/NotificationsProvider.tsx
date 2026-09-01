@@ -56,7 +56,7 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
       })
       .catch((err) => {
         if (!mountedRef.current) return;
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
       })
       .finally(() => {
         if (mountedRef.current) setLoading(false);

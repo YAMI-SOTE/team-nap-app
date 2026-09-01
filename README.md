@@ -256,6 +256,8 @@ docker compose down
 # Docs
 
 - [docs/setup.md](docs/setup.md)
+- [docs/testing-guide.md](docs/testing-guide.md) — 機能を手で確認する手順
+- [docs/test-account.md](docs/test-account.md) — テスト用アカウント（サンプルチーム）
 - [docs/ai-development.md](docs/ai-development.md)
 - [docs/db.md](docs/db.md)
 - [docs/auth.ja.md](docs/auth.ja.md) — 認証・セッション・オンボーディング（バックエンド）

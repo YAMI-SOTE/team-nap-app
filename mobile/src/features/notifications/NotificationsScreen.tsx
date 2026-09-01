@@ -23,6 +23,7 @@ const ICON_BY_KIND: Record<
   NotificationKind,
   (color: string) => ReactNode
 > = {
+  welcome: (color) => <MoonStarsIcon size={20} color={color} />,
   team_nap_suggestion: (color) => <MoonStarsIcon size={20} color={color} />,
   wake_request: (color) => <BellIcon size={20} color={color} />,
   rest_request: (color) => <HeartIcon size={20} color={color} />,
@@ -55,7 +56,12 @@ export default function NotificationsScreen() {
             </View>
           ) : groups.length === 0 ? (
             <View style={styles.stateBlock}>
-              <Text style={styles.emptyText}>お知らせはありません</Text>
+              <Text style={styles.emptyTitle}>
+                TEAM NAPにようこそ 🌙
+              </Text>
+              <Text style={styles.emptyText}>
+                仮眠の記録やチームからの提案が{"\n"}ここに届きます。
+              </Text>
             </View>
           ) : (
             groups.map((group) => (
@@ -116,6 +122,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.error,
     textAlign: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+    marginBottom: 6,
   },
   emptyText: {
     fontSize: 13,

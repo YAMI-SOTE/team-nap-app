@@ -22,5 +22,5 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     message: err instanceof Error ? err.message : String(err),
   });
   console.error(err);
-  res.status(500).json({ error: "Internal Server Error" });
+  res.status(500).json({ error: "サーバーエラーが発生しました" });
 };

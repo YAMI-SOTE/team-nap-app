@@ -14,27 +14,27 @@ export class HttpError extends Error {
     this.details = details;
   }
 
-  static badRequest(message = "Bad Request", details?: unknown): HttpError {
+  static badRequest(message = "不正なリクエストです", details?: unknown): HttpError {
     return new HttpError(400, message, details);
   }
 
-  static unauthorized(message = "Unauthorized"): HttpError {
+  static unauthorized(message = "認証が必要です"): HttpError {
     return new HttpError(401, message);
   }
 
-  static forbidden(message = "Forbidden"): HttpError {
+  static forbidden(message = "権限がありません"): HttpError {
     return new HttpError(403, message);
   }
 
-  static notFound(message = "Not Found"): HttpError {
+  static notFound(message = "見つかりません"): HttpError {
     return new HttpError(404, message);
   }
 
-  static conflict(message = "Conflict"): HttpError {
+  static conflict(message = "競合が発生しました"): HttpError {
     return new HttpError(409, message);
   }
 
-  static badGateway(message = "Bad Gateway"): HttpError {
+  static badGateway(message = "外部サービスとの通信に失敗しました"): HttpError {
     return new HttpError(502, message);
   }
 }

@@ -12,7 +12,7 @@ export async function getMemberDetailController(req: Request, res: Response) {
   );
 
   if (!detail) {
-    throw HttpError.notFound("Member not found");
+    throw HttpError.notFound("メンバーが見つかりません");
   }
 
   res.status(200).json(detail);

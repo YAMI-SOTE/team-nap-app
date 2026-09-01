@@ -24,7 +24,7 @@ export function useNotificationSettings() {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Unknown error");
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
       } finally {
         if (active) {
@@ -59,7 +59,7 @@ export function useNotificationSettings() {
       setData(result);
     } catch (err) {
       setData(previous);
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
     } finally {
       setSaving(false);
     }

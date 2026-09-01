@@ -21,6 +21,7 @@ import type { PersonalStatsResponse } from "@/types/api";
 type PersonalStatsViewProps = {
   data: PersonalStatsResponse;
   onSeeAll: () => void;
+  /** Open the ふりかえり screen for a nap record. */
   onNapPress: (id: string) => void;
 };
 

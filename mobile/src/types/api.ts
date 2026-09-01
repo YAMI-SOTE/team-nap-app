@@ -47,6 +47,8 @@ export interface HomeMember {
 export interface HomeSummaryResponse {
   todayLabel: string;
   headline: [string, string];
+  /** `false` for a solo account — the Home screen hides every team block. */
+  hasTeam: boolean;
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
@@ -56,7 +58,7 @@ export interface HomeSummaryResponse {
     hoursUntilStart: number;
     minutesUntilStartRemainder: number;
     availableMemberCount: number;
-  };
+  } | null;
 }
 
 export interface HomeMemberStatusResponse {
@@ -204,6 +206,7 @@ export interface EventDraft {
 }
 
 export type NotificationKind =
+  | "welcome"
   | "team_nap_suggestion"
   | "wake_request"
   | "rest_request"
@@ -247,6 +250,8 @@ export interface RecentNap {
 }
 
 export interface PersonalStatsResponse {
+  /** false when there are no nap records - client shows the empty state. */
+  hasRecords: boolean;
   score: number;
   scoreMax: number;
   scoreDeltaLabel: string;
@@ -259,6 +264,7 @@ export interface PersonalStatsResponse {
 }
 
 export interface TeamStatsResponse {
+  hasRecords: boolean;
   achievementRate: number;
   achievedMemberLabel: string;
   achievementDeltaLabel: string;
@@ -301,6 +307,14 @@ export interface NapEntryResponse {
   minutes: number;
   wakeStars: number;
   focusDeltaPt: number;
+  /** AI advice generated + stored at record time (ふりかえり screen). */
+  aiAdvice: string | null;
+}
+
+/** `GET /naps/:id` — a single record + its stored advice. */
+export interface NapDetailResponse extends NapEntryResponse {
+  /** "15分の仮眠 ・ 14:32〜14:47" */
+  summaryLabel: string;
 }
 
 export interface NapHistoryDay {
