@@ -1,14 +1,12 @@
 import {
   View,
   Text,
-  Image,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  ScrollView,
   ActivityIndicator,
   StyleSheet,
   StatusBar,
@@ -21,7 +19,6 @@ import { spacing, radius } from "@/theme/spacing";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
-import OrDivider from "@/components/OrDivider";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -31,17 +28,15 @@ export default function SignUpScreen() {
     password,
     confirmPassword,
     isSubmitting,
-    isGoogleSubmitting,
     errorMessage,
     setName,
     setEmail,
     setPassword,
     setConfirmPassword,
     submit,
-    submitWithGoogle,
   } = useSignUp();
 
-  const isBusy = isSubmitting || isGoogleSubmitting;
+  const isBusy = isSubmitting;
 
   // A fresh account is never onboarded — always go through onboarding first.
   const handleSubmit = async () => {
@@ -53,19 +48,10 @@ export default function SignUpScreen() {
     }
   };
 
-  const handleGoogleSubmit = async () => {
-    const result: LoginResult | null = await submitWithGoogle();
-    if (result) {
-      router.replace(
-        result.user.onboardingCompleted ? "/home" : "/onboarding",
-      );
-    }
-  };
-
   return (
     <SkyBackground>
       <StatusBar barStyle="dark-content" />
-      {/* 上部の余白（イラスト/装飾が入る想定のスペース） */}
+      {/* 上部の余白（背景が見える帯） */}
       <SafeAreaView style={styles.topSpacerSafeArea} edges={["top"]} />
 
       <View style={styles.card}>
@@ -74,10 +60,7 @@ export default function SignUpScreen() {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.flex}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-            >
+            <View style={styles.scrollContent}>
               <Text style={styles.heading}>準備完了！</Text>
               <Text style={styles.subtitle}>
                 アカウントを作成して{"\n"}TEAM NAPをはじめましょう。
@@ -160,31 +143,6 @@ export default function SignUpScreen() {
                   )}
                 </TouchableOpacity>
 
-                <OrDivider />
-
-                <TouchableOpacity
-                  style={[styles.googleButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleGoogleSubmit}
-                  activeOpacity={0.85}
-                  disabled={isBusy}
-                  testID="signup-google-button"
-                >
-                  {isGoogleSubmitting ? (
-                    <ActivityIndicator color={colors.textPrimary} />
-                  ) : (
-                    <>
-                      <Image
-                        source={require("../../../assets/google-icon.png")}
-                        style={styles.googleIcon}
-                        resizeMode="contain"
-                      />
-                      <Text style={styles.googleButtonText}>
-                        Googleで続ける
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
                 <View style={styles.bottomRow}>
                   <Text style={styles.bottomText}>
                     すでにアカウントをお持ちですか？{" "}
@@ -197,7 +155,7 @@ export default function SignUpScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </View>
@@ -206,9 +164,10 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  // 画面上部の余白。背景（SkyBackground）が見える帯として残す。
+  // 画面上部の余白。背景（SkyBackground）が見える帯。フォームが1画面に
+  // 収まるよう最小限に抑える。
   topSpacerSafeArea: {
-    height: "18%",
+    height: "6%",
   },
   card: {
     flex: 1,
@@ -224,33 +183,36 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  // No ScrollView — the form is sized to fit the card without scrolling.
   scrollContent: {
+    flex: 1,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    justifyContent: "center",
   },
   heading: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: colors.textBrand,
     textAlign: "center",
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textMuted,
     textAlign: "center",
-    lineHeight: 20,
-    marginBottom: spacing.xl,
+    lineHeight: 18,
+    marginBottom: spacing.lg,
   },
   formArea: {
     width: "100%",
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: 4,
   },
   input: {
     backgroundColor: colors.white,
@@ -258,23 +220,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: 10,
+    fontSize: 15,
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   errorText: {
     color: colors.error,
-    fontSize: 13,
-    marginBottom: spacing.md,
+    fontSize: 12,
+    marginBottom: spacing.sm,
   },
   primaryButton: {
     backgroundColor: colors.primary,
     borderRadius: 999,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 54,
+    minHeight: 50,
     marginTop: spacing.xs,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -287,34 +249,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  googleButton: {
-    flexDirection: "row",
-    backgroundColor: colors.white,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 54,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: spacing.sm,
-  },
-  googleButtonText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
   buttonDisabled: {
     opacity: 0.7,
   },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
   },
   bottomText: {
     fontSize: 13,
