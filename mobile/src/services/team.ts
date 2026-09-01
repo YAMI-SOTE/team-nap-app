@@ -39,6 +39,16 @@ export async function renameTeam(name: string): Promise<TeamSettingsResponse> {
   return api.put<TeamSettingsResponse>("/teams", { name });
 }
 
+/** Broadcast a "let's nap together" suggestion to every other member. */
+export async function suggestTeamNap(
+  minutes: number,
+): Promise<{ success: true; notified: number }> {
+  return api.post<{ success: true; notified: number }>(
+    "/teams/nap-suggestion",
+    { minutes },
+  );
+}
+
 /** "起きて〜" — nudge a teammate to wake up. */
 export async function sendWakeNudge(memberId: string): Promise<void> {
   await api.post<{ success: true }>(

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,6 +12,9 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useTeamSummary } from "@/hooks/useTeamSummary";
+import NapProposalSheet from "@/features/team/NapProposalSheet";
+import Toast from "@/components/Toast";
+import ConnectionErrorView from "@/components/ConnectionErrorView";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
 import GradientCard from "@/components/GradientCard";
@@ -33,18 +37,24 @@ const SCREEN_PADDING = 24;
 
 export default function TeamScreen() {
   const router = useRouter();
-  const { data, hasTeam, loading, error } = useTeamSummary();
+  const { data, hasTeam, loading, error, connectionError, reload } =
+    useTeamSummary();
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
+
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  if (connectionError) {
+    return <ConnectionErrorView onRetry={reload} />;
+  }
 
   // No team joined yet → the empty state (S04-06).
   if (!loading && !error && !hasTeam) {
     return <NoTeamScreen />;
   }
 
-  const handleSuggestNap = () => {
-    console.log("TODO: suggest a nap to the team");
-  };
+  const handleSuggestNap = () => setProposalOpen(true);
 
   const handleOpenRanking = () => {
     router.push("/team/ranking");
@@ -214,6 +224,26 @@ export default function TeamScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <NapProposalSheet
+        visible={proposalOpen}
+        defaultMinutes={napMinutes}
+        slotNote={
+          memberStatus
+            ? `${memberStatus.memberCount}人中${memberStatus.memberStatusCounts.working}人が作業中`
+            : undefined
+        }
+        onClose={() => setProposalOpen(false)}
+        onSent={(minutes) => {
+          setProposalOpen(false);
+          setToast(`${minutes}分の仮眠を提案しました`);
+        }}
+      />
+      <Toast
+        visible={toast != null}
+        message={toast ?? ""}
+        onHide={() => setToast(null)}
+      />
     </View>
   );
 }

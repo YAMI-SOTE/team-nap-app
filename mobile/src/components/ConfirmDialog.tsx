@@ -23,6 +23,8 @@ type ConfirmDialogProps = {
   loading?: boolean;
   /** Require two taps of the confirm button before firing `onConfirm`. */
   doubleConfirm?: boolean;
+  /** Hide the cancel button — a one-action acknowledgement dialog. */
+  hideCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -42,6 +44,7 @@ export default function ConfirmDialog({
   destructive = false,
   loading = false,
   doubleConfirm = false,
+  hideCancel = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -104,14 +107,16 @@ export default function ConfirmDialog({
             )}
           </Pressable>
 
-          <Pressable
-            onPress={handleCancel}
-            disabled={loading}
-            style={styles.cancelButton}
-            accessibilityRole="button"
-          >
-            <Text style={styles.cancelText}>{cancelLabel}</Text>
-          </Pressable>
+          {hideCancel ? null : (
+            <Pressable
+              onPress={handleCancel}
+              disabled={loading}
+              style={styles.cancelButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelText}>{cancelLabel}</Text>
+            </Pressable>
+          )}
         </Pressable>
       </Pressable>
     </Modal>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getStats } from "@/services/stats";
+import { isConnectionError } from "@/services/api";
 
 import type {
   PersonalStatsResponse,
@@ -12,32 +13,47 @@ export function useStats() {
   const [team, setTeam] = useState<TeamStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError(null);
+    setConnectionError(false);
 
     getStats()
       .then((result) => {
-        if (active) {
-          setPersonal(result.personal);
-          setTeam(result.team);
-        }
+        if (!active) return;
+        setPersonal(result.personal);
+        setTeam(result.team);
       })
       .catch((err) => {
-        if (active) {
+        if (!active) return;
+        if (isConnectionError(err)) {
+          setConnectionError(true);
+        } else {
           setError(err instanceof Error ? err.message : "Unknown error");
         }
       })
       .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
-  return { personal, team, hasTeam: team !== null, loading, error };
+  return {
+    personal,
+    team,
+    hasTeam: team !== null,
+    loading,
+    error,
+    connectionError,
+    reload,
+  };
 }

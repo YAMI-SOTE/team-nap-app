@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useStats } from "@/hooks/useStats";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import ConnectionErrorView from "@/components/ConnectionErrorView";
 import Logo from "@/components/Logo";
 import SegmentedControl from "@/components/SegmentedControl";
 import PersonalStatsView from "@/features/stats/PersonalStatsView";
@@ -27,11 +28,16 @@ type StatsTab = (typeof TABS)[number]["key"];
 
 export default function StatsScreen() {
   const router = useRouter();
-  const { personal, team, hasTeam, loading, error } = useStats();
+  const { personal, team, hasTeam, loading, error, connectionError, reload } =
+    useStats();
   const [tab, setTab] = useState<StatsTab>("personal");
 
   // Without a team there is no チーム tab — only 個人.
   const activeTab: StatsTab = hasTeam ? tab : "personal";
+
+  if (connectionError) {
+    return <ConnectionErrorView onRetry={reload} />;
+  }
 
   return (
     <View style={styles.root}>

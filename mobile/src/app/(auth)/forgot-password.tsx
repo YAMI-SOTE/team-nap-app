@@ -25,6 +25,7 @@ import {
 } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
 import Logo from "@/components/Logo";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -189,20 +190,6 @@ export default function ForgotPasswordScreen() {
                 </>
               ) : null}
 
-              {phase === "done" ? (
-                <>
-                  <Text style={styles.subtitle}>
-                    パスワードを再設定しました。{"\n"}
-                    新しいパスワードでログインしてください。
-                  </Text>
-                  <PrimaryButton
-                    label="ログインへ"
-                    busy={false}
-                    onPress={() => router.replace("/login")}
-                  />
-                </>
-              ) : null}
-
               {error ? (
                 <Text style={styles.errorText} testID="forgot-error-text">
                   {error}
@@ -220,6 +207,16 @@ export default function ForgotPasswordScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </TouchableWithoutFeedback>
+
+      <ConfirmDialog
+        visible={phase === "done"}
+        title="パスワードを再設定しました"
+        message="新しいパスワードでログインしてください。すべてのデバイスのログインは解除されています。"
+        confirmLabel="ログインへ"
+        hideCancel
+        onConfirm={() => router.replace("/login")}
+        onCancel={() => router.replace("/login")}
+      />
     </SkyBackground>
   );
 }
