@@ -53,11 +53,11 @@ function toEntry(row: Row): NapEntry {
   };
 }
 
-/** Newest first. */
+/** Newest first (by date, then by insertion order for same-day naps). */
 export async function listNaps(userId: string): Promise<NapEntry[]> {
   const rows = await prisma.napRecord.findMany({
     where: { userId },
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   return rows.map(toEntry);
 }
@@ -86,20 +86,13 @@ export type NapInput = {
 };
 
 /**
- * Record a nap. One per calendar date per user — a second on the same
- * date is a 409. Generates and stores the AI advice at the same time.
+ * Record a nap and generate + store its AI advice in the same call.
+ * A user may record more than one nap on the same calendar date.
  */
 export async function createNap(
   userId: string,
   input: NapInput,
 ): Promise<NapEntry> {
-  const existing = await prisma.napRecord.findUnique({
-    where: { userId_date: { userId, date: input.date } },
-  });
-  if (existing) {
-    throw HttpError.conflict("この日の仮眠は既に記録されています");
-  }
-
   const aiAdvice = buildAdvice({
     minutes: input.minutes,
     wakeStars: input.wakeStars,

@@ -26,9 +26,10 @@ model User {
   naps         NapRecord[]
 }
 
-/// A recorded nap. One per user per calendar date. `aiAdvice` holds the
-/// suggestion generated at record time (see src/services/nap-advice.service.ts),
-/// shown on the ふりかえり screen and reachable later from the history list.
+/// A recorded nap. A user may record several on the same calendar date.
+/// `aiAdvice` holds the suggestion generated at record time (see
+/// src/services/nap-advice.service.ts), shown on the ふりかえり screen and
+/// reachable later from the history list.
 model NapRecord {
   id           String   @id @default(uuid())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -42,7 +43,6 @@ model NapRecord {
   aiAdvice     String?
   createdAt    DateTime @default(now())
 
-  @@unique([userId, date])
   @@index([userId, date])
 }
 
