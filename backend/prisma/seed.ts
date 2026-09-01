@@ -34,20 +34,54 @@ const MEMBERSHIPS = [
 ];
 
 /**
- * A ready-to-use test account (documented in docs/test-account.md). Fully
- * onboarded, on its own team, distinct password so it can't be confused
- * with the `*-dev` fixtures.
+ * A ready-to-use test team (documented in docs/testing-guide.md). Every
+ * member is fully onboarded and logs in with `SAMPLE_PASSWORD`, so team
+ * features (member list, live status display, nudges, nap suggestion,
+ * ranking) can be exercised by signing in as different members.
  */
-const SAMPLE = {
-  id: "20000000-0000-0000-0000-000000000001",
-  email: "sample@teamnap.app",
-  name: "サンプル 太郎",
-  password: "samplepass123",
-  teamInviteCode: "NAP-2001",
-  teamName: "サンプルチーム",
-  bedtime: "23:00",
-  wakeTime: "07:00",
+const SAMPLE_PASSWORD = "samplepass123";
+const SAMPLE_TEAM = {
+  inviteCode: "NAP-2001",
+  name: "サンプルチーム",
 };
+const SAMPLE_MEMBERS = [
+  {
+    id: "20000000-0000-0000-0000-000000000001",
+    email: "sample@teamnap.app",
+    name: "サンプル 太郎",
+    activity: "online" as const,
+    wakeAssistEnabled: true,
+    bedtime: "23:00",
+    wakeTime: "07:00",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000002",
+    email: "hanako@teamnap.app",
+    name: "サンプル 花子",
+    activity: "resting" as const,
+    wakeAssistEnabled: true,
+    bedtime: "23:30",
+    wakeTime: "06:30",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000003",
+    email: "jiro@teamnap.app",
+    name: "サンプル 次郎",
+    activity: "online" as const,
+    wakeAssistEnabled: false, // wake nudge to this member -> 409
+    bedtime: "00:30",
+    wakeTime: "08:00",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000004",
+    email: "saburo@teamnap.app",
+    name: "サンプル 三郎",
+    activity: "resting" as const,
+    wakeAssistEnabled: true,
+    bedtime: "22:45",
+    wakeTime: "06:45",
+  },
+];
 
 async function main() {
   const passwordHash = await hashPassword(DEV_PASSWORD);
@@ -86,45 +120,44 @@ async function main() {
     create: { userId: USERS[0].id, completedAt: new Date() },
   });
 
-  // --- Sample test account (docs/test-account.md) --------------------------
-  await prisma.user.upsert({
-    where: { id: SAMPLE.id },
-    update: {
-      email: SAMPLE.email,
-      name: SAMPLE.name,
-      passwordHash: await hashPassword(SAMPLE.password),
-    },
-    create: {
-      id: SAMPLE.id,
-      email: SAMPLE.email,
-      name: SAMPLE.name,
-      passwordHash: await hashPassword(SAMPLE.password),
-    },
-  });
+  // --- Sample test team (docs/testing-guide.md) ---------------------------
+  const sampleHash = await hashPassword(SAMPLE_PASSWORD);
   const sampleTeam = await prisma.team.upsert({
-    where: { inviteCode: SAMPLE.teamInviteCode },
-    update: { name: SAMPLE.teamName },
-    create: { name: SAMPLE.teamName, inviteCode: SAMPLE.teamInviteCode },
+    where: { inviteCode: SAMPLE_TEAM.inviteCode },
+    update: { name: SAMPLE_TEAM.name },
+    create: { name: SAMPLE_TEAM.name, inviteCode: SAMPLE_TEAM.inviteCode },
   });
-  await prisma.teamMembership.upsert({
-    where: { userId: SAMPLE.id },
-    update: { teamId: sampleTeam.id },
-    create: { teamId: sampleTeam.id, userId: SAMPLE.id, activity: "online" },
-  });
-  await prisma.onboarding.upsert({
-    where: { userId: SAMPLE.id },
-    update: {
-      completedAt: new Date(),
-      bedtime: SAMPLE.bedtime,
-      wakeTime: SAMPLE.wakeTime,
-    },
-    create: {
-      userId: SAMPLE.id,
-      completedAt: new Date(),
-      bedtime: SAMPLE.bedtime,
-      wakeTime: SAMPLE.wakeTime,
-    },
-  });
+  for (const m of SAMPLE_MEMBERS) {
+    await prisma.user.upsert({
+      where: { id: m.id },
+      update: { email: m.email, name: m.name, passwordHash: sampleHash },
+      create: { id: m.id, email: m.email, name: m.name, passwordHash: sampleHash },
+    });
+    await prisma.teamMembership.upsert({
+      where: { userId: m.id },
+      update: {
+        teamId: sampleTeam.id,
+        activity: m.activity,
+        wakeAssistEnabled: m.wakeAssistEnabled,
+      },
+      create: {
+        teamId: sampleTeam.id,
+        userId: m.id,
+        activity: m.activity,
+        wakeAssistEnabled: m.wakeAssistEnabled,
+      },
+    });
+    await prisma.onboarding.upsert({
+      where: { userId: m.id },
+      update: { completedAt: new Date(), bedtime: m.bedtime, wakeTime: m.wakeTime },
+      create: {
+        userId: m.id,
+        completedAt: new Date(),
+        bedtime: m.bedtime,
+        wakeTime: m.wakeTime,
+      },
+    });
+  }
 
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
@@ -133,8 +166,11 @@ async function main() {
     `Login: ${USERS[0].email} / ${DEV_PASSWORD} (same password for every seeded user).`,
   );
   console.log(
-    `Sample account: ${SAMPLE.email} / ${SAMPLE.password} (team "${SAMPLE.teamName}", ${SAMPLE.teamInviteCode}).`,
+    `Sample team "${SAMPLE_TEAM.name}" (${SAMPLE_TEAM.inviteCode}), password ${SAMPLE_PASSWORD}:`,
   );
+  for (const m of SAMPLE_MEMBERS) {
+    console.log(`  ${m.email}  (${m.name}, ${m.activity})`);
+  }
 }
 
 main()

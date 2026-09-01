@@ -3,19 +3,23 @@
 `npm run db:seed`（Compose なら `docker compose exec backend npm run db:seed`）で
 投入されます。何度実行しても同じ状態に戻ります（upsert）。
 
+> 機能ごとの手順は [testing-guide.md](./testing-guide.md) を参照。
+
 ---
 
-## サンプルアカウント
+## サンプルチーム（複数メンバー・チーム機能テスト用）
 
-| 項目 | 値 |
-| --- | --- |
-| メール | `sample@teamnap.app` |
-| パスワード | `samplepass123` |
-| 表示名 | サンプル 太郎 |
-| オンボーディング | 完了済み（`bedtime 23:00` / `wakeTime 07:00`） |
-| チーム | サンプルチーム（招待コード `NAP-2001`） |
+チーム **サンプルチーム**（招待コード `NAP-2001`）に 4 人。全員パスワード
+`samplepass123`、全員オンボーディング完了済み。別々の端末 / ブラウザで
+それぞれログインすれば、メンバー一覧・ステータス表示・ナッジ・仮眠提案・
+ランキングを実データで確認できます。
 
-ログイン:
+| メール | 名前 | 在席 (activity) | 起床サポート |
+| --- | --- | --- | --- |
+| `sample@teamnap.app` | サンプル 太郎 | online（作業中） | on |
+| `hanako@teamnap.app` | サンプル 花子 | resting（仮眠中） | on |
+| `jiro@teamnap.app` | サンプル 次郎 | online（作業中） | **off** ← wake ナッジは 409 |
+| `saburo@teamnap.app` | サンプル 三郎 | resting（仮眠中） | on |
 
 ```bash
 curl -s -XPOST http://localhost:3000/api/v1/auth/login \
