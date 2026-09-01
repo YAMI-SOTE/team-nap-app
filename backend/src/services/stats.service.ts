@@ -85,9 +85,10 @@ export async function getPersonalStats(
       ? ""
       : `先週より ${weekDelta >= 0 ? "+" : ""}${weekDelta}回`;
 
-  // Weekly line ("仮眠後の集中度"): for each day of the current week, the
-  // average post-nap focus of that day's naps mapped to 0–100
-  // (focusDeltaPt −20..+20 → 0..100). Days with no nap read as 0.
+  // Weekly line: the individual's **daily rest score** (0–100) for each
+  // day of the current week, computed the same way as the weekly score
+  // (napCount·15 + avgWakeStars·8 + avgFocusDelta) so the two agree.
+  // Days with no nap are 0.
   const napsByDate = new Map<string, NapEntry[]>();
   for (const n of naps) {
     const list = napsByDate.get(n.date) ?? [];
@@ -97,8 +98,11 @@ export async function getPersonalStats(
   const conditionValues = currentWeekDays().map((iso) => {
     const dayNaps = napsByDate.get(iso) ?? [];
     if (dayNaps.length === 0) return 0;
-    const dayDelta = avg(dayNaps.map((n) => n.focusDeltaPt));
-    return Math.max(0, Math.min(100, round(50 + dayDelta * 2.5)));
+    const dayScore =
+      dayNaps.length * 15 +
+      avg(dayNaps.map((n) => n.wakeStars)) * 8 +
+      avg(dayNaps.map((n) => n.focusDeltaPt));
+    return Math.max(0, Math.min(100, round(dayScore)));
   });
 
   // Simple derived score from real activity (0–100).

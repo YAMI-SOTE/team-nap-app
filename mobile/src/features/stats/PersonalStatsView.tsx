@@ -84,11 +84,13 @@ export default function PersonalStatsView({
       <Card style={styles.chartCard}>
         <View style={styles.rowBetween}>
           <Text style={styles.chartTitle}>今週のコンディション</Text>
-          <Text style={styles.chartSub}>仮眠後の集中度</Text>
+          <Text style={styles.chartSub}>1日ごとの仮眠スコア</Text>
         </View>
         <LineChart
           values={data.condition.values}
           labels={data.condition.labels}
+          domainMin={0}
+          domainMax={100}
         />
       </Card>
 
