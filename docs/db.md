@@ -26,12 +26,14 @@ Mobile App から PostgreSQL へ直接アクセスすることはありません
 > `20260830091652_team_feature` / `20260831095742_auth_sessions` /
 > `20260901163406_password_reset_tokens` / `20260901163741_onboarding_profile`
 > / `20260901195734_nap_records` /
-> `20260901210222_nap_records_allow_multiple_per_day`）。
+> `20260901210222_nap_records_allow_multiple_per_day` /
+> `20260901222623_onboarding_settings_fields`）。
 > `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
-> 単回・短命トークン、`Onboarding` はサインアップ直後に集める初期設定、
+> 単回・短命トークン、`Onboarding` は初期設定＋設定画面（睡眠 / 通知 / カレンダー）の保存先、
 > `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`（`src/services/`）。
-> スケジュール・睡眠設定・休息提案などは、まだ各 `src/services/*` の
-> インメモリ状態で持っており、本ドキュメントの後半では「今後の予定」として扱います。
+> スケジュール（`schedule.service`）・通知フィード（`notifications.service`）・
+> 休息提案などは、まだ各 `src/services/*` のインメモリ状態で、
+> サーバ再起動で消えます。本ドキュメントの後半では「今後の予定」として扱います。
 
 ---
 
@@ -150,11 +152,12 @@ erDiagram
 
 ### 4.2 今後の予定（未実装）
 
+> 睡眠設定は `Onboarding` の列として実装済みのため、専用テーブルは作りません。
+
 ```mermaid
 erDiagram
 
     USER ||--o{ SCHEDULE : has
-    USER ||--|| SLEEP_SETTING : has
     USER ||--o{ REST_RECOMMENDATION : receives
 
     SCHEDULE {
@@ -164,12 +167,6 @@ erDiagram
         datetime startTime
         datetime endTime
         string source
-    }
-
-    SLEEP_SETTING {
-        string userId PK
-        datetime sleepTime
-        datetime wakeTime
     }
 
     REST_RECOMMENDATION {
@@ -246,19 +243,26 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 #### Onboarding
 
-ユーザー 1 人につき 1 行（`userId` が PK）。サインアップ直後の初期設定
-（睡眠リズム＋カレンダー/通知のオプトイン）を保持します
-（`src/services/onboarding.service.ts`）。
+ユーザー 1 人につき 1 行（`userId` が PK）。サインアップ直後の初期設定に加えて、
+**設定画面（睡眠スケジュール / 通知トグル / カレンダー連携）も同じ行を読み書き**
+します。オンボーディングと設定で値が食い違わないための単一ソースです
+（`src/services/onboarding.service.ts` / `src/services/settings.service.ts`）。
 
-| 列                   | 型         | 備考                                   |
-| -------------------- | ---------- | ------------------------------------- |
-| userId               | String PK  | `onDelete: Cascade`                    |
-| bedtime              | String     | `HH:MM`（既定 `23:30`）                 |
-| wakeTime             | String     | `HH:MM`（既定 `07:30`）                 |
-| calendarConnected    | Boolean    | 既定 `false`                           |
-| notificationsEnabled | Boolean    | 既定 `false`                           |
-| completedAt          | DateTime?  | オンボーディング完了時に一度だけ設定     |
-| updatedAt            | DateTime   | `@updatedAt`                          |
+| 列                        | 型         | 備考                                   |
+| ------------------------- | ---------- | ------------------------------------- |
+| userId                    | String PK  | `onDelete: Cascade`                    |
+| bedtime                   | String     | `HH:MM`（既定 `23:30`）                 |
+| wakeTime                  | String     | `HH:MM`（既定 `07:30`）                 |
+| napCutoffHour             | Int        | 既定 `15`。サーバー所有（編集 UI なし）  |
+| calendarConnected         | Boolean    | 既定 `false`。Google 連携（モック）     |
+| calendarDeviceConnected   | Boolean    | 既定 `false`。端末カレンダー連携（モック）|
+| notificationsEnabled      | Boolean    | 既定 `false`。オンボーディングの通知オプトイン |
+| notifyNapSuggestion       | Boolean    | 既定 `true`。設定 > 通知「仮眠の提案」    |
+| notifyNapEnd              | Boolean    | 既定 `true`。設定 > 通知「仮眠の終了」    |
+| notifyTeamNapSuggestion   | Boolean    | 既定 `true`。設定 > 通知「チーム仮眠提案」|
+| notifyWakeSupport         | Boolean    | 既定 `true`。設定 > 通知「起床サポート」  |
+| completedAt               | DateTime?  | オンボーディング完了時に一度だけ設定     |
+| updatedAt                 | DateTime   | `@updatedAt`                          |
 
 行はサインアップ時にデフォルトで作成し、**それ以前のユーザーには
 `GET /api/v1/onboarding` が遅延作成**します。`completedAt == null`
@@ -339,8 +343,9 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 
 ### 5.2 今後の予定
 
-Schedule / SleepSetting / RestRecommendation は未実装です
-（仮眠の記録自体は `NapRecord` として実装済み。「5.1 実装済み」参照）。
+Schedule / RestRecommendation は未実装です（仮眠の記録は `NapRecord`、
+睡眠設定・通知トグル・カレンダー連携は `Onboarding` の列として実装済み。
+「5.1 実装済み」参照）。
 想定項目は「4.2 今後の予定」ER図および過去版の記述を参照してください。
 `source` は `manual | google_calendar | apple_calendar`、`reasonCode` は
 `LOW_SLEEP | LONG_WORK_PERIOD | FREE_TIME_AVAILABLE | HIGH_FATIGUE` を想定します。
@@ -391,14 +396,20 @@ model NapRecord {
 }
 
 model Onboarding {
-  userId               String    @id
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bedtime              String    @default("23:30")
-  wakeTime             String    @default("07:30")
-  calendarConnected    Boolean   @default(false)
-  notificationsEnabled Boolean   @default(false)
-  completedAt          DateTime?
-  updatedAt            DateTime  @updatedAt
+  userId                  String    @id
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bedtime                 String    @default("23:30")
+  wakeTime                String    @default("07:30")
+  napCutoffHour           Int       @default(15)
+  calendarConnected       Boolean   @default(false)
+  calendarDeviceConnected Boolean   @default(false)
+  notificationsEnabled    Boolean   @default(false)
+  notifyNapSuggestion     Boolean   @default(true)
+  notifyNapEnd            Boolean   @default(true)
+  notifyTeamNapSuggestion Boolean   @default(true)
+  notifyWakeSupport       Boolean   @default(true)
+  completedAt             DateTime?
+  updatedAt               DateTime  @updatedAt
 }
 
 model PasswordResetToken {
@@ -470,12 +481,8 @@ model Schedule {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model SleepSetting {
-  userId    String   @id
-  sleepTime DateTime
-  wakeTime  DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+// 睡眠設定は Onboarding の bedtime / wakeTime / napCutoffHour 列で
+// 実装済みのため、専用モデルは追加しない。
 
 model RestSession {
   id        String    @id @default(uuid())
@@ -611,6 +618,7 @@ git add backend/prisma && git commit
 20260901163741_onboarding_profile     Onboarding テーブル
 20260901195734_nap_records            NapRecord テーブル
 20260901210222_nap_records_allow_multiple_per_day  NapRecord の (userId, date) UNIQUE を撤去
+20260901222623_onboarding_settings_fields  Onboarding に napCutoffHour / notify* / calendarDeviceConnected を追加
 ```
 
 ---
@@ -648,7 +656,7 @@ backend/src/generated/prisma
 User               （email + passwordHash）
 Session            （サインアップ / ログイン / セッション管理 / logout）
 PasswordResetToken （パスワード再設定 / 変更）
-Onboarding         （初期設定・完了フラグ）
+Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー）
 NapRecord          （仮眠の記録 + 生成した AI アドバイス）
 Team
 TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
@@ -663,15 +671,12 @@ TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステ�
 ```text
 Schedule
   ↓
-SleepSetting
-  ↓
 RestRecommendation
 ```
 
 現在インメモリで動いていて、DB化の候補になっている機能:
 
 ```text
-settings.service   アカウント / 通知トグル / 睡眠スケジュール / カレンダー連携
 schedule.service   予定・当日スケジュール
 notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
 team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
