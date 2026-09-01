@@ -10,6 +10,7 @@ import {
   renameTeamController,
   restNudgeController,
   setStatusController,
+  suggestTeamNapController,
   wakeNudgeController,
 } from "../controllers/team.controller.js";
 import { validate } from "../middleware/validate.middleware.js";
@@ -17,6 +18,7 @@ import { memberIdParams } from "../schemas/member.schema.js";
 import {
   createTeamBody,
   joinTeamBody,
+  napSuggestionBody,
   statusBody,
   updateTeamBody,
 } from "../schemas/team.schema.js";
@@ -29,6 +31,13 @@ router.get("/ranking", getTeamRankingController);
 router.post("/", validate({ body: createTeamBody }), createTeamController);
 router.put("/", validate({ body: updateTeamBody }), renameTeamController);
 router.post("/join", validate({ body: joinTeamBody }), joinTeamController);
+
+// Broadcast a team-nap suggestion to every other member.
+router.post(
+  "/nap-suggestion",
+  validate({ body: napSuggestionBody }),
+  suggestTeamNapController,
+);
 
 // The caller's own activity status.
 router.get("/me/status", getMyStatusController);

@@ -11,6 +11,7 @@ import {
   joinTeam,
   renameTeam,
   setActivity,
+  suggestTeamNap,
 } from "../services/team.service.js";
 import { sendNudge } from "../services/nudge.service.js";
 
@@ -44,6 +45,11 @@ export async function getMyStatusController(req: Request, res: Response) {
 export async function setStatusController(req: Request, res: Response) {
   const { status } = req.body as { status: MemberActivity };
   res.status(200).json(await setActivity(requireUserId(req), status));
+}
+
+export async function suggestTeamNapController(req: Request, res: Response) {
+  const { minutes } = req.body as { minutes: number };
+  res.status(200).json(await suggestTeamNap(requireUserId(req), minutes));
 }
 
 export async function wakeNudgeController(req: Request, res: Response) {

@@ -120,6 +120,7 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | `POST /teams` | `{ name }` | **201** | `createTeam` | `TeamSettingsResponse` |
 | `PUT /teams` | `{ name }` | 200 | `renameTeam` | `TeamSettingsResponse` |
 | `POST /teams/join` | `{ inviteCode }` | 200 | `joinTeam` | `TeamSettingsResponse` |
+| `POST /teams/nap-suggestion` | `{ minutes? }`（5〜60、既定 15） | 200 / 404 | `suggestTeamNap` | `{ success: true, notified }` |
 | `GET /teams/me/status` | – | 200 | `getMyStatus` | `{ status: MemberStatus }` |
 | `PUT /teams/me/status` | `{ status: "online" \| "resting" }` | 200 | `setActivity` | `TeamSettingsResponse` |
 | `GET /teams/members/:id` | – | 200 / 404 | `getMemberDetail` | `MemberDetailResponse` |
@@ -169,11 +170,12 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 
 | 関数 | 主な処理 | エラー |
 | --- | --- | --- |
-| `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409 |
-| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409 / コード不一致 404 |
+| `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409（同時実行で `@@unique` に当たった場合も 409 に変換） |
+| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409（同時実行も 409） / コード不一致 404 |
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
+| `suggestTeamNap(userId, minutes)` | 自分以外の全メンバーのフィードへ `team_nap_suggestion` 通知を積む → `{ success, notified }`。 | チーム無し 404 |
 
 ### 5.4 招待コード
 
@@ -217,14 +219,17 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ## 7. 通知連携
 
-`joinTeam` と `sendNudge` は `notifications.service.addNotification(userId, …)`
-を呼ぶ。通知フィードは **userId ごと**（`Map`、まだ in-memory でサーバ
-再起動で消える）。`/api/v1/notifications/*` は `authenticate` 必須。
+`joinTeam` / `sendNudge` / `suggestTeamNap` は
+`notifications.service.addNotification(userId, …)` を呼ぶ。通知フィードは
+**userId ごと**（`Map`、まだ in-memory でサーバ再起動で消える）。
+`/api/v1/notifications/*` は `authenticate` 必須。
 
 - `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
   —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
 - `sendNudge(wake)`: `wake_request` を **対象（`toUserId`）の**フィードへ —「〇〇から「起きて〜」」
 - `sendNudge(rest)`: `rest_request` を対象のフィードへ —「〇〇から「休んでね」」
+- `suggestTeamNap`: `team_nap_suggestion` を **自分以外の全メンバーの**フィードへ
+  —「〇〇さんからチーム仮眠の提案 / N分、みんなで仮眠しませんか？」
 
 ---
 
@@ -312,3 +317,11 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
   （実質 no-op）。
 - `home/member-status` は認証後 `req.auth.userId` の**実チーム**を返す
   （以前は `DEV_USER_ID` の固定チームが漏れていた）。
+- **在席ステータスのライブ更新は未実装**。`PUT/GET /teams/me/status` は
+  あるがフロント未接続、ポーリング/WebSocket も無いのでメンバーの
+  「作業中/仮眠中」表示は画面を開いた時点のスナップショット。
+- **メンバー管理**（除名・オーナー/権限・譲渡）は未実装。`role` /
+  `ownerId` 列も無く `renameTeam` はメンバーなら誰でも可能。
+  `TeamSettingsScreen` の「メンバーを管理」は TODO。
+- 「◯分仮眠を提案」は `POST /teams/nap-suggestion` + `NapProposalSheet`
+  で接続済み。
