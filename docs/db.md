@@ -2,8 +2,9 @@
 
 ## 1. 概要
 
-Team Napでは、ユーザー・チーム・（将来的に）スケジュールや休息履歴などを
-保存するために **PostgreSQL** を使用します。
+Team Napでは、ユーザー・チーム・オンボーディング・仮眠記録（`NapRecord`）
+などを保存するために **PostgreSQL** を使用します（スケジュール・睡眠設定
+などは未永続化。後述）。
 
 ORMには **Prisma 7** を使用し、Backend API からのみデータベースへアクセスします。
 Prisma 7 では接続にドライバアダプタ（`@prisma/adapter-pg`）を用います。
@@ -201,10 +202,10 @@ erDiagram
 | createdAt    | DateTime   | `now()`                 |
 
 `POST /api/v1/auth/signup` / `login` でパスワード付きユーザーを作成します
-（`src/services/auth.service.ts`）。`authenticate` の後ろに無いルート
-（home / schedule など）では、`X-User-Id` ヘッダで来た未知のユーザーを
-`team.service.ts` の `ensureUser()` が `email = "<userId>@dev.local"` で
-`upsert` します（保険）。
+（`src/services/auth.service.ts`）。`/health` と `/auth` 以外の全ルートは
+`authenticate` 必須なので、呼び出しユーザーは常にセッションの `userId` です。
+`team.service.ts` の `ensureUser()` は旧 `X-User-Id` 経路向けの保険として
+残っていますが、現在の経路では到達しません。
 
 #### Session
 
@@ -508,7 +509,7 @@ zod により検証され、**`DATABASE_URL` は必須**です（未設定だと
 | 変数           | 必須 | 例 / 既定                                                     | 用途 |
 | -------------- | ---- | ----------------------------------------------------------- | ---- |
 | `DATABASE_URL` | ✅   | `postgresql://teamnap:teamnap_dev@localhost:5432/teamnap`   | Prisma 接続。Compose 内では host が `db` |
-| `DEV_USER_ID`  |      | `00000000-0000-0000-0000-000000000001`                      | `X-User-Id` 未指定時の呼び出しユーザー。`seed.ts` の開発ユーザーと一致 |
+| `DEV_USER_ID`  |      | `00000000-0000-0000-0000-000000000001`                      | 旧 `X-User-Id` フォールバック用（現在は全ルート `authenticate` 必須のため未使用）。`seed.ts` の開発ユーザー id と一致 |
 | `PORT`         |      | `3000`                                                      | |
 | `HOST`         |      | `0.0.0.0`                                                   | |
 | `NODE_ENV`     |      | `development`                                               | `production` 時は Prisma Client を `globalThis` にキャッシュしない |

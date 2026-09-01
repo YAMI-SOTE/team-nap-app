@@ -53,11 +53,12 @@ let sleepSchedule: SleepScheduleResponse = {
   napCutoffHour: 15,
 };
 
+// Clean default: nothing connected until the user links a calendar.
 let calendarIntegration: CalendarIntegrationResponse = {
   google: {
-    connected: true,
-    email: "user@example.com",
-    lastSyncedLabel: "5分前",
+    connected: false,
+    email: null,
+    lastSyncedLabel: null,
   },
   device: {
     connected: false,

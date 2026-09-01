@@ -114,7 +114,7 @@
 |---|---|---|
 | 即時フィードバック（入力形式・順序など） | **フロント（画面）** | 睡眠スケジュール: 「起床は就寝より後（オーバーナイト考慮の睡眠時間 0〜16時間）」を画面で判定し、不正なら保存ボタンを無効化＋エラー表示 |
 | 型の正規化 | バックエンド（controller） | string でなければデフォルト値に落とす程度 |
-| 業務ルール（本来サーバーでも必須） | **未実装** | 就寝<起床、メール形式、招待コードの有効性、権限チェックなど。今後 controller / service に追加が必要 |
+| 業務ルール（本来サーバーでも必須） | **一部のみ** | zod スキーマで型・形式・範囲は検証。メール重複は 409、招待コードの照合は join で実施。権限チェック（メンバー管理など）は未実装 |
 
 方針: **UX 用のチェックはフロント、正当性の保証はサーバー**。現状はサーバー側が薄いので、
 重要なルールはサーバーにも二重で入れる。
@@ -125,18 +125,20 @@
 
 **バックエンド**
 
-- [ ] 永続化: `let` 変数 → Prisma / PostgreSQL（`docs/db.md` の設計に寄せる）
-- [ ] 認証・ユーザー単位化: 今はグローバル1件。ユーザーID で引く
-- [ ] サーバー側バリデーションとエラーレスポンス（400 / 404 / 標準エラー形）
+- [ ] **`settings.service.ts` の `account` / `notifications` / `sleep-schedule` / `calendar` はいまだにグローバルの `let` 変数**（ユーザー横断・サーバ再起動で消える）。`account` は誰が呼んでも `"Team Nap User" / "user@example.com"` を返す
+- [ ] **睡眠スケジュールの二重管理**: オンボーディングは `Onboarding.bedtime/wakeTime`（ユーザーごと・Postgres）に書くが、設定 > 睡眠スケジュールは上記グローバル `let` を読む → 両者が一致しない
+- [ ] 永続化 + ユーザー単位化（`Onboarding` に寄せる or `SleepSetting` / `NotificationSetting` テーブル追加）
 - [ ] `POST /settings/team/leave` の実体（現状 `{ success: true }` を返すだけ）
+- [x] 認証・ユーザー単位化: `team` 系（`getTeamSettings` / `leaveTeam`）は `team.service` 経由でユーザーごとに動く
 
 **フロントエンド（画面に TODO コメントで残っている未接続操作）**
 
-- [ ] アカウント: 写真を変更 / アカウントを削除
-- [ ] 睡眠スケジュール: 画面内バリデーションはあるが、`napCutoffHour` は編集不可（サーバー所有）
-- [ ] カレンダー: 招待コードのコピー、実際の Google OAuth フロー
-- [ ] チーム設定: チーム名編集 / メンバー管理 / 招待リンク共有 / 招待コードのコピー
-- [ ] 「ログアウト」は `router.replace("/login")` のみ（トークン破棄なし＝モック認証のため）
+- [x] `account` 画面は `/settings/account` を使わず `useAuth().user`（`/auth/me`）＋ `PATCH /auth/me` で保存する。**`mobile/src/services/settings.ts` の `getAccountSettings` / `updateAccountSettings` はどこからも呼ばれない死にコード**
+- [x] 「ログアウト」はアカウント画面・設定タブとも二段階確認ダイアログ＋`useAuth().signOut()`（`ConfirmDialog`）
+- [ ] アカウント: 写真を変更
+- [ ] 睡眠スケジュール: `napCutoffHour` は編集不可（サーバー所有）
+- [ ] カレンダー: 実際の Google OAuth フロー（現状はモックのトグル）
+- [ ] チーム設定: メンバー管理 / 招待リンク共有 / 招待コードのコピー
 
 ---
 

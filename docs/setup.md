@@ -85,7 +85,7 @@ DEV_USER_ID=00000000-0000-0000-0000-000000000001
 ```
 
 - Docker Compose 経由で動かす場合、`compose.yaml` が `backend` サービスへ環境変数を渡すため `backend/.env` は主にローカル実行（`npm run dev`）で使います。Compose 内の DB ホストは `db`、ローカルからは `localhost` です。
-- `DEV_USER_ID`（既定 `00000000-0000-0000-0000-000000000001`）は `X-User-Id` ヘッダ未指定時の呼び出しユーザーです。`npm run db:seed` が作る開発ユーザーと一致します。
+- `DEV_USER_ID`（既定 `00000000-0000-0000-0000-000000000001`）は旧 `X-User-Id` フォールバック用です。現在は `/health` `/auth` 以外の全ルートが `authenticate`（Bearer トークン）必須なので実質未使用ですが、`npm run db:seed` が作る開発ユーザー id と一致させてあります。
 
 ## 起動手順（Docker Compose）
 
