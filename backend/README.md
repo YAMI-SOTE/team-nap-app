@@ -8,16 +8,74 @@ Express + TypeScript API server for the Team Nap app.
 
 Prisma 7 + PostgreSQL, connected through the `@prisma/adapter-pg` driver
 adapter (`src/lib/prisma.ts`). Persisted models: **`User`, `Team`,
-`TeamMembership`** (see `prisma/schema.prisma` and
+`TeamMembership`, `Session`** (see `prisma/schema.prisma` and
 [../docs/db.md](../docs/db.md)).
 
 Team-related services are DB-backed: `team.service`, `member.service`,
 `nudge.service`, and the member-status part of `home.service`. The rest
-(`settings`, `schedule`, `notifications`, `naps`, and the team
-summary/ranking snapshots) is still in-memory state in `src/services/*`.
+(`settings`, `schedule`, `naps`, and the team summary/ranking snapshots)
+is still in-memory state in `src/services/*`. `notifications.service` is
+in-memory too but now **keyed by userId** (a `Map`), not one global list.
 
-There is no auth yet — the acting user is the `X-User-Id` header, or
-`env.DEV_USER_ID` when it is absent (`src/lib/request-user.ts`).
+## Authentication & sessions
+
+Sign-up / login create a user (scrypt-hashed password, `src/lib/password.ts`)
+and issue an **opaque bearer token** backed by a `Session` row
+(`src/services/session.service.ts`) — only the token's SHA-256 hash is
+stored. Sessions expire after `SESSION_TTL_HOURS` and can be revoked.
+
+`user` in every auth response is
+`{ id, name, email, onboardingCompleted }` — the client routes a user
+with `onboardingCompleted: false` through onboarding before `home`.
+
+| Method / path | Auth | Body / notes |
+| --- | --- | --- |
+| `POST /auth/signup` | – | `{ name, email, password }` → 201 `{ token, user }`; `password` ≥ 8; 409 if email taken |
+| `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
+| `GET /auth/me` | Bearer | `{ user }` |
+| `POST /auth/password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`; 400 if `currentPassword` wrong. Keeps the calling session, revokes the rest |
+| `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
+| `DELETE /auth/sessions/:id` | Bearer | revoke one session → 204 (404 if not yours/active) |
+| `POST /auth/logout` | Bearer | revoke the current session → 204 |
+| `POST /auth/logout-others` | Bearer | revoke every *other* session → `{ revoked }` |
+| `POST /auth/password-reset/request` | – | `{ email }` → always 202 `{ ok }` (never reveals if the email exists). Outside production the body also carries `resetToken` for testing; the token is always logged to the server console |
+| `POST /auth/password-reset/confirm` | – | `{ token, password }` → 204. Single-use, expires after `PASSWORD_RESET_TTL_MINUTES`; on success **all** of that user's sessions are revoked. 400 if the token is unknown/used/expired |
+
+To require a session on a route, mount `authenticate`
+(`src/middleware/authenticate.middleware.ts`): it resolves
+`Authorization: Bearer <token>` and sets `req.auth = { userId, sessionId }`.
+In handlers behind it, use `requireUserId(req)` / `requireSessionId(req)`
+(`src/lib/request-user.ts`). `currentUserId(req)` returns `req.auth.userId`
+when present, else falls back to the `X-User-Id` header / `env.DEV_USER_ID`
+for routes not yet moved onto sessions.
+
+**Behind `authenticate`:** all of `/api/v1/teams/*`,
+`/api/v1/notifications/*`, `/api/v1/onboarding/*`, plus
+`/api/v1/settings/team` and `/api/v1/settings/team/leave`. Everything else
+(`home`, `schedule`, `stats`, `naps`, `ai`, the rest of `settings`) still
+uses the `X-User-Id` fallback. `npm run db:seed` gives every seeded user
+the password `teamnap-dev` (e.g. `dev@teamnap.local`) so those endpoints
+can be exercised in dev.
+
+## Onboarding
+
+Each user has one `Onboarding` row (sleep rhythm + calendar/notification
+opt-ins). It is created with defaults at sign-up and **lazily for anyone
+who predates that**, so `completed` is always answerable — a missing or
+incomplete row means the client must route the user through onboarding
+*after* account creation.
+
+| Method / path | Body | Notes |
+| --- | --- | --- |
+| `GET /api/v1/onboarding` | – | `{ completed, bedtime, wakeTime, calendarConnected, notificationsEnabled, completedAt }`; creates the default row if absent |
+| `PUT /api/v1/onboarding` | any subset of the 4 fields | incremental save; does **not** complete |
+| `POST /api/v1/onboarding/complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | stamps `completedAt` the first time; idempotent afterwards |
+
+**Intended client sequence:** `signup` (or `login`) → `GET /onboarding`
+→ if `!completed`, show the onboarding questions → `POST /onboarding/complete`
+→ home. `npm run db:seed` marks the primary dev user
+(`dev@teamnap.local`) complete and leaves the other seeded users without
+a row, so both the normal and the backfill paths are visible in dev.
 
 ## Scripts
 
@@ -44,6 +102,8 @@ Read and validated once in `src/config/env.ts` (zod). Copy
 | -------------- | -------- | ------------------------ | ------------------------------ |
 | `DATABASE_URL` | yes      | –                        | Prisma connection string. Host is `db` inside Compose, `localhost` locally |
 | `DEV_USER_ID`  |          | `00000000-0000-0000-0000-000000000001` | Caller identity when `X-User-Id` is missing; matches `prisma/seed.ts` |
+| `SESSION_TTL_HOURS` |     | `720`                   | Lifetime of an issued session token (30 days) |
+| `PASSWORD_RESET_TTL_MINUTES` | | `60`               | Lifetime of a password-reset token |
 | `NODE_ENV`     |          | `development`            | `development \| production \| test` |
 | `PORT`         |          | `3000`                   |                                |
 | `HOST`         |          | `0.0.0.0`                |                                |
@@ -67,15 +127,16 @@ src/
   controllers/         <feature>.controller.ts — HTTP in/out only, no business logic
   services/            <feature>.service.ts — domain logic (DB-backed or in-memory)
   schemas/             <feature>.schema.ts — zod request schemas
-  middleware/          *.middleware.ts — api-flow, error handler, 404, validate, request log
+  middleware/          *.middleware.ts — api-flow, authenticate, error handler, 404, validate, request log
   lib/
     prisma.ts          shared Prisma client (driver adapter) + api-flow db hook
-    request-user.ts    currentUserId(req) — X-User-Id header or DEV_USER_ID
+    request-user.ts    currentUserId / requireUserId / requireSessionId
+    password.ts        scrypt hash/verify;  tokens.ts  bearer token gen/hash/parse
     api-flow.ts        per-request flow tracer (step / traced / render)
     http-error.ts, params.ts, datetime.ts
-  types/               shared domain types (domain.ts)
+  types/               shared domain types (domain.ts); express.d.ts augments req.auth
 prisma/
-  schema.prisma        User / Team / TeamMembership + MemberActivity enum
+  schema.prisma        User / Session / Team / TeamMembership + MemberActivity enum
   seed.ts              dev users + "TEAM NAP 開発チーム" (NAP-4821)
   migrations/          Prisma Migrate output (committed)
 prisma.config.ts       Prisma CLI config (schema / migrations / seed / datasource)

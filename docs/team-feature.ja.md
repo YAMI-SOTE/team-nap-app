@@ -41,8 +41,13 @@
   `settingsRoutes`（`/settings`）配下にある。
 - レスポンスの型は `team.service.ts` の `export type` が契約。
   フロントは `mobile/src/types/api.ts` に同じ形を手で持つ。
-- 認証はまだ無い。呼び出しユーザーは `X-User-Id` ヘッダ、無ければ
-  `env.DEV_USER_ID`（`lib/request-user.ts`）。
+- **認証必須**。`teamRoutes` と `settings` の `/team`・`/team/leave` は
+  `authenticate` ミドルウェアの後ろにあり、`Authorization: Bearer <token>`
+  が要る（未指定/失効で 401）。呼び出しユーザーは `requireUserId(req)`
+  ＝ セッションの `userId`（`lib/request-user.ts`）。トークンは
+  `POST /api/v1/auth/login` などで取得する。
+- 開発時はシードユーザーでログインできる:
+  `dev@teamnap.local` / `teamnap-dev`（`npm run db:seed`）。
 
 ---
 
@@ -165,7 +170,7 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | 関数 | 主な処理 | エラー |
 | --- | --- | --- |
 | `createTeam(userId, name)` | 既加入チェック → `ensureUser` → `Team` 作成と同時に自分を membership 追加 → `TeamSettingsResponse`。招待コードは `uniqueInviteCode()` で採番。 | 既にチーム所属なら 409 |
-| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → `member_joined` 通知を積む。 | 既加入 409 / コード不一致 404 |
+| `joinTeam(userId, inviteCode)` | 既加入チェック → 全チームを取得し `normalizeCode` 一致で対象特定 → `ensureUser` → membership 追加 → 既存メンバー各自へ `member_joined` 通知。 | 既加入 409 / コード不一致 404 |
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
@@ -184,8 +189,9 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ### 5.5 `ensureUser(userId)`
 
-認証が無いので、`X-User-Id` で来た未知のユーザーでも動くように
-`prisma.user.upsert`（`email` は `<userId>@dev.local` で仮生成）。
+チームのルートは `authenticate` の後ろにあるため、通常呼び出し元は既存
+`User`。これは旧 `X-User-Id` 経路（他機能のルート）向けの保険で、既存
+ユーザーには no-op（`prisma.user.upsert` の `update: {}`）。
 シードユーザーは `prisma/seed.ts` で作られる。
 
 ---
@@ -204,20 +210,21 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 - `kind` は `"wake" | "rest"`。
 - 自分自身への送信は 400、相手が別チームなら 400、送信者/相手が未加入なら 404。
 - `kind === "wake"` かつ相手の `wakeAssistEnabled` が false なら 409。
-- 成功時は対象向けの通知（`wake_request` / `rest_request`）を積んで
-  `{ success: true }`。**ナッジ自体は永続化しない。**
+- 成功時は **対象（`toUserId`）の**フィードへ通知（`wake_request` /
+  `rest_request`）を積んで `{ success: true }`。**ナッジ自体は永続化しない。**
 
 ---
 
 ## 7. 通知連携
 
-`joinTeam` と `sendNudge` は `notifications.service.addNotification()` を呼ぶ。
-現状の通知ストアは **in-memory**（サーバ再起動で消える）。チーム機能側は
-「通知を積む」以上のことはしていない。
+`joinTeam` と `sendNudge` は `notifications.service.addNotification(userId, …)`
+を呼ぶ。通知フィードは **userId ごと**（`Map`、まだ in-memory でサーバ
+再起動で消える）。`/api/v1/notifications/*` は `authenticate` 必須。
 
-- `joinTeam`: `member_joined` —「〇〇がチームに参加しました / チームは N 人になりました」
-- `sendNudge(wake)`: `wake_request` —「〇〇から「起きて〜」」
-- `sendNudge(rest)`: `rest_request` —「〇〇から「休んでね」」
+- `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
+  —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
+- `sendNudge(wake)`: `wake_request` を **対象（`toUserId`）の**フィードへ —「〇〇から「起きて〜」」
+- `sendNudge(rest)`: `rest_request` を対象のフィードへ —「〇〇から「休んでね」」
 
 ---
 
@@ -231,7 +238,7 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 | メンバー詳細の `nap` | ⚠️ 常に `null`（未実装） |
 | `GET /teams/summary` | ⚠️ `teamSummarySnapshot` 固定値 |
 | `GET /teams/ranking` | ⚠️ `rankingSnapshot` 固定値（`memberX` はダミー、`score` も手書き） |
-| 通知 | ⚠️ in-memory |
+| 通知フィード | ⚠️ userId ごとだがまだ in-memory（`Map`） |
 
 ---
 
@@ -260,29 +267,32 @@ npm run db:seed               # 開発ユーザー + "TEAM NAP 開発チーム"(
 npm run dev
 ```
 
-動作確認例（`X-User-Id` は任意の UUID でよい）。
+動作確認例（すべて `Authorization: Bearer <token>` が必要）。
 
 ```bash
 BASE=http://localhost:3000/api/v1
 
-# チームを作る
-curl -s -XPOST $BASE/teams -H 'content-type: application/json' \
-  -H 'x-user-id: 11111111-1111-1111-1111-111111111111' \
-  -d '{"name":"夜勤チーム"}'
+# ログインしてトークンを取得（シードユーザー）
+TOKEN=$(curl -s -XPOST $BASE/auth/login -H 'content-type: application/json' \
+  -d '{"email":"dev@teamnap.local","password":"teamnap-dev"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+AUTH="authorization: Bearer $TOKEN"
 
-# シードのチームに参加（コードは大小/ハイフン無視）
-curl -s -XPOST $BASE/teams/join -H 'content-type: application/json' \
-  -H 'x-user-id: 22222222-2222-2222-2222-222222222222' \
-  -d '{"inviteCode":"nap4821"}'
+# チーム設定を見る（シードのチームに加入済み）
+curl -s $BASE/settings/team -H "$AUTH"
 
 # 自分のステータスを更新
-curl -s -XPUT $BASE/teams/me/status -H 'content-type: application/json' \
-  -H 'x-user-id: 22222222-2222-2222-2222-222222222222' \
+curl -s -XPUT $BASE/teams/me/status -H "$AUTH" -H 'content-type: application/json' \
   -d '{"status":"resting"}'
 
-# チーム設定を見る / 抜ける
-curl -s $BASE/settings/team -H 'x-user-id: 22222222-2222-2222-2222-222222222222'
-curl -s -XPOST $BASE/settings/team/leave -H 'x-user-id: 22222222-2222-2222-2222-222222222222'
+# 新規ユーザーで別チームを作る / 参加する
+NEW=$(curl -s -XPOST $BASE/auth/signup -H 'content-type: application/json' \
+  -d '{"name":"夜勤","email":"night@example.com","password":"nightshift"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+curl -s -XPOST $BASE/teams -H "authorization: Bearer $NEW" \
+  -H 'content-type: application/json' -d '{"name":"夜勤チーム"}'
+curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
+  -H 'content-type: application/json' -d '{"inviteCode":"nap4821"}'  # => 既にチーム所属なら 409
 ```
 
 ---
@@ -293,6 +303,8 @@ curl -s -XPOST $BASE/settings/team/leave -H 'x-user-id: 22222222-2222-2222-2222-
   検索（`normalizeCode` を保存列にする等）へ移行する。
 - `summary` / `ranking` を実データ（仮眠履歴）から算出する。
 - メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
-- 通知ストアが in-memory。永続化するとチーム参加通知も残るようになる。
-- 認証が無く `ensureUser` が任意の `X-User-Id` を受け入れる。認証導入時に
-  `ensureUser` とヘッダフォールバックを見直す。
+- 通知フィードは userId ごとになったが、まだ in-memory（`Map`）。
+  DB 化（`Notification` テーブル）すれば再起動で消えなくなる。
+- チームのルートは `authenticate` 必須になった。他機能のルート
+  （home / schedule / stats など）はまだ `X-User-Id` フォールバックのまま。
+  `ensureUser` はその旧経路向けの保険として残している。

@@ -92,6 +92,11 @@ async function uniqueInviteCode(): Promise<string> {
   throw new HttpError(500, "Could not allocate an invite code");
 }
 
+/**
+ * Team routes run behind `authenticate`, so the caller is normally a real
+ * `User` already. This stays as a safety net for the legacy `X-User-Id`
+ * path (other feature routes) and is a no-op for an existing user.
+ */
 async function ensureUser(userId: string) {
   return prisma.user.upsert({
     where: { id: userId },
@@ -195,17 +200,22 @@ export async function joinTeam(
     data: { teamId: target.id, userId },
   });
 
-  const memberCount = await prisma.teamMembership.count({
+  const members = await prisma.teamMembership.findMany({
     where: { teamId: target.id },
+    select: { userId: true },
   });
-  addNotification({
-    kind: "member_joined",
-    title: `${user.name ?? "メンバー"}がチームに参加しました`,
-    body: `チームは${memberCount}人になりました`,
-    timestamp: "たった今",
-    read: false,
-    group: "today",
-  });
+  // Notify everyone who was already on the team (not the joiner).
+  for (const m of members) {
+    if (m.userId === userId) continue;
+    addNotification(m.userId, {
+      kind: "member_joined",
+      title: `${user.name ?? "メンバー"}がチームに参加しました`,
+      body: `チームは${members.length}人になりました`,
+      timestamp: "たった今",
+      read: false,
+      group: "today",
+    });
+  }
 
   return (await getCurrentTeam(userId))!;
 }

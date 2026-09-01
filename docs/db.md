@@ -19,8 +19,14 @@ Backend API  ──(Prisma 7 + @prisma/adapter-pg)──▶  PostgreSQL
 Mobile App から PostgreSQL へ直接アクセスすることはありません。
 
 > **実装状況（2026-08時点）**
-> 実際にDBへ永続化しているのは **User / Team / TeamMembership** の3モデルのみです
-> （マイグレーション `20260830091652_team_feature`）。
+> 実際にDBへ永続化しているのは
+> **User / Team / TeamMembership / Session / PasswordResetToken / Onboarding**
+> の6モデルです（マイグレーション `20260830091652_team_feature` /
+> `20260831095742_auth_sessions` / `20260901163406_password_reset_tokens` /
+> `20260901163741_onboarding_profile`）。
+> `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
+> 単回・短命トークン、`Onboarding` はサインアップ直後に集める初期設定
+> （`src/services/`）。
 > スケジュール・睡眠設定・休息履歴・休息提案などは、まだ各 `src/services/*` の
 > インメモリ状態で持っており、本ドキュメントの後半では「今後の予定」として扱います。
 
@@ -177,16 +183,78 @@ erDiagram
 
 ユーザーの基本情報を保存します。
 
-| 列        | 型         | 備考                    |
-| --------- | ---------- | ----------------------- |
-| id        | String PK  | `uuid()`                |
-| email     | String     | `@unique`               |
-| name      | String?    | 表示名（頭文字生成に使用）|
-| createdAt | DateTime   | `now()`                 |
+| 列           | 型         | 備考                    |
+| ------------ | ---------- | ----------------------- |
+| id           | String PK  | `uuid()`                |
+| email        | String     | `@unique`（保存時に小文字化）|
+| name         | String?    | 表示名（頭文字生成に使用）|
+| passwordHash | String?    | scrypt ハッシュ `scrypt$<salt>$<hash>`。シード / 旧 `ensureUser` 経由のユーザーは null |
+| createdAt    | DateTime   | `now()`                 |
 
-認証はまだ無いため、`X-User-Id` ヘッダで未知のユーザーが来た場合は
+`POST /api/v1/auth/signup` / `login` でパスワード付きユーザーを作成します
+（`src/services/auth.service.ts`）。`authenticate` の後ろに無いルート
+（home / schedule など）では、`X-User-Id` ヘッダで来た未知のユーザーを
 `team.service.ts` の `ensureUser()` が `email = "<userId>@dev.local"` で
-`upsert` します。
+`upsert` します（保険）。
+
+#### Session
+
+発行済みの認証トークン。生トークンはクライアントに一度だけ返し、DB には
+SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）。
+
+| 列         | 型         | 備考                                         |
+| ---------- | ---------- | -------------------------------------------- |
+| id         | String PK  | `uuid()`                                     |
+| userId     | String FK  | `onDelete: Cascade`。`@@index([userId])`       |
+| tokenHash  | String     | `@unique`。`sha256(token)` の hex             |
+| userAgent  | String?    | ログイン時の UA（255 文字で切り詰め）           |
+| createdAt  | DateTime   | `now()`                                      |
+| lastUsedAt | DateTime   | `authenticate` が毎リクエストで best-effort 更新 |
+| expiresAt  | DateTime   | `now() + SESSION_TTL_HOURS`（既定 30 日）      |
+| revokedAt  | DateTime?  | logout / logout-others / セッション削除で設定   |
+
+`authenticate` は `tokenHash` で引き、`revokedAt == null` かつ未期限切れの
+ものだけを有効とみなします。
+
+#### PasswordResetToken
+
+「パスワードを忘れた」フロー用の単回・短命トークン
+（`src/services/password-reset.service.ts`）。`Session` と同様、生トークンは
+返さず SHA-256 ハッシュのみ保存。
+
+| 列        | 型         | 備考                                            |
+| --------- | ---------- | ---------------------------------------------- |
+| id        | String PK  | `uuid()`                                       |
+| userId    | String FK  | `onDelete: Cascade`。`@@index([userId])`         |
+| tokenHash | String     | `@unique`。`sha256(token)` の hex               |
+| expiresAt | DateTime   | `now() + PASSWORD_RESET_TTL_MINUTES`（既定 60分）|
+| usedAt    | DateTime?  | 使用時に設定。再発行時は既存の未使用分も used 扱い |
+| createdAt | DateTime   | `now()`                                        |
+
+`confirm` 成功時にパスワードを更新し、そのユーザーの **全セッションを失効**
+させます。`request` は該当メールが無くても常に 202 を返します（存在秘匿）。
+
+#### Onboarding
+
+ユーザー 1 人につき 1 行（`userId` が PK）。サインアップ直後の初期設定
+（睡眠リズム＋カレンダー/通知のオプトイン）を保持します
+（`src/services/onboarding.service.ts`）。
+
+| 列                   | 型         | 備考                                   |
+| -------------------- | ---------- | ------------------------------------- |
+| userId               | String PK  | `onDelete: Cascade`                    |
+| bedtime              | String     | `HH:MM`（既定 `23:30`）                 |
+| wakeTime             | String     | `HH:MM`（既定 `07:30`）                 |
+| calendarConnected    | Boolean    | 既定 `false`                           |
+| notificationsEnabled | Boolean    | 既定 `false`                           |
+| completedAt          | DateTime?  | オンボーディング完了時に一度だけ設定     |
+| updatedAt            | DateTime   | `@updatedAt`                          |
+
+行はサインアップ時にデフォルトで作成し、**それ以前のユーザーには
+`GET /api/v1/onboarding` が遅延作成**します。`completedAt == null`
+＝「アカウント作成後、まだオンボーディング質問を通していない」。
+想定シーケンス: `signup`/`login` → `GET /onboarding` → 未完了なら質問 →
+`POST /onboarding/complete` → ホーム。
 
 #### Team
 
@@ -251,11 +319,27 @@ datasource db {
 }
 
 model User {
-  id          String           @id @default(uuid())
-  email       String           @unique
-  name        String?
-  createdAt   DateTime         @default(now())
-  memberships TeamMembership[]
+  id           String           @id @default(uuid())
+  email        String           @unique
+  name         String?
+  passwordHash String?
+  createdAt    DateTime         @default(now())
+  memberships  TeamMembership[]
+  sessions     Session[]
+}
+
+model Session {
+  id         String    @id @default(uuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model Team {
@@ -436,7 +520,10 @@ git add backend/prisma && git commit
 現在のマイグレーション:
 
 ```text
-20260830091652_team_feature   User / Team / TeamMembership / MemberActivity を作成
+20260830091652_team_feature           User / Team / TeamMembership / MemberActivity を作成
+20260831095742_auth_sessions          User.passwordHash 追加 + Session テーブル
+20260901163406_password_reset_tokens  PasswordResetToken テーブル
+20260901163741_onboarding_profile     Onboarding テーブル
 ```
 
 ---
@@ -471,10 +558,17 @@ backend/src/generated/prisma
 実装済み:
 
 ```text
-User
+User               （email + passwordHash）
+Session            （サインアップ / ログイン / セッション管理 / logout）
+PasswordResetToken （パスワード再設定 / 変更）
+Onboarding         （初期設定・完了フラグ）
 Team
-TeamMembership   （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
+TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
 ```
+
+`/api/v1/teams/*` / `/api/v1/notifications/*` / `/api/v1/onboarding/*` /
+`/api/v1/settings/team*` は `authenticate` 必須。他機能のルートはまだ
+`X-User-Id` フォールバック。
 
 次に追加を検討:
 
@@ -493,7 +587,7 @@ RestRecommendation
 ```text
 settings.service   アカウント / 通知トグル / 睡眠スケジュール / カレンダー連携
 schedule.service   予定・当日スケジュール
-notifications.service  通知フィード（ナッジ・参加通知の宛先）
+notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
 naps.service       仮眠履歴
 team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
 ```

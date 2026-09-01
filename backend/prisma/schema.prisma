@@ -12,11 +12,64 @@ datasource db {
 }
 
 model User {
-  id          String           @id @default(uuid())
-  email       String           @unique
-  name        String?
-  createdAt   DateTime         @default(now())
-  memberships TeamMembership[]
+  id           String           @id @default(uuid())
+  email        String           @unique
+  name         String?
+  // scrypt hash ("scrypt$<saltHex>$<hashHex>"). Null for users created by
+  // the seed / legacy `ensureUser` path or a future OAuth-only sign-in.
+  passwordHash String?
+  createdAt    DateTime         @default(now())
+  memberships  TeamMembership[]
+  sessions     Session[]
+  passwordResetTokens PasswordResetToken[]
+  onboarding   Onboarding?
+}
+
+/// One row per user, holding the answers collected during onboarding.
+/// Created with defaults at sign-up (and lazily for legacy users), so a
+/// missing/incomplete row means "still needs to go through onboarding".
+/// `completedAt` is set once the user finishes the questions.
+model Onboarding {
+  userId               String    @id
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bedtime              String    @default("23:30")
+  wakeTime             String    @default("07:30")
+  calendarConnected    Boolean   @default(false)
+  notificationsEnabled Boolean   @default(false)
+  completedAt          DateTime?
+  updatedAt            DateTime  @updatedAt
+}
+
+/// Single-use, short-lived token for the "forgot password" flow. Like
+/// `Session`, only the SHA-256 hash of the emailed token is stored.
+/// See src/services/password-reset.service.ts.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// An issued bearer token. The raw token is returned to the client once;
+/// only its SHA-256 hash is stored. Sessions expire (`expiresAt`) and can
+/// be revoked (`revokedAt`) — see src/services/session.service.ts.
+model Session {
+  id         String    @id @default(uuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model Team {
