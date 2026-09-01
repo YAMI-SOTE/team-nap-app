@@ -34,6 +34,7 @@ with `onboardingCompleted: false` through onboarding before `home`.
 | `POST /auth/login` | – | `{ email, password }` → 200 `{ token, user }`; 401 on bad creds (same message either way) |
 | `GET /auth/me` | Bearer | `{ user }` |
 | `PATCH /auth/me` | Bearer | `{ name?, email? }` → `{ user }`; email normalized, 409 if taken by another account |
+| `DELETE /auth/me` | Bearer | permanently delete the account (leaves the team first; sessions / onboarding / reset tokens cascade) → 204 |
 | `POST /auth/password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`; 400 if `currentPassword` wrong. Keeps the calling session, revokes the rest |
 | `GET /auth/debug` | Bearer | **dev only** (404 in production): `{ user, passwordHash, passwordHashAlgorithm, activeSessions }` |
 | `GET /auth/sessions` | Bearer | active sessions, `current: true` on the calling one |
