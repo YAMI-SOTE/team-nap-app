@@ -47,6 +47,8 @@ export interface HomeMember {
 export interface HomeSummaryResponse {
   todayLabel: string;
   headline: [string, string];
+  /** `false` for a solo account — the Home screen hides every team block. */
+  hasTeam: boolean;
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
