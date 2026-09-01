@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,10 +19,11 @@ import ProgressBar from "@/components/ProgressBar";
 import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
+import NotificationBell from "@/components/NotificationBell";
 import {
-  BellIcon,
   DotsThreeCircleIcon,
   MoonStarsIcon,
+  UsersThreeIcon,
 } from "@/components/icons";
 
 const SCREEN_PADDING = 28;
@@ -32,10 +34,8 @@ export default function HomeScreen() {
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
 
-  const handleOpenNotifications = () => {
-    console.log("TODO: open notifications screen");
-    // TODO: no notifications screen exists yet.
-  };
+  // Solo accounts never see team score / members / free-slot blocks.
+  const hasTeam = summary?.hasTeam ?? false;
 
   const handleSuggestTeamNap = () => {
     console.log("TODO: suggest a nap to everyone");
@@ -46,34 +46,34 @@ export default function HomeScreen() {
     ? formatMemberStatusSummary(memberStatus.memberStatusCounts)
     : "";
 
-  const nextFreeContext = summary
-    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(summary.nextFree.hoursUntilStart, summary.nextFree.minutesUntilStartRemainder)}`
+  const nextFree = summary?.nextFree ?? null;
+
+  const nextFreeContext = nextFree
+    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(nextFree.hoursUntilStart, nextFree.minutesUntilStartRemainder)}`
     : "次の空き時間";
 
-  const nextFreeRange = summary
-    ? `${summary.nextFree.start}〜${summary.nextFree.end}`
-    : "--:--〜--:--";
+  const nextFreeRange = nextFree
+    ? `${nextFree.start}〜${nextFree.end}`
+    : "予定はありません";
 
-  const nextFreeDetail = summary && memberStatus
-    ? `${memberStatus.memberCount}人中${summary.nextFree.availableMemberCount}人が予定なし`
-    : "";
+  const nextFreeDetail =
+    nextFree && memberStatus
+      ? `${memberStatus.memberCount}人中${nextFree.availableMemberCount}人が予定なし`
+      : "カレンダーを連携すると空き時間が表示されます";
 
   return (
     <View style={styles.root}>
       <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={handleOpenNotifications}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={26} color={colors.primary} showDot />
-            </Pressable>
+            <NotificationBell size={26} />
           </View>
 
           {/* Hero */}
@@ -87,76 +87,100 @@ export default function HomeScreen() {
                   {(summary?.headline ?? ["今日のチームは", "確認中です"]).join("\n")}
                 </Text>
               </View>
-              <CharacterSlot size={84} />
+              <CharacterSlot
+                size={84}
+                source={require("../../../assets/characters/genki.png")}
+              />
             </View>
           </View>
 
-          {/* チームの状態 */}
-          <View style={styles.section}>
-            <Hairline />
-            <View style={styles.rowBetween}>
-              <View style={styles.metricText}>
-                <Text style={styles.sectionLabel}>チームの状態</Text>
-                <View style={styles.metricNumberRow}>
-                  <Text style={styles.metricNumber}>
-                    {summary?.teamScore ?? "--"}
-                  </Text>
-                  <Text style={styles.metricUnit}>/{TEAM_SCORE_MAX}</Text>
+          {/* チームの状態 — チーム加入時のみ */}
+          {hasTeam ? (
+            <View style={styles.section}>
+              <Hairline />
+              <View style={styles.rowBetween}>
+                <View style={styles.metricText}>
+                  <Text style={styles.sectionLabel}>チームの状態</Text>
+                  <View style={styles.metricNumberRow}>
+                    <Text style={styles.metricNumber}>
+                      {summary?.teamScore ?? "--"}
+                    </Text>
+                    <Text style={styles.metricUnit}>/{TEAM_SCORE_MAX}</Text>
+                  </View>
                 </View>
               </View>
+              <ProgressBar
+                value={summary?.teamScore ?? 0}
+                max={TEAM_SCORE_MAX}
+              />
+              <Text style={styles.sectionLabel}>
+                {summary?.aiAdvice ?? "AIアドバイスを読み込み中"}
+              </Text>
             </View>
-            <ProgressBar value={summary?.teamScore ?? 0} max={TEAM_SCORE_MAX} />
-            <Text style={styles.sectionLabel}>
-              {summary?.aiAdvice ?? "AIアドバイスを読み込み中"}
-            </Text>
-          </View>
+          ) : null}
 
-          {/* メンバー */}
-          <View style={styles.section}>
-            <Hairline />
-            <View style={styles.rowBetween}>
-              <Text style={styles.sectionLabel}>メンバーのようす</Text>
-              <Text style={styles.sectionSubLabel}>{memberStatusSummary}</Text>
+          {/* メンバー — チーム加入時のみ */}
+          {hasTeam ? (
+            <View style={styles.section}>
+              <Hairline />
+              <View style={styles.rowBetween}>
+                <Text style={styles.sectionLabel}>メンバーのようす</Text>
+                <Text style={styles.sectionSubLabel}>
+                  {memberStatusSummary}
+                </Text>
+              </View>
+              <View style={styles.membersRow}>
+                {(memberStatus?.members ?? []).map((member) => (
+                  <MemberAvatar
+                    key={member.id}
+                    label={member.label}
+                    status={member.status as MemberStatus}
+                    onPress={() => router.push(`/members/${member.id}`)}
+                  />
+                ))}
+                <Pressable
+                  onPress={() => router.push("/team")}
+                  accessibilityRole="button"
+                  accessibilityLabel="メンバーをもっと見る"
+                  style={styles.membersMore}
+                  hitSlop={8}
+                >
+                  <DotsThreeCircleIcon size={40} color={colors.textSecondary} />
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.membersRow}>
-              {(memberStatus?.members ?? []).map((member) => (
-                <MemberAvatar
-                  key={member.id}
-                  label={member.label}
-                  status={member.status as MemberStatus}
-                  onPress={() => router.push(`/members/${member.id}`)}
-                />
-              ))}
-              <Pressable
-                onPress={() => router.push("/team")}
-                accessibilityRole="button"
-                accessibilityLabel="メンバーをもっと見る"
-                style={styles.membersMore}
-                hitSlop={8}
-              >
-                <DotsThreeCircleIcon size={40} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-          </View>
+          ) : null}
 
-          {/* 次の空き時間 */}
-          <View style={styles.section}>
-            <Hairline />
-            <View style={styles.nextFreeText}>
-              <Text style={styles.sectionLabel}>{nextFreeContext}</Text>
-              <Text style={styles.nextFreeRange}>{nextFreeRange}</Text>
-              <Text style={styles.sectionSubLabel}>{nextFreeDetail}</Text>
+          {/* 次の空き時間 — チーム加入時のみ */}
+          {hasTeam ? (
+            <View style={styles.section}>
+              <Hairline />
+              <View style={styles.nextFreeText}>
+                <Text style={styles.sectionLabel}>{nextFreeContext}</Text>
+                <Text style={styles.nextFreeRange}>{nextFreeRange}</Text>
+                <Text style={styles.sectionSubLabel}>{nextFreeDetail}</Text>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           <View style={styles.bottomActions}>
-            <PillButton
-              variant="outline"
-              label="みんなに仮眠を提案"
-              onPress={handleSuggestTeamNap}
-              icon={<MoonStarsIcon size={24} color={colors.primary} />}
-              style={styles.actionButton}
-            />
+            {hasTeam ? (
+              <PillButton
+                variant="outline"
+                label="みんなに仮眠を提案"
+                onPress={handleSuggestTeamNap}
+                icon={<MoonStarsIcon size={24} color={colors.primary} />}
+                style={styles.actionButton}
+              />
+            ) : (
+              <PillButton
+                variant="outline"
+                label="チームに参加する"
+                onPress={() => router.push("/team/join")}
+                icon={<UsersThreeIcon size={24} color={colors.primary} />}
+                style={styles.actionButton}
+              />
+            )}
 
             <PillButton
               variant="primary"
@@ -171,7 +195,7 @@ export default function HomeScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -203,8 +227,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     paddingTop: 16,
     paddingHorizontal: SCREEN_PADDING,
     paddingBottom: 12,

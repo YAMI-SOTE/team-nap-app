@@ -1,0 +1,144 @@
+# 認証・セッション・オンボーディング（バックエンド）
+
+`feature/authentication-system` で入れた認証まわりの実装まとめ。
+Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./team-feature.ja.md)
+
+---
+
+## 1. 全体像
+
+```text
+[ ルート ]  src/routes/auth.routes.ts        /api/v1/auth/*
+            src/routes/onboarding.routes.ts  /api/v1/onboarding/*（authenticate 必須）
+   |
+[ ミドルウェア ] src/middleware/authenticate.middleware.ts
+   |   Authorization: Bearer <token> → Session を引く → req.auth = { userId, sessionId }
+[ サービス ] auth.service / session.service / password-reset.service / onboarding.service
+   |   Prisma
+[ DB ] User / Session / PasswordResetToken / Onboarding
+```
+
+- トークンは **不透明なランダム文字列**。DB には `sha256(token)` のみ保存。
+- 認証が必要なルートは `router.use(authenticate)` か個別に `authenticate` を付与。
+  ハンドラ内は `requireUserId(req)` / `requireSessionId(req)`。
+
+---
+
+## 2. エンドポイント一覧
+
+### 認証（`/api/v1/auth`）
+
+| メソッド / パス | 認証 | body / 説明 |
+| --- | --- | --- |
+| `POST /signup` | – | `{ name, email, password }` → 201 `{ token, user }`。`password` は 8 文字以上。既存メールは 409（旧 `ensureUser` 由来のパスワード無しアカウントは引き継ぎ可） |
+| `POST /login` | – | `{ email, password }` → 200 `{ token, user }`。失敗は 401（存在有無で文言を変えない） |
+| `GET /me` | Bearer | `{ user }` |
+| `POST /password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`。現在のセッションは残し他を失効。現行 PW 誤りは 400 |
+| `GET /sessions` | Bearer | 有効セッション一覧。呼び出し中のものは `current: true` |
+| `DELETE /sessions/:id` | Bearer | 1 セッション失効 → 204（自分の有効セッションでなければ 404） |
+| `POST /logout` | Bearer | 現在のセッションを失効 → 204 |
+| `POST /logout-others` | Bearer | 他の全セッションを失効 → `{ revoked }` |
+| `POST /password-reset/request` | – | `{ email }` → 常に 202 `{ ok }`（存在秘匿）。本番以外は `resetToken` も返す。トークンは常にサーバログに出力 |
+| `POST /password-reset/confirm` | – | `{ token, password }` → 204。単回・期限付き。成功で **全セッション失効**。無効/使用済/期限切れは 400 |
+
+`user` は毎回 `{ id, name, email, onboardingCompleted }`。
+
+### オンボーディング（`/api/v1/onboarding`、すべて Bearer）
+
+| メソッド / パス | body | 説明 |
+| --- | --- | --- |
+| `GET /` | – | `{ completed, bedtime, wakeTime, calendarConnected, notificationsEnabled, completedAt }`。行が無ければデフォルトで遅延作成 |
+| `PUT /` | 4 項目の任意の部分集合 | 途中保存。完了にはしない |
+| `POST /complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | 初回のみ `completedAt` を刻む。以降は冪等（回答だけ更新） |
+
+---
+
+## 3. セッション（トークン）
+
+- 発行: `signup` / `login` / `password-reset` 後などに `session.service.createSession`。
+- 検証: `authenticate` が `sha256(token)` で `Session` を引き、`revokedAt == null`
+  かつ `expiresAt > now` のみ有効。毎リクエストで `lastUsedAt` を best-effort 更新。
+- 失効: `logout` / `logout-others` / `DELETE /sessions/:id` /
+  パスワード変更・再設定（変更時は現在のセッションを残す、再設定時は全失効）。
+- TTL: `SESSION_TTL_HOURS`（既定 720＝30日）。
+
+---
+
+## 4. パスワード
+
+- 保存は scrypt（`src/lib/password.ts`、`scrypt$<salt>$<hash>`、定数時間比較）。
+- **再設定**（未ログイン）: `request` → メール送信基盤が無いのでトークンをログ出力
+  （＋非本番はレスポンスにも）→ `confirm` で更新＋全セッション失効。
+  TTL は `PASSWORD_RESET_TTL_MINUTES`（既定 60）。
+- **変更**（ログイン中）: `POST /auth/password`。現行 PW を確認し、他セッションを失効。
+
+---
+
+## 5. オンボーディングのシーケンス
+
+**アカウント作成が先、その後にオンボーディング質問**。
+
+```text
+サインアップ / ログイン
+   │  user.onboardingCompleted
+   ├─ true  ─────────────▶ ホーム
+   └─ false ─▶ GET /onboarding（無ければデフォルト作成）
+                 │
+                 ▼
+        オンボーディング質問（睡眠リズム→カレンダー→通知）
+                 │  途中は PUT /onboarding で保存（任意）
+                 ▼
+        POST /onboarding/complete  → completedAt 記録
+                 │
+                 ▼
+               ホーム
+```
+
+- **デフォルト保存**: サインアップ時に `Onboarding` 行をデフォルト値で作成
+  （`bedtime 23:30` / `wakeTime 07:30` / opt-in は false）。
+- **バックフィル**: オンボーディング導入前のユーザー（シード等）は行が無い。
+  `GET /onboarding` が初回アクセスでデフォルト行を作り `completed: false` を返すので、
+  そのままオンボーディングに誘導される（＝この段階を必ず通す）。
+- シード: `dev@teamnap.local` は完了済み（復帰ユーザー扱い）、他のシードユーザーは
+  行なし（バックフィル経路の確認用）。
+
+---
+
+## 6. フロント連携（未対応 TODO）
+
+バックエンドは完成。モバイル側は未接続：
+
+- `mobile/src/services/authService.ts` / `api.ts` を実APIへ接続
+  （`X-User-Id` → `Authorization: Bearer <token>`）
+- トークン保存（secure storage）＋ SessionContext ＋ ルートガード
+- 起動時 `GET /auth/me` → `onboardingCompleted` で `home` か `onboarding` へ
+- 画面順を「オンボーディング → サインアップ」から
+  「**サインアップ → オンボーディング → ホーム**」へ入れ替え
+
+---
+
+## 7. 動作確認（curl）
+
+```bash
+B=http://localhost:3000/api/v1
+
+# 登録 → トークン
+TOK=$(curl -s -XPOST $B/auth/signup -H 'content-type: application/json' \
+  -d '{"name":"テスト","email":"t@example.com","password":"password123"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+AUTH="authorization: Bearer $TOK"
+
+curl -s $B/auth/me -H "$AUTH"                # onboardingCompleted:false
+curl -s $B/onboarding -H "$AUTH"             # デフォルト行
+curl -s -XPOST $B/onboarding/complete -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"bedtime":"23:30","wakeTime":"07:00","notificationsEnabled":true}'
+curl -s $B/auth/me -H "$AUTH"                # onboardingCompleted:true
+
+# パスワード再設定（非本番は resetToken が返る）
+RT=$(curl -s -XPOST $B/auth/password-reset/request -H 'content-type: application/json' \
+  -d '{"email":"t@example.com"}' | python3 -c 'import sys,json;print(json.load(sys.stdin).get("resetToken",""))')
+curl -s -XPOST $B/auth/password-reset/confirm -H 'content-type: application/json' \
+  -d "{\"token\":\"$RT\",\"password\":\"newpassword123\"}"   # 204、旧セッション失効
+```
+
+シードユーザーは `dev@teamnap.local` / `teamnap-dev`（`npm run db:seed`）。

@@ -20,12 +20,14 @@ export const colors = {
   brandSubtle: "#E6F6F6", // --tn-bg-brand-subtle
   borderBrand: "#009CA0", // --tn-border-brand
   borderSubtle: "#E1E9EA", // --tn-border-subtle
+  borderDefault: "#C9D5D6", // --tn-border-default
   borderStrong: "#A3B2B4", // --tn-border-strong
   statusWorking: "#009CA0", // --tn-status-working
   statusOffline: "#A3B2B4", // --tn-status-offline
   accentCoral: "#FF6B4A", // --tn-bg-coral
   brandStrong: "#00868A", // --tn-bg-brand-strong
   textSuccess: "#1F8058", // --tn-text-success
+  textDanger: "#B33F3E", // --tn-text-danger
   accentGold: "#E0A82F", // trophy / crown accent (Phosphor gold)
   mintVeil: "#E3F6F5", // Gradient / Mint Veil (light end)
   brandGradientFrom: "#26B2B6", // "チームへの提案" card gradient start

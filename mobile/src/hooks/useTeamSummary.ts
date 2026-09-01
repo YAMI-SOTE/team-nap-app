@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   getSharedMemberStatus,
   getTeamSummary,
 } from "@/services/team";
+import { isConnectionError } from "@/services/api";
 
 import type {
   HomeMemberStatusResponse,
@@ -17,11 +18,19 @@ type TeamScreenData = {
 
 export function useTeamSummary() {
   const [data, setData] = useState<TeamScreenData | null>(null);
+  const [hasTeam, setHasTeam] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError(null);
+    setConnectionError(false);
 
     async function loadTeamSummary() {
       try {
@@ -29,38 +38,32 @@ export function useTeamSummary() {
           getTeamSummary(),
           getSharedMemberStatus(),
         ]);
+        if (!active) return;
 
-        if (!active) {
+        if (!summary) {
+          setHasTeam(false);
+          setData(null);
           return;
         }
-
-        setData({
-          summary,
-          memberStatus,
-        });
+        setHasTeam(true);
+        setData({ summary, memberStatus });
       } catch (err) {
-        if (!active) {
-          return;
+        if (!active) return;
+        if (isConnectionError(err)) {
+          setConnectionError(true);
+        } else {
+          setError(err instanceof Error ? err.message : "エラーが発生しました");
         }
-
-        setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
     loadTeamSummary();
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
-  return {
-    data,
-    loading,
-    error,
-  };
+  return { data, hasTeam, loading, error, connectionError, reload };
 }

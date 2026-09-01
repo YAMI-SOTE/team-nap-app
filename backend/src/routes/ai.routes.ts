@@ -4,19 +4,24 @@ import {
   personalRestCommentController,
   teamRestCommentController,
 } from "../controllers/ai.controller.js";
+import { validate } from "../middleware/validate.middleware.js";
+import {
+  personalRestCommentBody,
+  teamRestCommentBody,
+} from "../schemas/ai.schema.js";
 
 const router = Router();
 
-// REST終了後の個人コメント
 router.post(
   "/personal-comment",
-  personalRestCommentController
+  validate({ body: personalRestCommentBody }),
+  personalRestCommentController,
 );
 
-// TEAM画面のコメント
 router.post(
   "/team-comment",
-  teamRestCommentController
+  validate({ body: teamRestCommentBody }),
+  teamRestCommentController,
 );
 
 export default router;

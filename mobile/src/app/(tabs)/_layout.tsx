@@ -13,9 +13,10 @@ import {
  * Bottom tab bar — mirrors the Figma "MenuBar" (node 321:2210):
  * ホーム · スケジュール · チーム · 統計 · 設定, in that order.
  *
- * `rest` (仮眠) is intentionally NOT a tab in the design — it is reached
- * from the "仮眠を開始" button on Home — so it stays routable but hidden
- * from the bar via `href: null`.
+ * `rest`（仮眠タイマー）は Figma 上もタブには含まれておらず、Homeの
+ * 「仮眠を開始」ボタンから `app/rest.tsx`（このTabsグループの外）へ
+ * 遷移する、タブバー非表示のフルスクリーン画面として実装している。
+ * そのため、このグループ内には rest 用の screen 登録を置かない。
  */
 export default function TabsLayout() {
   return (
@@ -82,9 +83,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
-      {/* Not in the Figma tab bar — reachable via the Home "仮眠を開始" button. */}
-      <Tabs.Screen name="rest" options={{ href: null }} />
     </Tabs>
   );
 }

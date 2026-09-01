@@ -5,6 +5,37 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+export interface AuthUser {
+  id: string;
+  name: string | null;
+  email: string;
+  /** false until onboarding is finished — the client gates routing on this. */
+  onboardingCompleted: boolean;
+}
+
+/** `POST /auth/signup` and `POST /auth/login`. */
+export interface AuthResult {
+  token: string;
+  user: AuthUser;
+}
+
+/** `GET /auth/debug` (dev only). */
+export interface AuthDebugResponse {
+  user: AuthUser;
+  passwordHash: string | null;
+  passwordHashAlgorithm: string | null;
+  activeSessions: number;
+}
+
+export interface OnboardingResponse {
+  completed: boolean;
+  bedtime: string;
+  wakeTime: string;
+  calendarConnected: boolean;
+  notificationsEnabled: boolean;
+  completedAt: string | null;
+}
+
 export type HomeMemberStatus = "working" | "resting" | "offline";
 
 export interface HomeMember {
@@ -16,6 +47,8 @@ export interface HomeMember {
 export interface HomeSummaryResponse {
   todayLabel: string;
   headline: [string, string];
+  /** `false` for a solo account — the Home screen hides every team block. */
+  hasTeam: boolean;
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
@@ -25,7 +58,7 @@ export interface HomeSummaryResponse {
     hoursUntilStart: number;
     minutesUntilStartRemainder: number;
     availableMemberCount: number;
-  };
+  } | null;
 }
 
 export interface HomeMemberStatusResponse {
@@ -59,6 +92,64 @@ export interface TeamSummaryResponse {
   achievement: string;
 }
 
+export interface NotificationSettingsResponse {
+  napSuggestion: boolean;
+  napEnd: boolean;
+  teamNapSuggestion: boolean;
+  wakeSupport: boolean;
+}
+
+export interface AccountSettingsResponse {
+  username: string;
+  email: string;
+}
+
+export interface SleepScheduleResponse {
+  bedtime: string;
+  wakeTime: string;
+  napCutoffHour: number;
+}
+
+export interface CalendarIntegrationResponse {
+  google: {
+    connected: boolean;
+    email: string | null;
+    lastSyncedLabel: string | null;
+  };
+  device: {
+    connected: boolean;
+  };
+}
+
+export interface TeamSettingsResponse {
+  teamName: string;
+  memberCount: number;
+  inviteCode: string;
+  members: HomeMember[];
+}
+
+export interface TeamRankingEntry {
+  id: string;
+  name: string;
+  label: string;
+  status: HomeMemberStatus;
+  score: number;
+}
+
+export interface TeamRankingResponse {
+  memberCount: number;
+  /** Highest score first. */
+  entries: TeamRankingEntry[];
+}
+
+export interface CreateTeamPayload {
+  name: string;
+}
+
+export interface JoinTeamPayload {
+  inviteCode: string;
+}
+
 export interface MemberDetailResponse {
   id: string;
   name: string;
@@ -79,4 +170,170 @@ export interface MemberDetailResponse {
      */
     wakeAssistEnabled: boolean;
   };
+}
+
+export interface ScheduleTask {
+  id: string;
+  /** Start time, e.g. "10:00". */
+  start: string;
+  /** End time, e.g. "11:00". */
+  end: string;
+  title: string;
+}
+
+export interface DayScheduleResponse {
+  /** The team's next open slot, or null when there is none. */
+  freeSlot: { start: string; end: string; note: string } | null;
+  tasks: ScheduleTask[];
+  /**
+   * Day-of-month -> number of events on that day, within the shown week.
+   * The calendar strip renders one dot per event, capped at 3.
+   */
+  weekEventCounts: Record<number, number>;
+  /** Day-of-month numbers within the shown week that have a recorded nap. */
+  weekNapDays: number[];
+}
+
+export interface EventDraft {
+  title: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" */
+  end: string;
+  allDay: boolean;
+}
+
+export type NotificationKind =
+  | "welcome"
+  | "team_nap_suggestion"
+  | "wake_request"
+  | "rest_request"
+  | "nap_ended"
+  | "weekly_review"
+  | "member_joined";
+
+export interface NotificationItem {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** Relative time label, e.g. "2分前". */
+  timestamp: string;
+  read: boolean;
+  /** Which section it belongs to. */
+  group: "today" | "earlier";
+}
+
+export interface StatFocus {
+  /** Concentration before naps this period. */
+  before: number;
+  /** Concentration after naps this period. */
+  after: number;
+  /** Delta in points. */
+  deltaPt: number;
+}
+
+export interface WeeklyCondition {
+  /** One value per weekday (mon–fri), any scale. */
+  values: number[];
+  labels: string[];
+}
+
+export interface RecentNap {
+  id: string;
+  /** "14:32〜14:47" */
+  time: string;
+  /** "8/21 ・ 15分 ・ 目覚め ★★★★☆" */
+  detail: string;
+}
+
+export interface PersonalStatsResponse {
+  /** false when there are no nap records - client shows the empty state. */
+  hasRecords: boolean;
+  score: number;
+  scoreMax: number;
+  scoreDeltaLabel: string;
+  focus: StatFocus;
+  napCount: number;
+  avgNapMinutes: number;
+  wakeRating: number;
+  condition: WeeklyCondition;
+  recentNaps: RecentNap[];
+}
+
+export interface TeamStatsResponse {
+  hasRecords: boolean;
+  achievementRate: number;
+  achievedMemberLabel: string;
+  achievementDeltaLabel: string;
+  achievedMembers: HomeMember[];
+  focus: StatFocus;
+  napCount: number;
+  avgNapMinutes: number;
+  everyoneNappedDays: number;
+  condition: WeeklyCondition;
+  achievementBanner: string;
+  disclaimer: string;
+}
+
+export interface NapRecord {
+  id: string;
+  /** "14:32〜14:47" */
+  time: string;
+  /** "15分 ・ 目覚め ★★★★☆ ・ 集中度 +20pt" */
+  detail: string;
+}
+
+export interface CreateNapPayload {
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" */
+  end: string;
+  minutes: number;
+  wakeStars?: number;
+  focusDeltaPt?: number;
+}
+
+export interface NapEntryResponse {
+  id: string;
+  date: string;
+  dateLabel: string;
+  start: string;
+  end: string;
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+  /** AI advice generated + stored at record time (ふりかえり screen). */
+  aiAdvice: string | null;
+}
+
+/** `GET /naps/:id` — a single record + its stored advice. */
+export interface NapDetailResponse extends NapEntryResponse {
+  /** "15分の仮眠 ・ 14:32〜14:47" */
+  summaryLabel: string;
+}
+
+export interface NapHistoryDay {
+  /** "8月21日 (水)" */
+  dateLabel: string;
+  records: NapRecord[];
+}
+
+export interface NapHistoryResponse {
+  summary: {
+    monthlyCount: number;
+    avgMinutes: number;
+    avgWakeRating: number;
+  };
+  days: NapHistoryDay[];
+}
+
+export interface StatsResponse {
+  personal: PersonalStatsResponse;
+  /** `null` when the user has not joined a team — the チーム tab is hidden. */
+  team: TeamStatsResponse | null;
 }

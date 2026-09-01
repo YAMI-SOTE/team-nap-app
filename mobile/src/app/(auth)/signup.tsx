@@ -7,7 +7,6 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  ScrollView,
   ActivityIndicator,
   StyleSheet,
   StatusBar,
@@ -20,50 +19,66 @@ import { spacing, radius } from "@/theme/spacing";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
-import Logo from "@/components/Logo";
 
 export default function SignUpScreen() {
   const router = useRouter();
   const {
+    name,
     email,
     password,
     confirmPassword,
     isSubmitting,
     errorMessage,
+    setName,
     setEmail,
     setPassword,
     setConfirmPassword,
     submit,
   } = useSignUp();
 
+  const isBusy = isSubmitting;
+
+  // A fresh account is never onboarded — always go through onboarding first.
   const handleSubmit = async () => {
     const result: LoginResult | null = await submit();
     if (result) {
-      router.replace("/home");
+      router.replace(
+        result.user.onboardingCompleted ? "/home" : "/onboarding",
+      );
     }
   };
 
   return (
     <SkyBackground>
       <StatusBar barStyle="dark-content" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <SafeAreaView style={styles.container}>
+      {/* 上部の余白（背景が見える帯） */}
+      <SafeAreaView style={styles.topSpacerSafeArea} edges={["top"]} />
+
+      <View style={styles.card}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.flex}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Logo width={110} color={colors.primary} style={styles.logo} />
-
-              <Text style={styles.heading}>はじめまして</Text>
+            <View style={styles.scrollContent}>
+              <Text style={styles.heading}>準備完了！</Text>
               <Text style={styles.subtitle}>
-                アカウントを作成してください
+                アカウントを作成して{"\n"}TEAM NAPをはじめましょう。
               </Text>
 
               <View style={styles.formArea}>
+                <Text style={styles.label}>名前</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="山田太郎"
+                  placeholderTextColor={colors.placeholder}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  editable={!isBusy}
+                  testID="signup-name-input"
+                />
+
                 <Text style={styles.label}>メールアドレス</Text>
                 <TextInput
                   style={styles.input}
@@ -74,31 +89,37 @@ export default function SignUpScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isSubmitting}
+                  editable={!isBusy}
                   testID="signup-email-input"
                 />
 
                 <Text style={styles.label}>パスワード</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="8文字以上で入力"
+                  placeholder="パスワードを入力"
                   placeholderTextColor={colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
-                  editable={!isSubmitting}
+                  editable={!isBusy}
                   testID="signup-password-input"
                 />
 
+                {/*
+                  Figmaのモックアップではこの欄のラベルが「メールアドレス」に
+                  なっているが、内容（パスワードを再入力）と明らかに矛盾するため
+                  元データの誤植と判断し、意味の通る「パスワード（確認用）」を採用。
+                  デザイン側の確認が取れたら要調整。
+                */}
                 <Text style={styles.label}>パスワード（確認用）</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="もう一度入力してください"
+                  placeholder="パスワードを再入力"
                   placeholderTextColor={colors.placeholder}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry
-                  editable={!isSubmitting}
+                  editable={!isBusy}
                   testID="signup-confirm-password-input"
                 />
 
@@ -109,79 +130,89 @@ export default function SignUpScreen() {
                 ) : null}
 
                 <TouchableOpacity
-                  style={[
-                    styles.primaryButton,
-                    isSubmitting && styles.buttonDisabled,
-                  ]}
+                  style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
                   onPress={handleSubmit}
                   activeOpacity={0.85}
-                  disabled={isSubmitting}
+                  disabled={isBusy}
                   testID="signup-submit-button"
                 >
                   {isSubmitting ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.primaryButtonText}>登録する</Text>
+                    <Text style={styles.primaryButtonText}>アカウントを作成</Text>
                   )}
                 </TouchableOpacity>
 
                 <View style={styles.bottomRow}>
                   <Text style={styles.bottomText}>
-                    すでにアカウントをお持ちの方は{" "}
+                    すでにアカウントをお持ちですか？{" "}
                   </Text>
                   <TouchableOpacity
                     onPress={() => router.push("/login")}
-                    disabled={isSubmitting}
+                    disabled={isBusy}
                   >
                     <Text style={styles.bottomLink}>ログイン</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
-        </SafeAreaView>
-      </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
+      </View>
     </SkyBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  // 画面上部の余白。背景（SkyBackground）が見える帯。フォームが1画面に
+  // 収まるよう最小限に抑える。
+  topSpacerSafeArea: {
+    height: "6%",
+  },
+  card: {
     flex: 1,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 8,
   },
   flex: {
     flex: 1,
   },
+  // No ScrollView — the form is sized to fit the card without scrolling.
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
+    flex: 1,
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-  },
-  logo: {
-    width: 110,
-    height: 55,
-    marginBottom: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    justifyContent: "center",
   },
   heading: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "bold",
-    color: colors.textPrimary,
+    color: colors.textBrand,
+    textAlign: "center",
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textMuted,
-    marginBottom: spacing.xl,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: spacing.lg,
   },
   formArea: {
     width: "100%",
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: 4,
   },
   input: {
     backgroundColor: colors.white,
@@ -189,23 +220,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: 10,
+    fontSize: 15,
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   errorText: {
     color: colors.error,
-    fontSize: 13,
-    marginBottom: spacing.md,
+    fontSize: 12,
+    marginBottom: spacing.sm,
   },
   primaryButton: {
     backgroundColor: colors.primary,
     borderRadius: 999,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 54,
+    minHeight: 50,
     marginTop: spacing.xs,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -224,7 +255,7 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
   },
   bottomText: {
     fontSize: 13,

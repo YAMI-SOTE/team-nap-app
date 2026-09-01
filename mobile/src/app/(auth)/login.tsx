@@ -39,17 +39,21 @@ export default function LoginScreen() {
 
   const isBusy = isSubmitting || isGoogleSubmitting;
 
+  const routeAfterAuth = (onboardingCompleted: boolean) => {
+    router.replace(onboardingCompleted ? "/home" : "/onboarding");
+  };
+
   const handleSubmit = async () => {
     const result = await submit();
     if (result) {
-      router.replace("/home");
+      routeAfterAuth(result.user.onboardingCompleted);
     }
   };
 
   const handleGoogleSubmit = async () => {
     const result = await submitWithGoogle();
     if (result) {
-      router.replace("/home");
+      routeAfterAuth(result.user.onboardingCompleted);
     }
   };
 
@@ -100,7 +104,12 @@ export default function LoginScreen() {
                   testID="login-password-input"
                 />
 
-                <TouchableOpacity style={styles.forgotLink} disabled={isBusy}>
+                <TouchableOpacity
+                  style={styles.forgotLink}
+                  disabled={isBusy}
+                  onPress={() => router.push("/forgot-password")}
+                  testID="login-forgot-link"
+                >
                   <Text style={styles.forgotLinkText}>
                     パスワードをお忘れですか？
                   </Text>

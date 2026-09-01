@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,6 +12,9 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useTeamSummary } from "@/hooks/useTeamSummary";
+import NapProposalSheet from "@/features/team/NapProposalSheet";
+import Toast from "@/components/Toast";
+import ConnectionErrorView from "@/components/ConnectionErrorView";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
 import GradientCard from "@/components/GradientCard";
@@ -19,8 +23,9 @@ import IconPill from "@/components/IconPill";
 import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
+import NotificationBell from "@/components/NotificationBell";
+import NoTeamScreen from "@/features/team/NoTeamScreen";
 import {
-  BellIcon,
   ClipboardTextIcon,
   CrownSimpleIcon,
   DotsThreeCircleIcon,
@@ -32,20 +37,27 @@ const SCREEN_PADDING = 24;
 
 export default function TeamScreen() {
   const router = useRouter();
-  const { data, loading, error } = useTeamSummary();
+  const { data, hasTeam, loading, error, connectionError, reload } =
+    useTeamSummary();
   const summary = data?.summary;
   const memberStatus = data?.memberStatus;
 
-  const handleOpenNotifications = () => {
-    console.log("TODO: open notifications screen");
-  };
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const handleSuggestNap = () => {
-    console.log("TODO: suggest a nap to the team");
-  };
+  if (connectionError) {
+    return <ConnectionErrorView onRetry={reload} />;
+  }
+
+  // No team joined yet → the empty state (S04-06).
+  if (!loading && !error && !hasTeam) {
+    return <NoTeamScreen />;
+  }
+
+  const handleSuggestNap = () => setProposalOpen(true);
 
   const handleOpenRanking = () => {
-    console.log("TODO: open the nap ranking screen");
+    router.push("/team/ranking");
   };
 
   const handleSeeAllMembers = () => {
@@ -74,14 +86,7 @@ export default function TeamScreen() {
           {/* Header */}
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <Pressable
-              onPress={handleOpenNotifications}
-              accessibilityRole="button"
-              accessibilityLabel="通知"
-              hitSlop={8}
-            >
-              <BellIcon size={24} color={colors.primary} />
-            </Pressable>
+            <NotificationBell />
           </View>
 
           {/* Hero — 今週の Team Nap */}
@@ -146,7 +151,11 @@ export default function TeamScreen() {
             style={styles.suggestionCard}
           >
             <View style={styles.suggestionRow}>
-              <CharacterSlot size={96} borderColor={colors.white} />
+              <CharacterSlot
+                size={96}
+                borderColor={colors.white}
+                source={require("../../../assets/characters/kirakira.png")}
+              />
               <View style={styles.suggestionTextCol}>
                 <Text style={styles.suggestionTitle}>{suggestionHeadline}</Text>
                 <Text style={styles.suggestionBody}>
@@ -215,6 +224,26 @@ export default function TeamScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <NapProposalSheet
+        visible={proposalOpen}
+        defaultMinutes={napMinutes}
+        slotNote={
+          memberStatus
+            ? `${memberStatus.memberCount}人中${memberStatus.memberStatusCounts.working}人が作業中`
+            : undefined
+        }
+        onClose={() => setProposalOpen(false)}
+        onSent={(minutes) => {
+          setProposalOpen(false);
+          setToast(`${minutes}分の仮眠を提案しました`);
+        }}
+      />
+      <Toast
+        visible={toast != null}
+        message={toast ?? ""}
+        onHide={() => setToast(null)}
+      />
     </View>
   );
 }
