@@ -18,13 +18,14 @@ export type HomeSummaryResponse = {
   teamScore: number;
   aiAdvice: string;
   teamScoreMax: number;
+  /** `null` when there is no calendar / no computed free slot. */
   nextFree: {
     start: string;
     end: string;
     hoursUntilStart: number;
     minutesUntilStartRemainder: number;
     availableMemberCount: number;
-  };
+  } | null;
 };
 
 export type HomeMemberStatusResponse = {
@@ -71,7 +72,6 @@ const homeSnapshot: HomeSnapshot = {
 
 export async function getHomeSummary(): Promise<HomeSummaryResponse> {
   const freeSlot = getNextFreeSlot();
-  const untilStart = timeUntil(freeSlot.start, new Date());
 
   const teamEvaluation = evaluateTeamScore(homeSnapshot.teamScore);
 
@@ -80,19 +80,25 @@ export async function getHomeSummary(): Promise<HomeSummaryResponse> {
     teamEvaluation,
   });
 
+  let nextFree: HomeSummaryResponse["nextFree"] = null;
+  if (freeSlot) {
+    const untilStart = timeUntil(freeSlot.start, new Date());
+    nextFree = {
+      start: freeSlot.start,
+      end: freeSlot.end,
+      hoursUntilStart: untilStart.hours,
+      minutesUntilStartRemainder: untilStart.minutes,
+      availableMemberCount: freeSlot.availableMemberCount,
+    };
+  }
+
   return {
     todayLabel: jstTodayLabel(new Date()),
     headline: homeComments.headline,
     teamScore: homeSnapshot.teamScore,
     aiAdvice: homeComments.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
-    nextFree: {
-      start: freeSlot.start,
-      end: freeSlot.end,
-      hoursUntilStart: untilStart.hours,
-      minutesUntilStartRemainder: untilStart.minutes,
-      availableMemberCount: freeSlot.availableMemberCount,
-    },
+    nextFree,
   };
 }
 

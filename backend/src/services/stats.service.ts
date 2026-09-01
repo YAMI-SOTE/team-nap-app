@@ -1,12 +1,13 @@
+import { isoDateOffset } from "../lib/datetime.js";
 import { getHomeMemberStatus } from "./home.service.js";
-import { getNapSummary, listNaps } from "./naps.service.js";
+import { getNapSummary, listNaps, type NapEntry } from "./naps.service.js";
 import { hasTeam } from "./team.service.js";
 import type { Member } from "../types/domain.js";
 
 /**
- * Statistics. Personal numbers are derived from `naps.service`; team
- * numbers reuse `home.service`'s member roster — both so the stats stay
- * consistent with the rest of the app and there is one place to change.
+ * Statistics — **all personal numbers are derived from real nap records**
+ * (`naps.service`). With no records, every metric is 0 and `hasRecords`
+ * is false so the client shows the "まだ仮眠の記録がありません" state.
  */
 
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金"];
@@ -16,6 +17,8 @@ export type StatFocus = { before: number; after: number; deltaPt: number };
 type WeeklyCondition = { values: number[]; labels: string[] };
 
 export type PersonalStatsResponse = {
+  /** false when there are no nap records — client renders the empty state. */
+  hasRecords: boolean;
   score: number;
   scoreMax: number;
   scoreDeltaLabel: string;
@@ -28,6 +31,7 @@ export type PersonalStatsResponse = {
 };
 
 export type TeamStatsResponse = {
+  hasRecords: boolean;
   achievementRate: number;
   achievedMemberLabel: string;
   achievementDeltaLabel: string;
@@ -41,26 +45,69 @@ export type TeamStatsResponse = {
   disclaimer: string;
 };
 
+const round = (n: number) => Math.round(n);
+const avg = (xs: number[]) =>
+  xs.length === 0 ? 0 : xs.reduce((s, x) => s + x, 0) / xs.length;
+
+/** Mon–Fri of the week containing today, as "YYYY-MM-DD". */
+function currentWeekWeekdays(): string[] {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const toISO = (d: Date) =>
+    `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return toISO(d);
+  });
+}
+
 export function getPersonalStats(): PersonalStatsResponse {
   const summary = getNapSummary();
   const naps = listNaps();
-  const avgDelta =
-    naps.length > 0
-      ? Math.round(
-          naps.reduce((sum, n) => sum + n.focusDeltaPt, 0) / naps.length,
-        )
-      : 0;
-  const before = 62;
+  const hasRecords = naps.length > 0;
+
+  const avgDelta = round(avg(naps.map((n) => n.focusDeltaPt)));
+  const before = hasRecords ? 50 : 0;
+
+  // This week vs last week nap count → delta label.
+  const thisWeekStart = isoDateOffset(-6);
+  const lastWeekStart = isoDateOffset(-13);
+  const lastWeekCount = naps.filter(
+    (n) => n.date >= lastWeekStart && n.date < thisWeekStart,
+  ).length;
+  const weekDelta = summary.weekCount - lastWeekCount;
+  const scoreDeltaLabel =
+    !hasRecords || (summary.weekCount === 0 && lastWeekCount === 0)
+      ? ""
+      : `先週より ${weekDelta >= 0 ? "+" : ""}${weekDelta}回`;
+
+  // Weekly line: each weekday's nap quality (wakeStars → 0–100), 0 if none.
+  const napByDate = new Map<string, NapEntry>(naps.map((n) => [n.date, n]));
+  const conditionValues = currentWeekWeekdays().map((iso) => {
+    const nap = napByDate.get(iso);
+    return nap ? nap.wakeStars * 20 : 0;
+  });
+
+  // Simple derived score from real activity (0–100).
+  const score = hasRecords
+    ? Math.min(
+        100,
+        round(summary.weekCount * 15 + summary.avgWakeRating * 8 + avgDelta),
+      )
+    : 0;
 
   return {
-    score: 87,
+    hasRecords,
+    score,
     scoreMax: 100,
-    scoreDeltaLabel: "先週より +5 ↑",
+    scoreDeltaLabel,
     focus: { before, after: before + avgDelta, deltaPt: avgDelta },
     napCount: summary.weekCount,
     avgNapMinutes: summary.avgMinutes,
     wakeRating: summary.avgWakeRating,
-    condition: { values: [58, 66, 72, 84, 80], labels: WEEKDAY_LABELS },
+    condition: { values: conditionValues, labels: WEEKDAY_LABELS },
     recentNaps: naps.slice(0, 3).map((nap) => {
       const [m, d] = nap.date.split("-").slice(1).map(Number);
       return {
@@ -76,22 +123,19 @@ export async function getTeamStats(
   userId: string,
 ): Promise<TeamStatsResponse> {
   const { members, memberCount } = await getHomeMemberStatus(userId);
-  const achievementRate = 82;
-  const achieved = Math.round((memberCount * achievementRate) / 100);
-  const before = 64;
-  const deltaPt = 18;
-
+  // No per-member nap aggregation exists yet — team nap metrics are 0.
   return {
-    achievementRate,
-    achievedMemberLabel: `今週 ${achieved} / ${memberCount}人が目標達成`,
-    achievementDeltaLabel: "+14% ↑",
+    hasRecords: false,
+    achievementRate: 0,
+    achievedMemberLabel: `今週 0 / ${memberCount}人が目標達成`,
+    achievementDeltaLabel: "",
     achievedMembers: members,
-    focus: { before, after: before + deltaPt, deltaPt },
-    napCount: 24,
-    avgNapMinutes: 17,
-    everyoneNappedDays: 3,
-    condition: { values: [60, 64, 70, 80, 78], labels: WEEKDAY_LABELS },
-    achievementBanner: "今週は全員が1日1回以上仮眠しました",
+    focus: { before: 0, after: 0, deltaPt: 0 },
+    napCount: 0,
+    avgNapMinutes: 0,
+    everyoneNappedDays: 0,
+    condition: { values: [0, 0, 0, 0, 0], labels: WEEKDAY_LABELS },
+    achievementBanner: "",
     disclaimer:
       "チーム全体で休めているかを見る指標です。個人を比較するものではありません。",
   };

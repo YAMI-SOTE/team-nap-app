@@ -24,37 +24,10 @@ export type NapEntry = {
   focusDeltaPt: number;
 };
 
-function entry(
-  daysAgo: number,
-  index: number,
-  start: string,
-  end: string,
-  minutes: number,
-  wakeStars: number,
-  focusDeltaPt: number,
-): NapEntry {
-  const date = isoDateOffset(-daysAgo);
-  return {
-    id: `nap-${daysAgo}-${index}`,
-    date,
-    dateLabel: jstDateLabelFromISO(date),
-    start,
-    end,
-    minutes,
-    wakeStars,
-    focusDeltaPt,
-  };
-}
-
 // Newest first. Invariant: at most one entry per calendar date.
-const naps: NapEntry[] = [
-  entry(0, 0, "14:32", "14:47", 15, 4, 20),
-  entry(1, 0, "13:25", "14:08", 18, 5, 24),
-  entry(2, 0, "14:05", "14:20", 15, 4, 16),
-  entry(4, 0, "13:40", "13:58", 18, 4, 18),
-  entry(6, 0, "14:10", "14:24", 14, 4, 14),
-  entry(9, 0, "12:55", "13:12", 17, 5, 22),
-];
+// Empty by default — nothing recorded in the past. Entries appear only
+// after the user records a nap via `createNap`.
+const naps: NapEntry[] = [];
 
 let createdNapSeq = 1;
 

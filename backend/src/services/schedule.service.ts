@@ -7,19 +7,19 @@
 import { listNaps } from "./naps.service.js";
 
 /**
- * The team's next open slot. Single source of truth — `home.service`
- * reads this too, so the Home "次の空き時間" and the Schedule free-slot
- * card always agree.
+ * The team's next open slot. `home.service` reads this too. `null` when
+ * there is nothing to derive it from (no calendar connected / no events).
  */
-const nextFreeSlot = {
-  start: "14:30",
-  end: "15:00",
-  availableMemberCount: 5,
-  teamSize: 6,
+type FreeSlot = {
+  start: string;
+  end: string;
+  availableMemberCount: number;
+  teamSize: number;
 };
 
-export function getNextFreeSlot() {
-  return nextFreeSlot;
+export function getNextFreeSlot(): FreeSlot | null {
+  // Until real calendar integration there is no computed free slot.
+  return null;
 }
 
 export type ScheduleEvent = {
@@ -37,39 +37,11 @@ export type ScheduleEvent = {
 export type EventDraft = Omit<ScheduleEvent, "id">;
 
 /**
- * Fixed sample schedule for the first two weeks of September 2026, for
- * manual testing (see docs/test-account.md). Sept 3, 5, 6, 10, 12, 13
- * are deliberately left free so the "team can nap" / free-slot flows have
- * empty days to land on.
+ * The default schedule is **empty** — no calendar is connected and no
+ * events have been added, so the app shows the "予定はありません" state.
+ * Events only appear once the user adds them via the CRUD endpoints.
  */
-const SEPTEMBER_SAMPLE: Array<Omit<ScheduleEvent, "id">> = [
-  { date: "2026-09-01", title: "定例ミーティング", start: "10:00", end: "11:00", allDay: false },
-  { date: "2026-09-01", title: "レビュー会", start: "15:00", end: "16:00", allDay: false },
-  { date: "2026-09-02", title: "1on1", start: "13:00", end: "13:30", allDay: false },
-  // 2026-09-03 (木) — free
-  { date: "2026-09-04", title: "スプリントプランニング", start: "10:00", end: "12:00", allDay: false },
-  // 2026-09-05 (土) / 2026-09-06 (日) — free
-  { date: "2026-09-07", title: "週次定例", start: "09:30", end: "10:30", allDay: false },
-  { date: "2026-09-07", title: "設計相談", start: "14:00", end: "15:00", allDay: false },
-  { date: "2026-09-08", title: "顧客MTG", start: "11:00", end: "12:00", allDay: false },
-  { date: "2026-09-09", title: "コードレビュー", start: "16:00", end: "17:00", allDay: false },
-  // 2026-09-10 (木) — free
-  { date: "2026-09-11", title: "スプリント振り返り", start: "15:00", end: "16:00", allDay: false },
-  // 2026-09-12 (土) / 2026-09-13 (日) — free
-  { date: "2026-09-14", title: "週次定例", start: "09:30", end: "10:30", allDay: false },
-  { date: "2026-09-14", title: "デモ準備", start: "13:00", end: "14:30", allDay: false },
-];
-
-/**
- * The seed is exactly `SEPTEMBER_SAMPLE` — no relative-to-today filler.
- * That kept the calendar and docs/test-account.md out of sync (an event
- * would appear "today" that isn't in the documented schedule).
- */
-function seedEvents(): ScheduleEvent[] {
-  return SEPTEMBER_SAMPLE.map((e, i) => ({ id: `sep-${i}`, ...e }));
-}
-
-let events: ScheduleEvent[] = seedEvents();
+let events: ScheduleEvent[] = [];
 let nextId = 1000;
 
 function weekRange(dateISO: string): { start: string; end: string } {
@@ -114,15 +86,16 @@ export function getDaySchedule(dateISO: string) {
     ),
   ];
 
-  const { start: freeStart, end: freeEnd, availableMemberCount, teamSize } =
-    nextFreeSlot;
+  const slot = getNextFreeSlot();
 
   return {
-    freeSlot: {
-      start: freeStart,
-      end: freeEnd,
-      note: `次の空き時間 ・ ${teamSize}人中${availableMemberCount}人が予定なし`,
-    },
+    freeSlot: slot
+      ? {
+          start: slot.start,
+          end: slot.end,
+          note: `次の空き時間 ・ ${slot.teamSize}人中${slot.availableMemberCount}人が予定なし`,
+        }
+      : null,
     tasks,
     weekEventCounts,
     weekNapDays,

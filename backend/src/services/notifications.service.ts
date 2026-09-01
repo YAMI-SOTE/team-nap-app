@@ -1,4 +1,5 @@
 type NotificationKind =
+  | "welcome"
   | "team_nap_suggestion"
   | "wake_request"
   | "rest_request"
@@ -26,35 +27,17 @@ export type NotificationItem = {
  */
 const byUser = new Map<string, NotificationItem[]>();
 
-/** Demo items shown the first time a user opens the feed (dev UX only). */
-function demoFeed(): NotificationItem[] {
+/** Every feed starts with a single welcome notification. */
+function initialFeed(): NotificationItem[] {
   return [
     {
-      id: "n1",
-      kind: "team_nap_suggestion",
-      title: "チームから仮眠の提案",
-      body: "14:30〜14:45 にみんなで15分の仮眠はどうですか？",
-      timestamp: "2分前",
+      id: "welcome",
+      kind: "welcome",
+      title: "TEAM NAPにようこそ、仮眠を撮りませんか?",
+      body: "15分の仮眠から始めてみましょう。チームからの提案やお知らせもここに届きます。",
+      timestamp: "たった今",
       read: false,
       group: "today",
-    },
-    {
-      id: "n3",
-      kind: "nap_ended",
-      title: "仮眠が終了しました",
-      body: "14:32〜14:47 の15分の仮眠を記録しました",
-      timestamp: "昨日",
-      read: true,
-      group: "earlier",
-    },
-    {
-      id: "n4",
-      kind: "weekly_review",
-      title: "今週のふりかえりが届きました",
-      body: "今週は5回の仮眠、平均18分でした",
-      timestamp: "2日前",
-      read: true,
-      group: "earlier",
     },
   ];
 }
@@ -62,7 +45,7 @@ function demoFeed(): NotificationItem[] {
 function feedFor(userId: string): NotificationItem[] {
   let feed = byUser.get(userId);
   if (!feed) {
-    feed = demoFeed();
+    feed = initialFeed();
     byUser.set(userId, feed);
   }
   return feed;

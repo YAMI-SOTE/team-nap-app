@@ -39,17 +39,20 @@ export default function HomeScreen() {
     ? formatMemberStatusSummary(memberStatus.memberStatusCounts)
     : "";
 
-  const nextFreeContext = summary
-    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(summary.nextFree.hoursUntilStart, summary.nextFree.minutesUntilStartRemainder)}`
+  const nextFree = summary?.nextFree ?? null;
+
+  const nextFreeContext = nextFree
+    ? `次の空き時間 ・ 次の予定まで${formatTimeUntilNextFree(nextFree.hoursUntilStart, nextFree.minutesUntilStartRemainder)}`
     : "次の空き時間";
 
-  const nextFreeRange = summary
-    ? `${summary.nextFree.start}〜${summary.nextFree.end}`
-    : "--:--〜--:--";
+  const nextFreeRange = nextFree
+    ? `${nextFree.start}〜${nextFree.end}`
+    : "予定はありません";
 
-  const nextFreeDetail = summary && memberStatus
-    ? `${memberStatus.memberCount}人中${summary.nextFree.availableMemberCount}人が予定なし`
-    : "";
+  const nextFreeDetail =
+    nextFree && memberStatus
+      ? `${memberStatus.memberCount}人中${nextFree.availableMemberCount}人が予定なし`
+      : "カレンダーを連携すると空き時間が表示されます";
 
   return (
     <View style={styles.root}>
