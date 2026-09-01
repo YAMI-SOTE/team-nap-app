@@ -12,11 +12,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { getNap } from "@/services/naps";
 import { isConnectionError } from "@/services/api";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import SkyBackdrop from "@/components/SkyBackdrop";
 import ScreenHeader from "@/components/ScreenHeader";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
 import PillButton from "@/components/PillButton";
-import { HouseIcon, InfoIcon } from "@/components/icons";
+import { HouseIcon, MoonStarsIcon } from "@/components/icons";
 
 import type { NapDetailResponse } from "@/types/api";
 
@@ -65,7 +65,7 @@ export default function NapReflectionScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <SkyBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <ScreenHeader title="ふりかえり" onBack={() => router.back()} />
 
@@ -77,16 +77,18 @@ export default function NapReflectionScreen() {
           ) : data ? (
             <>
               <Image
-                source={require("../../../assets/characters/kirakira-refreshed.png")}
+                source={require("../../../assets/characters/thinking-lightbulb.png")}
                 style={styles.character}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>おつかれさまでした</Text>
-              <Text style={styles.subtitle}>{data.summaryLabel}</Text>
+              <View style={styles.heading}>
+                <Text style={styles.title}>おつかれさまでした</Text>
+                <Text style={styles.subtitle}>{data.summaryLabel}</Text>
+              </View>
 
               <View style={styles.card}>
                 <View style={styles.cardHead}>
-                  <InfoIcon size={18} color={colors.textBrand} />
+                  <MoonStarsIcon size={18} color={colors.textBrand} />
                   <Text style={styles.cardHeadText}>AIアドバイス</Text>
                 </View>
                 <Text style={styles.adviceText}>
@@ -112,38 +114,51 @@ export default function NapReflectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+  root: { flex: 1, backgroundColor: colors.white },
   safeArea: { flex: 1 },
   body: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    gap: 8,
+    gap: 24,
   },
   character: {
-    width: 150,
-    height: 150,
-    marginBottom: 8,
+    width: 196,
+    height: 196,
+  },
+  heading: {
+    width: "100%",
+    alignItems: "center",
+    gap: 6,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
+    lineHeight: 39,
     fontWeight: "700",
     color: colors.textPrimary,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 13,
+    lineHeight: 21,
     color: colors.textSecondary,
-    marginBottom: 12,
+    textAlign: "center",
   },
   card: {
     width: "100%",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-    padding: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     gap: 10,
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardHead: {
     flexDirection: "row",
@@ -151,14 +166,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardHeadText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.textBrand,
   },
   adviceText: {
-    fontSize: 13,
-    lineHeight: 21,
-    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 24,
+    color: colors.textPrimary,
   },
   footer: {
     paddingHorizontal: 24,
