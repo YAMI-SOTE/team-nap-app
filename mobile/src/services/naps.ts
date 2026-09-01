@@ -17,8 +17,9 @@ export async function getNap(id: string): Promise<NapDetailResponse> {
 }
 
 /**
- * Record a nap. The backend allows only one per calendar date and
- * responds 409 if that date already has one.
+ * Record a nap. The backend generates + stores its AI advice and returns
+ * the created record (including `aiAdvice`). Multiple naps per day are
+ * allowed.
  */
 export async function createNap(
   payload: CreateNapPayload,
