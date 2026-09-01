@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
+  Image,
   LayoutChangeEvent,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
 import { toClockTime, toISODate } from "@/utils/date";
+import AuroraBackdrop from "@/components/AuroraBackdrop";
 
 // 15分（900秒）
 const INITIAL_TIME = 15 * 60;
@@ -107,6 +109,9 @@ export default function RestScreen() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
+  // Clock time the timer will reach 0 → shown in the speech bubble.
+  const wakeAt = toClockTime(new Date(Date.now() + timeLeft * 1000));
+
   const progress = timeLeft / INITIAL_TIME;
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
@@ -135,9 +140,8 @@ export default function RestScreen() {
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      {/* 背景はイラスト1枚を全画面に敷く想定（Figma上は現状チェッカー柄＝未設定のプレースホルダー）。
-          TODO: 実際の挿絵アセットが用意でき次第、containerの背景をImageに差し替える。 */}
-      <StatusBar style="light" />
+      <AuroraBackdrop />
+      <StatusBar style="dark" />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.headerRow}>
@@ -147,7 +151,11 @@ export default function RestScreen() {
             accessibilityRole="button"
             accessibilityLabel="戻る"
           >
-            <Ionicons name="chevron-back" size={24} color={colors.white} />
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={colors.textPrimary}
+            />
           </Pressable>
           <Text style={styles.mainTitle}>仮眠中</Text>
           <View style={styles.headerSpacer} />
@@ -159,6 +167,21 @@ export default function RestScreen() {
             contentContainerStyle={styles.body}
             showsVerticalScrollIndicator={false}
           >
+            {/* 眠っているキャラ + 起床時刻の吹き出し */}
+            <View style={styles.napHeroRow}>
+              <Image
+                source={require("../../../assets/characters/kirakira-refreshed.png")}
+                style={styles.napHeroImage}
+                resizeMode="contain"
+              />
+              <View style={styles.bubble}>
+                <Text style={styles.bubbleText}>
+                  ゆっくり休んでね{"\n"}
+                  {wakeAt} に起こすよ
+                </Text>
+              </View>
+            </View>
+
             {/* タイマー円（背景に浮かぶ独立した白い丸カード） */}
             <View
               style={[
@@ -240,7 +263,7 @@ export default function RestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surfaceSunken,
+    backgroundColor: colors.surface,
   },
   safeArea: {
     flex: 1,
@@ -261,15 +284,42 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: colors.white,
+    color: colors.textPrimary,
   },
   body: {
     flexGrow: 1,
     alignItems: "center",
     paddingBottom: 24,
   },
+  napHeroRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  napHeroImage: {
+    width: 132,
+    height: 108,
+  },
+  bubble: {
+    marginTop: 18,
+    maxWidth: 168,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bubbleText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
   timerCard: {
-    marginTop: 160,
+    marginTop: 24,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: colors.surface,
