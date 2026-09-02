@@ -9,7 +9,6 @@ import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
 import Hairline from "@/components/Hairline";
-import IconPill from "@/components/IconPill";
 import PillButton from "@/components/PillButton";
 import TimeField from "@/components/TimeField";
 import { InfoIcon, MoonStarsIcon, TimerIcon } from "@/components/icons";
@@ -107,13 +106,11 @@ export default function SleepScheduleScreen() {
             </Text>
           ) : null}
 
-          <IconPill
-            icon={<InfoIcon size={18} color={colors.borderBrand} />}
-            backgroundColor={colors.brandSubtle}
-            style={styles.note}
-          >
+          {/* Figma（node 733:5294）の Note は塗り無し。px14 のみ。 */}
+          <View style={styles.note}>
+            <InfoIcon size={18} color={colors.borderBrand} />
             <Text style={styles.noteText}>{noteText}</Text>
-          </IconPill>
+          </View>
 
           <View style={styles.spacer} />
 
@@ -124,6 +121,7 @@ export default function SleepScheduleScreen() {
             onPress={handleSave}
             loading={saving}
             disabled={!isValid}
+            style={styles.saveButton}
           />
 
           <View style={styles.footer}>
@@ -167,8 +165,12 @@ const styles = StyleSheet.create({
     color: colors.error,
   },
   note: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
     borderRadius: 16,
-    paddingVertical: 12,
   },
   noteText: {
     flex: 1,
@@ -179,6 +181,10 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
     minHeight: 24,
+  },
+  saveButton: {
+    // Figma: py10 + 16px/1.7 の1行 = 47px
+    minHeight: 47,
   },
   footer: {
     minHeight: 20,

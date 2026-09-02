@@ -20,6 +20,11 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
+import SettingsRow from "@/components/SettingsRow";
+import AvatarPickerSheet from "@/components/AvatarPickerSheet";
+import DefaultAvatar, {
+  type DefaultAvatarType,
+} from "@/components/DefaultAvatar";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -41,6 +46,10 @@ export default function AccountScreen() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // TODO(backend): アイコンをアカウントに保存する API が生えたら
+  // useAuth 経由で読み書きする（Figma OV-08_Avatar_Picker）。
+  const [avatar, setAvatar] = useState<DefaultAvatarType>("cat");
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -100,7 +109,7 @@ export default function AccountScreen() {
     }
   };
 
-  const handleChangePhoto = () => console.log("TODO: change profile photo");
+  const handlePickPhoto = () => console.log("TODO: upload a profile photo");
 
   const confirmLogout = async () => {
     setLogoutOpen(false);
@@ -135,13 +144,13 @@ export default function AccountScreen() {
           <ScreenHeader title="アカウント情報" onBack={() => router.back()} />
 
           <View style={styles.avatar}>
-            <View style={styles.avatarPlaceholder} />
+            <DefaultAvatar type={avatar} size={AVATAR_SIZE} />
             <Pressable
-              onPress={handleChangePhoto}
+              onPress={() => setAvatarPickerOpen(true)}
               accessibilityRole="button"
               hitSlop={6}
             >
-              <Text style={styles.changePhoto}>写真を変更</Text>
+              <Text style={styles.changePhoto}>アイコンを変更</Text>
             </Pressable>
           </View>
 
@@ -176,12 +185,21 @@ export default function AccountScreen() {
             ) : null}
           </View>
 
+          {/* Figma（node 733:5269）にある行。
+              TODO(backend): ログイン中専用の変更画面が無いため、
+              いまは再設定フロー（/forgot-password）へ送っている。 */}
+          <SettingsRow
+            label="パスワードを変更"
+            onPress={() => router.push("/forgot-password")}
+          />
+
           <PillButton
             variant="primary"
             label="保存する"
             elevated={false}
             onPress={handleSave}
             loading={saving}
+            style={styles.saveButton}
           />
 
           <View style={styles.statusBlock}>
@@ -211,6 +229,17 @@ export default function AccountScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <AvatarPickerSheet
+        visible={avatarPickerOpen}
+        value={avatar}
+        onCancel={() => setAvatarPickerOpen(false)}
+        onConfirm={(next) => {
+          setAvatar(next);
+          setAvatarPickerOpen(false);
+        }}
+        onPickPhoto={handlePickPhoto}
+      />
 
       <ConfirmDialog
         visible={logoutOpen}
@@ -260,14 +289,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  avatarPlaceholder: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.borderBrand,
-  },
   changePhoto: {
     fontSize: 12,
     lineHeight: 19,
@@ -277,6 +298,10 @@ const styles = StyleSheet.create({
   form: {
     width: "100%",
     gap: 12,
+  },
+  saveButton: {
+    // Figma: py10 + 16px/1.7 の1行 = 47px
+    minHeight: 47,
   },
   spacer: {
     flex: 1,
