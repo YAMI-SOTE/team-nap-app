@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useTeamSummary } from "@/hooks/useTeamSummary";
+import { useRealtimeMembers } from "@/features/realtime/RealtimeProvider";
 import NapProposalSheet from "@/features/team/NapProposalSheet";
 import Toast from "@/components/Toast";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
@@ -39,8 +40,10 @@ export default function TeamScreen() {
   const router = useRouter();
   const { data, hasTeam, loading, error, connectionError, reload } =
     useTeamSummary();
+  const { memberStatus: liveMemberStatus } = useRealtimeMembers();
   const summary = data?.summary;
-  const memberStatus = data?.memberStatus;
+  // Prefer the live presence snapshot (WebSocket) when we have one.
+  const memberStatus = liveMemberStatus ?? data?.memberStatus;
 
   const [proposalOpen, setProposalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
