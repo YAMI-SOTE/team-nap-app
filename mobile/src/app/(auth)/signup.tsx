@@ -19,6 +19,7 @@ import { spacing, radius } from "@/theme/spacing";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
 import SkyBackground from "@/components/SkyBackground";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -94,13 +95,12 @@ export default function SignUpScreen() {
                 />
 
                 <Text style={styles.label}>パスワード</Text>
-                <TextInput
+                <PasswordInput
                   style={styles.input}
                   placeholder="パスワードを入力"
                   placeholderTextColor={colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
                   editable={!isBusy}
                   testID="signup-password-input"
                 />
@@ -112,13 +112,12 @@ export default function SignUpScreen() {
                   デザイン側の確認が取れたら要調整。
                 */}
                 <Text style={styles.label}>パスワード（確認用）</Text>
-                <TextInput
+                <PasswordInput
                   style={styles.input}
                   placeholder="パスワードを再入力"
                   placeholderTextColor={colors.placeholder}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
                   editable={!isBusy}
                   testID="signup-confirm-password-input"
                 />

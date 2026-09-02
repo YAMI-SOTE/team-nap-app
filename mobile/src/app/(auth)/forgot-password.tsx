@@ -26,6 +26,7 @@ import {
 import SkyBackground from "@/components/SkyBackground";
 import Logo from "@/components/Logo";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PasswordInput from "@/components/PasswordInput";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -160,24 +161,22 @@ export default function ForgotPasswordScreen() {
                     testID="forgot-token-input"
                   />
                   <Text style={styles.label}>新しいパスワード</Text>
-                  <TextInput
+                  <PasswordInput
                     style={styles.input}
                     placeholder="8文字以上"
                     placeholderTextColor={colors.placeholder}
                     value={password}
                     onChangeText={setPassword}
-                    secureTextEntry
                     editable={!busy}
                     testID="forgot-password-input"
                   />
                   <Text style={styles.label}>新しいパスワード（確認）</Text>
-                  <TextInput
+                  <PasswordInput
                     style={styles.input}
                     placeholder="もう一度入力"
                     placeholderTextColor={colors.placeholder}
                     value={confirm}
                     onChangeText={setConfirm}
-                    secureTextEntry
                     editable={!busy}
                     testID="forgot-confirm-input"
                   />
