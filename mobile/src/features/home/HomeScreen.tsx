@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
 import { useHomeSummary } from "@/hooks/useHomeSummary";
+import { useRestRecommendation } from "@/hooks/useRestRecommendation";
 import { useRealtimeMembers } from "@/features/realtime/RealtimeProvider";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
@@ -32,6 +33,7 @@ const SCREEN_PADDING = 28;
 export default function HomeScreen() {
   const router = useRouter();
   const { data, loading, error } = useHomeSummary();
+  const { data: restRecommendation } = useRestRecommendation();
   const { memberStatus: liveMemberStatus } = useRealtimeMembers();
   const summary = data?.summary;
 
@@ -98,6 +100,42 @@ export default function HomeScreen() {
               />
             </View>
           </View>
+
+          {/* 個人向け休息提案 */}
+          {restRecommendation?.shouldRest &&
+            restRecommendation.recommendedStart &&
+            restRecommendation.recommendedEnd ? (
+            <View style={styles.restRecommendation}>
+              <View style={styles.restRecommendationText}>
+                <Text style={styles.restRecommendationLabel}>
+                  そろそろ休息がおすすめです
+                </Text>
+
+                <Text style={styles.restRecommendationTime}>
+                  {restRecommendation.recommendedStart}〜
+                  {restRecommendation.recommendedEnd}
+                </Text>
+
+                <Text style={styles.restRecommendationDetail}>
+                  {restRecommendation.recommendedMinutes}分だけ休んでみませんか？
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => router.push("/rest")}
+                accessibilityRole="button"
+                accessibilityLabel="仮眠を開始"
+                style={styles.restRecommendationButton}
+              >
+                <MoonStarsIcon size={20} color={colors.primary} />
+                <Text style={styles.restRecommendationButtonText}>
+                  仮眠を開始
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* チームの状態 — チーム加入時のみ */}
 
           {/* チームの状態 — チーム加入時のみ */}
           {hasTeam ? (
@@ -345,5 +383,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.error,
+  },
+  restRecommendation: {
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    gap: 14,
+  },
+
+  restRecommendationText: {
+    gap: 3,
+  },
+
+  restRecommendationLabel: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: colors.white,
+  },
+
+  restRecommendationTime: {
+    fontSize: 26,
+    lineHeight: 36,
+    fontWeight: "700",
+    color: colors.white,
+  },
+
+  restRecommendationDetail: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.white,
+  },
+
+  restRecommendationButton: {
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.surface,
+  },
+
+  restRecommendationButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
   },
 });
