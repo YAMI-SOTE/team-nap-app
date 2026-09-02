@@ -3,32 +3,24 @@ import { Router } from "express";
 import {
   connectDeviceCalendarController,
   disconnectGoogleCalendarController,
-  getAccountSettingsController,
   getCalendarIntegrationController,
   getNotificationSettingsController,
   getSleepScheduleController,
   getTeamSettingsController,
   leaveTeamController,
   syncGoogleCalendarController,
-  updateAccountSettingsController,
   updateNotificationSettingsController,
   updateSleepScheduleController,
 } from "../controllers/settings.controller.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
-  accountSettingsBody,
   notificationSettingsBody,
   sleepScheduleBody,
 } from "../schemas/settings.schema.js";
 
 const router = Router();
 
-router.get("/account", getAccountSettingsController);
-router.post(
-  "/account",
-  validate({ body: accountSettingsBody }),
-  updateAccountSettingsController,
-);
+// Account name / email live on `User`; edit them via `PATCH /auth/me`.
 
 router.get("/notifications", getNotificationSettingsController);
 router.post(

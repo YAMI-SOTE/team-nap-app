@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getTeamSettings, leaveTeam } from "@/services/settings";
-import { renameTeam } from "@/services/team";
+import { removeTeamMember, renameTeam } from "@/services/team";
 
 import type { TeamSettingsResponse } from "@/types/api";
 
@@ -74,6 +74,21 @@ export function useTeamSettings() {
     }
   }
 
+  async function removeMember(memberId: string): Promise<boolean> {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await removeTeamMember(memberId);
+      setData(updated);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     data,
     loading,
@@ -81,5 +96,6 @@ export function useTeamSettings() {
     error,
     leave,
     rename,
+    removeMember,
   };
 }

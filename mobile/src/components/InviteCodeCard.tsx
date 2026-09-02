@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
 
 import { colors } from "@/theme/colors";
 import Card from "@/components/Card";
@@ -49,9 +50,12 @@ export default function InviteCodeCard({
 
   const handleShare = async () => {
     if (!code) return;
+    // Deep link into the join screen with the code pre-filled; the code
+    // itself is the fallback for anyone without the app.
+    const link = Linking.createURL("team/join", { queryParams: { code } });
     try {
       await Share.share({
-        message: `TEAM NAP に参加しよう！\n招待コード: ${code}`,
+        message: `TEAM NAP に参加しよう！\n招待コード: ${code}\n${link}`,
       });
     } catch {
       /* dismissed / unavailable — ignore */

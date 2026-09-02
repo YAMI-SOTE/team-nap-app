@@ -51,6 +51,10 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 | `PUT /` | 4 項目の任意の部分集合 | 途中保存。完了にはしない |
 | `POST /complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | 初回のみ `completedAt` を刻む。以降は冪等（回答だけ更新） |
 
+`bedtime` / `wakeTime` は zod で「就寝→起床が 16 時間以内」を検証（`lib/sleep-window.ts`。
+`/settings/sleep-schedule` と同じルール）。`Onboarding` 行は設定画面
+（睡眠 / 通知 / カレンダー）の保存先も兼ねる（`db.md` 参照）。
+
 ---
 
 ## 3. セッション（トークン）
@@ -104,16 +108,21 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 
 ---
 
-## 6. フロント連携（未対応 TODO）
+## 6. フロント連携（実装済み）
 
-バックエンドは完成。モバイル側は未接続：
+モバイル側は接続済み：
 
-- `mobile/src/services/authService.ts` / `api.ts` を実APIへ接続
-  （`X-User-Id` → `Authorization: Bearer <token>`）
-- トークン保存（secure storage）＋ SessionContext ＋ ルートガード
+- `mobile/src/services/api.ts` はサインイン後 `Authorization: Bearer <token>` を付与
+  （`X-User-Id` フォールバックは残っているが、全 `/api/v1` が `authenticate`
+  必須になったため実質未使用）
+- `authStorage`（expo-secure-store / Web は localStorage）＋ `AuthContext`
+  （`status` / `user` / `signIn` / `signOut` / `deleteAccount` / `refresh`）＋
+  401 で自動サインアウト
 - 起動時 `GET /auth/me` → `onboardingCompleted` で `home` か `onboarding` へ
-- 画面順を「オンボーディング → サインアップ」から
-  「**サインアップ → オンボーディング → ホーム**」へ入れ替え
+- 画面順は「**サインアップ → オンボーディング → ホーム**」。オンボーディングは
+  `useAuth().status` で未ログインなら `/signup` に戻す
+
+未対応: Google OAuth（対象外）、`logout-others` / セッション一覧の UI。
 
 ---
 

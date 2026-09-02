@@ -8,7 +8,20 @@ Team Nap のAI機能を、Home・Rest・Teamなどの他機能から独立して
 
 ## 2. 現在実装されているAI機能
 
-現在、以下2種類のコメント生成機能を実装している。
+`ai.service.ts` に **Ollama（Gemma）呼び出し** が 3 種類、`nap-advice.service.ts`
+に **ルールベース** が 1 種類ある。
+
+| 機能 | 実装 | 呼び出し元 |
+| --- | --- | --- |
+| 個人RESTコメント | `generatePersonalRestComment`（Ollama） | `POST /api/v1/ai/personal-comment` |
+| TEAMコメント | `generateTeamRestComment`（Ollama） | `POST /api/v1/ai/team-comment` |
+| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース） | `home.service.getHomeSummary`（チーム所属時のみ） |
+| ふりかえり画面の仮眠アドバイス | `buildAdvice`（**ルールベース**、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存 |
+
+`callGemma` は 8 秒でアボート（`OLLAMA_TIMEOUT_MS`）。`generateHomeComments`
+はモデルが落ちている/遅い/壊れた JSON のとき定型文にフォールバックする
+（500 を返さない）。`buildAdvice` は将来 Ollama 呼び出しに差し替えても
+`NapRecord.aiAdvice` 列とシグネチャは変えずに済む構造。
 
 ### 個人RESTコメント
 
@@ -174,7 +187,8 @@ Backend
 
 ## 6. API構成
 
-統合後はAPIを以下に統一する。
+AI ルートは他の機能と同じく `/api/v1` 配下（`routes/index.ts` で
+`router.use("/ai", aiRoutes)`）。`authenticate` 必須。
 
 ```text
 POST /api/v1/ai/personal-comment
@@ -194,22 +208,6 @@ api.post("/ai/personal-comment", data);
 ```
 
 のように指定する。
-
-### 注意
-
-現在のBackendではAI Routeが
-
-```text
-/api/ai
-```
-
-として直接登録されているため、統合作業後に
-
-```text
-/api/v1/ai
-```
-
-へ統一する。
 
 ---
 

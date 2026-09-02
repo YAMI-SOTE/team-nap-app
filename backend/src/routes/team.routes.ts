@@ -7,6 +7,7 @@ import {
   getTeamRankingController,
   getTeamSummaryController,
   joinTeamController,
+  removeMemberController,
   renameTeamController,
   restNudgeController,
   setStatusController,
@@ -57,6 +58,13 @@ router.post(
   "/members/:id/rest",
   validate({ params: memberIdParams }),
   restNudgeController,
+);
+
+// Owner-only: remove a member from the team.
+router.delete(
+  "/members/:id",
+  validate({ params: memberIdParams }),
+  removeMemberController,
 );
 
 export default router;

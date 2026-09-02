@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AppState } from "react-native";
 
+import { useAuth } from "@/features/auth/AuthContext";
 import {
   getNotifications,
   markAllNotificationsRead,
@@ -42,6 +43,7 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(
  * truth: optimistic updates are reconciled against the response.
  */
 export function NotificationsProvider({ children }: PropsWithChildren) {
+  const { status } = useAuth();
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,26 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // The notifications feed is behind auth, so it can only load once the
+  // session is known. Re-run whenever auth flips (sign-in / sign-out) —
+  // the earlier "fetch once on mount" ran before the token was set and
+  // never retried, which is why the feed looked empty after login.
+  useEffect(() => {
+    if (status === "loading") return;
+
+    if (status !== "signedIn") {
+      setItems(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     refresh();
 
     // Keep the unread dot current when the user returns to the app.
@@ -73,10 +95,9 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
     });
 
     return () => {
-      mountedRef.current = false;
       subscription.remove();
     };
-  }, [refresh]);
+  }, [status, refresh]);
 
   const markRead = useCallback((id: string) => {
     // Optimistic update; reconcile with the server's copy on success.

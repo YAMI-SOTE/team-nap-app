@@ -85,7 +85,7 @@ DEV_USER_ID=00000000-0000-0000-0000-000000000001
 ```
 
 - Docker Compose 経由で動かす場合、`compose.yaml` が `backend` サービスへ環境変数を渡すため `backend/.env` は主にローカル実行（`npm run dev`）で使います。Compose 内の DB ホストは `db`、ローカルからは `localhost` です。
-- `DEV_USER_ID`（既定 `00000000-0000-0000-0000-000000000001`）は `X-User-Id` ヘッダ未指定時の呼び出しユーザーです。`npm run db:seed` が作る開発ユーザーと一致します。
+- `DEV_USER_ID`（既定 `00000000-0000-0000-0000-000000000001`）は旧 `X-User-Id` フォールバック用です。現在は `/health` `/auth` 以外の全ルートが `authenticate`（Bearer トークン）必須なので実質未使用ですが、`npm run db:seed` が作る開発ユーザー id と一致させてあります。
 
 ## 起動手順（Docker Compose）
 
@@ -153,6 +153,16 @@ Frontend が正常に起動してアプリがマウントされると、Expo 側
 ```
 
 このログは Frontend から `POST /api/v1/health/frontend-boot` が成功したことを意味します。
+
+## リアルタイム在席（WebSocket）
+
+Backend は同じポートで WebSocket も待ち受けます:
+`ws://localhost:3000/api/v1/realtime?token=<セッショントークン>`。
+`EXPO_PUBLIC_API_URL` の `http`→`ws` 置換で自動的に導出されるので、
+モバイル側の追加設定は不要です。チームのメンバーが在席ステータスを
+変えると、接続中の全メンバーへ `member-status` が push されます。
+実機で試す場合は `EXPO_PUBLIC_API_URL` が PC の LAN IP を指していれば
+そのまま WS も通ります（同一ポート）。
 
 ## API リクエストが必ず失敗する（最優先チェック）
 

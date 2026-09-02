@@ -9,6 +9,7 @@ import {
   getTeamRanking,
   getTeamSummary,
   joinTeam,
+  removeMember,
   renameTeam,
   setActivity,
   suggestTeamNap,
@@ -36,6 +37,12 @@ export async function joinTeamController(req: Request, res: Response) {
 export async function renameTeamController(req: Request, res: Response) {
   const { name } = req.body as { name: string };
   res.status(200).json(await renameTeam(requireUserId(req), name));
+}
+
+export async function removeMemberController(req: Request, res: Response) {
+  res
+    .status(200)
+    .json(await removeMember(requireUserId(req), firstParam(req, "id")));
 }
 
 export async function getMyStatusController(req: Request, res: Response) {

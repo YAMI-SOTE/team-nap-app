@@ -2,8 +2,9 @@
 
 ## 1. 概要
 
-Team Napでは、ユーザー・チーム・（将来的に）スケジュールや休息履歴などを
-保存するために **PostgreSQL** を使用します。
+Team Napでは、ユーザー・チーム・オンボーディング・仮眠記録（`NapRecord`）
+などを保存するために **PostgreSQL** を使用します（スケジュール・睡眠設定
+などは未永続化。後述）。
 
 ORMには **Prisma 7** を使用し、Backend API からのみデータベースへアクセスします。
 Prisma 7 では接続にドライバアダプタ（`@prisma/adapter-pg`）を用います。
@@ -24,12 +25,16 @@ Mobile App から PostgreSQL へ直接アクセスすることはありません
 > Onboarding / NapRecord** の7モデルです（マイグレーション
 > `20260830091652_team_feature` / `20260831095742_auth_sessions` /
 > `20260901163406_password_reset_tokens` / `20260901163741_onboarding_profile`
-> / `20260901195734_nap_records`）。
+> / `20260901195734_nap_records` /
+> `20260901210222_nap_records_allow_multiple_per_day` /
+> `20260901222623_onboarding_settings_fields` /
+> `20260901224358_team_roles_and_invite_index`）。
 > `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
-> 単回・短命トークン、`Onboarding` はサインアップ直後に集める初期設定、
+> 単回・短命トークン、`Onboarding` は初期設定＋設定画面（睡眠 / 通知 / カレンダー）の保存先、
 > `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`（`src/services/`）。
-> スケジュール・睡眠設定・休息提案などは、まだ各 `src/services/*` の
-> インメモリ状態で持っており、本ドキュメントの後半では「今後の予定」として扱います。
+> スケジュール（`schedule.service`）・通知フィード（`notifications.service`）・
+> 休息提案などは、まだ各 `src/services/*` のインメモリ状態で、
+> サーバ再起動で消えます。本ドキュメントの後半では「今後の予定」として扱います。
 
 ---
 
@@ -77,7 +82,10 @@ Prisma Migrateによって生成されたMigrationを保存します。**Gitで�
 
 ### `backend/prisma/seed.ts`
 
-開発用のユーザーとチームを投入します（`npm run db:seed`）。
+開発用のユーザー・チームに加え、`sample@teamnap.app`（サンプル 太郎）へ
+**今週＋先週の `NapRecord`**（`aiAdvice` 込み、日付は実行時の週に合わせて生成、
+再実行可）を投入します（`npm run db:seed`）。統計・仮眠履歴・コンディション
+グラフをすぐ確認するための唯一のシード済みアカウントです。
 `prisma.config.ts` の `migrations.seed` にも登録されているため
 `prisma migrate reset` 時にも実行されます。
 
@@ -105,11 +113,14 @@ erDiagram
     USER ||--o{ TEAM_MEMBERSHIP : has
     TEAM ||--o{ TEAM_MEMBERSHIP : has
     USER ||--o{ NAP_RECORD : records
+    USER ||--|| ONBOARDING : has
+    USER ||--o{ SESSION : has
 
     USER {
         string id PK
         string email UK
         string name "nullable"
+        string passwordHash "nullable"
         datetime createdAt
     }
 
@@ -117,6 +128,7 @@ erDiagram
         string id PK
         string name
         string inviteCode UK
+        string inviteCodeNormalized UK
         datetime createdAt
     }
 
@@ -126,12 +138,28 @@ erDiagram
         string userId FK "unique（1ユーザー1チーム）"
         enum   activity "online | resting"
         boolean wakeAssistEnabled
+        string role "owner | member"
         datetime joinedAt
+    }
+
+    ONBOARDING {
+        string userId PK
+        string bedtime
+        string wakeTime
+        int napCutoffHour
+        boolean calendarConnected
+        boolean calendarDeviceConnected
+        boolean notificationsEnabled
+        boolean notifyNapSuggestion
+        boolean notifyNapEnd
+        boolean notifyTeamNapSuggestion
+        boolean notifyWakeSupport
+        datetime completedAt "nullable"
     }
 
     NAP_RECORD {
         string id PK
-        string userId FK "unique（userId, date）"
+        string userId FK "index (userId, date)"
         string date "YYYY-MM-DD"
         string start "HH:MM"
         string end "HH:MM"
@@ -141,15 +169,26 @@ erDiagram
         string aiAdvice "nullable"
         datetime createdAt
     }
+
+    SESSION {
+        string id PK
+        string userId FK
+        string tokenHash UK
+        datetime expiresAt
+        datetime revokedAt "nullable"
+    }
 ```
 
+（`PasswordResetToken` も同様に `USER` に 1:N でぶら下がります。図では省略。）
+
 ### 4.2 今後の予定（未実装）
+
+> 睡眠設定は `Onboarding` の列として実装済みのため、専用テーブルは作りません。
 
 ```mermaid
 erDiagram
 
     USER ||--o{ SCHEDULE : has
-    USER ||--|| SLEEP_SETTING : has
     USER ||--o{ REST_RECOMMENDATION : receives
 
     SCHEDULE {
@@ -159,12 +198,6 @@ erDiagram
         datetime startTime
         datetime endTime
         string source
-    }
-
-    SLEEP_SETTING {
-        string userId PK
-        datetime sleepTime
-        datetime wakeTime
     }
 
     REST_RECOMMENDATION {
@@ -197,10 +230,10 @@ erDiagram
 | createdAt    | DateTime   | `now()`                 |
 
 `POST /api/v1/auth/signup` / `login` でパスワード付きユーザーを作成します
-（`src/services/auth.service.ts`）。`authenticate` の後ろに無いルート
-（home / schedule など）では、`X-User-Id` ヘッダで来た未知のユーザーを
-`team.service.ts` の `ensureUser()` が `email = "<userId>@dev.local"` で
-`upsert` します（保険）。
+（`src/services/auth.service.ts`）。`/health` と `/auth` 以外の全ルートは
+`authenticate` 必須なので、呼び出しユーザーは常にセッションの `userId` です。
+`team.service.ts` の `ensureUser()` は旧 `X-User-Id` 経路向けの保険として
+残っていますが、現在の経路では到達しません。
 
 #### Session
 
@@ -241,19 +274,26 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 #### Onboarding
 
-ユーザー 1 人につき 1 行（`userId` が PK）。サインアップ直後の初期設定
-（睡眠リズム＋カレンダー/通知のオプトイン）を保持します
-（`src/services/onboarding.service.ts`）。
+ユーザー 1 人につき 1 行（`userId` が PK）。サインアップ直後の初期設定に加えて、
+**設定画面（睡眠スケジュール / 通知トグル / カレンダー連携）も同じ行を読み書き**
+します。オンボーディングと設定で値が食い違わないための単一ソースです
+（`src/services/onboarding.service.ts` / `src/services/settings.service.ts`）。
 
-| 列                   | 型         | 備考                                   |
-| -------------------- | ---------- | ------------------------------------- |
-| userId               | String PK  | `onDelete: Cascade`                    |
-| bedtime              | String     | `HH:MM`（既定 `23:30`）                 |
-| wakeTime             | String     | `HH:MM`（既定 `07:30`）                 |
-| calendarConnected    | Boolean    | 既定 `false`                           |
-| notificationsEnabled | Boolean    | 既定 `false`                           |
-| completedAt          | DateTime?  | オンボーディング完了時に一度だけ設定     |
-| updatedAt            | DateTime   | `@updatedAt`                          |
+| 列                        | 型         | 備考                                   |
+| ------------------------- | ---------- | ------------------------------------- |
+| userId                    | String PK  | `onDelete: Cascade`                    |
+| bedtime                   | String     | `HH:MM`（既定 `23:30`）                 |
+| wakeTime                  | String     | `HH:MM`（既定 `07:30`）                 |
+| napCutoffHour             | Int        | 既定 `15`。サーバー所有（編集 UI なし）  |
+| calendarConnected         | Boolean    | 既定 `false`。Google 連携（モック）     |
+| calendarDeviceConnected   | Boolean    | 既定 `false`。端末カレンダー連携（モック）|
+| notificationsEnabled      | Boolean    | 既定 `false`。オンボーディングの通知オプトイン |
+| notifyNapSuggestion       | Boolean    | 既定 `true`。設定 > 通知「仮眠の提案」    |
+| notifyNapEnd              | Boolean    | 既定 `true`。設定 > 通知「仮眠の終了」    |
+| notifyTeamNapSuggestion   | Boolean    | 既定 `true`。設定 > 通知「チーム仮眠提案」|
+| notifyWakeSupport         | Boolean    | 既定 `true`。設定 > 通知「起床サポート」  |
+| completedAt               | DateTime?  | オンボーディング完了時に一度だけ設定     |
+| updatedAt                 | DateTime   | `@updatedAt`                          |
 
 行はサインアップ時にデフォルトで作成し、**それ以前のユーザーには
 `GET /api/v1/onboarding` が遅延作成**します。`completedAt == null`
@@ -263,8 +303,9 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 #### NapRecord
 
-1 回の仮眠につき 1 行。仮眠時間・目覚めの評価・仮眠前後の集中度差に加えて、
-そのとき生成した **AI アドバイス本文（`aiAdvice`）** を保存します
+1 回の仮眠につき 1 行（**同じ日に複数回**記録できます）。仮眠時間・目覚めの
+評価・仮眠前後の集中度差に加えて、そのとき生成した
+**AI アドバイス本文（`aiAdvice`）** を保存します
 （`src/services/naps.service.ts`）。統計・スケジュール・ふりかえり画面は
 すべてこのテーブルの認証ユーザー分を参照します。
 
@@ -281,8 +322,8 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 | aiAdvice     | String?    | 生成した振り返りアドバイス本文（AI 差し替え時もこの列） |
 | createdAt    | DateTime   | `now()`                                                |
 
-制約: `@@unique([userId, date])`（1 日 1 件。重複記録は 409
-「この日の仮眠は既に記録されています」）。
+インデックス: `@@index([userId, date])`。1 日 1 件などの制約はありません
+（1 日に何度でも記録可）。
 
 記録フロー: 休憩タイマー終了 → 評価画面で `POST /api/v1/naps`
 （`wakeStars` + `focusDeltaPt` を含む）→ サービス層が
@@ -296,15 +337,17 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 チーム情報と招待コードを保存します。
 
-| 列         | 型         | 備考                                          |
-| ---------- | ---------- | --------------------------------------------- |
-| id         | String PK  | `uuid()`                                      |
-| name       | String     | 1〜50 文字（zod で検証）                        |
-| inviteCode | String     | `@unique`。`NAP-1000`〜`NAP-9999` 形式で採番    |
-| createdAt  | DateTime   | `now()`                                       |
+| 列                   | 型         | 備考                                          |
+| -------------------- | ---------- | --------------------------------------------- |
+| id                   | String PK  | `uuid()`                                      |
+| name                 | String     | 1〜50 文字（zod で検証）                        |
+| inviteCode           | String     | `@unique`。`NAP-1000`〜`NAP-9999` 形式で採番    |
+| inviteCodeNormalized | String     | `@unique`。`normalizeCode(inviteCode)`（大文字・英数字のみ）。join はこの列でインデックス検索（全件スキャンを廃止） |
+| createdAt            | DateTime   | `now()`                                       |
 
 招待コードの照合は大文字小文字・ハイフンを無視します
-（`normalizeCode()`。`NAP-4821` と `nap4821` は同一扱い）。
+（`normalizeCode()`。`NAP-4821` と `nap4821` は同一扱い）。join は
+`inviteCodeNormalized` の一意インデックスを直接引きます。
 
 #### TeamMembership
 
@@ -315,8 +358,9 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 | id                | String PK             | `uuid()`                              |
 | teamId            | String FK             | `onDelete: Cascade`                   |
 | userId            | String FK             | `onDelete: Cascade`                   |
-| activity          | MemberActivity enum   | `online` \| `resting`（既定 `online`） |
+| activity          | MemberActivity enum   | `online` \| `resting`（既定 `online`）。realtime hub が変更を全メンバーへ push |
 | wakeAssistEnabled | Boolean               | 既定 `true`。起床サポート ON/OFF       |
+| role              | String                | `"owner"`（作成者）または `"member"`。メンバー削除はオーナーのみ。オーナー離脱時は最古参メンバーへ委譲 |
 | joinedAt          | DateTime              | `now()`                               |
 
 制約:
@@ -326,15 +370,18 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 @@unique([userId])           1ユーザーは同時に1チームのみ（サービス層でも二重チェック）
 ```
 
-`role` 列は現状ありません（作成者と参加者を区別していません）。
+`role` はチーム作成者が `"owner"`、以降の参加者は `"member"`。オーナーだけが
+`DELETE /api/v1/teams/members/:id` でメンバーを削除でき、オーナーが離脱すると
+最古参メンバーへ自動委譲します。`renameTeam` は現状メンバーなら誰でも可能です。
 
 `activity` は API 上は `MemberStatus`（`working` / `resting` / `offline`）へ
 写像されますが、DB に `offline` は存在しません（`mapActivity()`）。
 
 ### 5.2 今後の予定
 
-Schedule / SleepSetting / RestRecommendation は未実装です
-（仮眠の記録自体は `NapRecord` として実装済み。「5.1 実装済み」参照）。
+Schedule / RestRecommendation は未実装です（仮眠の記録は `NapRecord`、
+睡眠設定・通知トグル・カレンダー連携は `Onboarding` の列として実装済み。
+「5.1 実装済み」参照）。
 想定項目は「4.2 今後の予定」ER図および過去版の記述を参照してください。
 `source` は `manual | google_calendar | apple_calendar`、`reasonCode` は
 `LOW_SLEEP | LONG_WORK_PERIOD | FREE_TIME_AVAILABLE | HIGH_FATIGUE` を想定します。
@@ -381,19 +428,24 @@ model NapRecord {
   aiAdvice     String?
   createdAt    DateTime @default(now())
 
-  @@unique([userId, date])
   @@index([userId, date])
 }
 
 model Onboarding {
-  userId               String    @id
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bedtime              String    @default("23:30")
-  wakeTime             String    @default("07:30")
-  calendarConnected    Boolean   @default(false)
-  notificationsEnabled Boolean   @default(false)
-  completedAt          DateTime?
-  updatedAt            DateTime  @updatedAt
+  userId                  String    @id
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bedtime                 String    @default("23:30")
+  wakeTime                String    @default("07:30")
+  napCutoffHour           Int       @default(15)
+  calendarConnected       Boolean   @default(false)
+  calendarDeviceConnected Boolean   @default(false)
+  notificationsEnabled    Boolean   @default(false)
+  notifyNapSuggestion     Boolean   @default(true)
+  notifyNapEnd            Boolean   @default(true)
+  notifyTeamNapSuggestion Boolean   @default(true)
+  notifyWakeSupport       Boolean   @default(true)
+  completedAt             DateTime?
+  updatedAt               DateTime  @updatedAt
 }
 
 model PasswordResetToken {
@@ -423,11 +475,12 @@ model Session {
 }
 
 model Team {
-  id         String           @id @default(uuid())
-  name       String
-  inviteCode String           @unique
-  createdAt  DateTime         @default(now())
-  members    TeamMembership[]
+  id                   String           @id @default(uuid())
+  name                 String
+  inviteCode           String           @unique
+  inviteCodeNormalized String           @unique @default("")
+  createdAt            DateTime         @default(now())
+  members              TeamMembership[]
 }
 
 enum MemberActivity {
@@ -443,6 +496,7 @@ model TeamMembership {
   userId            String
   activity          MemberActivity @default(online)
   wakeAssistEnabled Boolean        @default(true)
+  role              String         @default("member")
   joinedAt          DateTime       @default(now())
 
   @@unique([teamId, userId])
@@ -465,12 +519,8 @@ model Schedule {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model SleepSetting {
-  userId    String   @id
-  sleepTime DateTime
-  wakeTime  DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+// 睡眠設定は Onboarding の bedtime / wakeTime / napCutoffHour 列で
+// 実装済みのため、専用モデルは追加しない。
 
 model RestSession {
   id        String    @id @default(uuid())
@@ -504,7 +554,7 @@ zod により検証され、**`DATABASE_URL` は必須**です（未設定だと
 | 変数           | 必須 | 例 / 既定                                                     | 用途 |
 | -------------- | ---- | ----------------------------------------------------------- | ---- |
 | `DATABASE_URL` | ✅   | `postgresql://teamnap:teamnap_dev@localhost:5432/teamnap`   | Prisma 接続。Compose 内では host が `db` |
-| `DEV_USER_ID`  |      | `00000000-0000-0000-0000-000000000001`                      | `X-User-Id` 未指定時の呼び出しユーザー。`seed.ts` の開発ユーザーと一致 |
+| `DEV_USER_ID`  |      | `00000000-0000-0000-0000-000000000001`                      | 旧 `X-User-Id` フォールバック用（現在は全ルート `authenticate` 必須のため未使用）。`seed.ts` の開発ユーザー id と一致 |
 | `PORT`         |      | `3000`                                                      | |
 | `HOST`         |      | `0.0.0.0`                                                   | |
 | `NODE_ENV`     |      | `development`                                               | `production` 時は Prisma Client を `globalThis` にキャッシュしない |
@@ -605,6 +655,9 @@ git add backend/prisma && git commit
 20260901163406_password_reset_tokens  PasswordResetToken テーブル
 20260901163741_onboarding_profile     Onboarding テーブル
 20260901195734_nap_records            NapRecord テーブル
+20260901210222_nap_records_allow_multiple_per_day  NapRecord の (userId, date) UNIQUE を撤去
+20260901222623_onboarding_settings_fields  Onboarding に napCutoffHour / notify* / calendarDeviceConnected を追加
+20260901224358_team_roles_and_invite_index  TeamMembership.role + Team.inviteCodeNormalized（一意）
 ```
 
 ---
@@ -642,10 +695,10 @@ backend/src/generated/prisma
 User               （email + passwordHash）
 Session            （サインアップ / ログイン / セッション管理 / logout）
 PasswordResetToken （パスワード再設定 / 変更）
-Onboarding         （初期設定・完了フラグ）
+Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー）
 NapRecord          （仮眠の記録 + 生成した AI アドバイス）
-Team
-TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
+Team               （招待コード + 正規化列でインデックス検索）
+TeamMembership     （作成 / 参加 / 離脱 / 改名 / 在席ステータス / role（owner・member）/ メンバー削除 / WS ライブ更新）
 ```
 
 `/health` と `/auth`（signup / login / password-reset）以外の
@@ -657,15 +710,12 @@ TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステ�
 ```text
 Schedule
   ↓
-SleepSetting
-  ↓
 RestRecommendation
 ```
 
 現在インメモリで動いていて、DB化の候補になっている機能:
 
 ```text
-settings.service   アカウント / 通知トグル / 睡眠スケジュール / カレンダー連携
 schedule.service   予定・当日スケジュール
 notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
 team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）

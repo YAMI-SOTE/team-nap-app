@@ -26,9 +26,10 @@ model User {
   naps         NapRecord[]
 }
 
-/// A recorded nap. One per user per calendar date. `aiAdvice` holds the
-/// suggestion generated at record time (see src/services/nap-advice.service.ts),
-/// shown on the ふりかえり screen and reachable later from the history list.
+/// A recorded nap. A user may record several on the same calendar date.
+/// `aiAdvice` holds the suggestion generated at record time (see
+/// src/services/nap-advice.service.ts), shown on the ふりかえり screen and
+/// reachable later from the history list.
 model NapRecord {
   id           String   @id @default(uuid())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -42,7 +43,6 @@ model NapRecord {
   aiAdvice     String?
   createdAt    DateTime @default(now())
 
-  @@unique([userId, date])
   @@index([userId, date])
 }
 
@@ -50,13 +50,22 @@ model NapRecord {
 /// Created with defaults at sign-up (and lazily for legacy users), so a
 /// missing/incomplete row means "still needs to go through onboarding".
 /// `completedAt` is set once the user finishes the questions.
+/// Also backs the Settings screens (sleep schedule, notification toggles,
+/// calendar links) so they share one per-user row with onboarding rather
+/// than a global in-memory copy.
 model Onboarding {
   userId               String    @id
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bedtime              String    @default("23:30")
   wakeTime             String    @default("07:30")
+  napCutoffHour        Int       @default(15)
   calendarConnected    Boolean   @default(false)
+  calendarDeviceConnected Boolean @default(false)
   notificationsEnabled Boolean   @default(false)
+  notifyNapSuggestion     Boolean @default(true)
+  notifyNapEnd            Boolean @default(true)
+  notifyTeamNapSuggestion Boolean @default(true)
+  notifyWakeSupport       Boolean @default(true)
   completedAt          DateTime?
   updatedAt            DateTime  @updatedAt
 }
@@ -97,6 +106,9 @@ model Team {
   id         String           @id @default(uuid())
   name       String
   inviteCode String           @unique
+  /// inviteCode with case + separators stripped (normalizeCode), for an
+  /// indexed lookup on join instead of scanning every team.
+  inviteCodeNormalized String  @unique @default("")
   createdAt  DateTime         @default(now())
   members    TeamMembership[]
 }
@@ -114,6 +126,8 @@ model TeamMembership {
   userId            String
   activity          MemberActivity @default(online)
   wakeAssistEnabled Boolean        @default(true)
+  /// "owner" (the creator) or "member". Only an owner can remove members.
+  role              String         @default("member")
   joinedAt          DateTime       @default(now())
 
   // A user belongs to at most one team; enforced additionally in the service.

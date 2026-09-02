@@ -1,18 +1,21 @@
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/theme/colors";
-import { TimerIcon } from "@/components/icons";
+import { ArrowClockwiseIcon } from "@/components/icons";
 
 /**
- * "カレンダーを読み込んでいます…" — pulsing placeholder cards while the
- * day schedule loads (Figma S07 / 309:1906).
+ * "カレンダーを読み込んでいます…" — a spinning refresh glyph over pulsing
+ * placeholder cards while the day schedule (re)loads (Figma
+ * S03-04_Schedule_Loading / 309:1906). Shown on first load and on every
+ * pull-to-refresh / post-create / post-delete revalidation.
  */
 export default function CalendarLoadingSkeleton() {
   const pulse = useRef(new Animated.Value(0.4)).current;
+  const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const loop = Animated.loop(
+    const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
@@ -26,23 +29,46 @@ export default function CalendarLoadingSkeleton() {
         }),
       ]),
     );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
+    const spinLoop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    pulseLoop.start();
+    spinLoop.start();
+    return () => {
+      pulseLoop.stop();
+      spinLoop.stop();
+    };
+  }, [pulse, spin]);
+
+  const rotate = spin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   return (
     <View style={styles.wrap}>
       <View style={styles.headingRow}>
-        <TimerIcon size={16} color={colors.textBrand} />
+        <Animated.View style={{ transform: [{ rotate }] }}>
+          <ArrowClockwiseIcon size={16} color={colors.textBrand} />
+        </Animated.View>
         <Text style={styles.heading}>カレンダーを読み込んでいます…</Text>
       </View>
 
       {[0, 1, 2, 3].map((i) => (
-        <Animated.View key={i} style={[styles.card, { opacity: pulse }]}>
+        <Animated.View
+          key={i}
+          style={[styles.card, i === 0 && styles.cardLarge, { opacity: pulse }]}
+        >
           <View style={styles.avatar} />
           <View style={styles.lines}>
             <View style={[styles.line, { width: "40%" }]} />
             <View style={[styles.line, { width: "72%" }]} />
+            {i === 0 ? <View style={[styles.line, { width: "56%" }]} /> : null}
           </View>
         </Animated.View>
       ))}
@@ -75,6 +101,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
+  },
+  cardLarge: {
+    paddingVertical: 22,
+    alignItems: "flex-start",
   },
   avatar: {
     width: 41,
