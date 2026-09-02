@@ -41,7 +41,7 @@ export default function NapHistoryScreen() {
             </View>
           ) : data && data.days.length === 0 ? (
             <EmptyState
-              image={require("../../../assets/characters/genki.png")}
+              image={require("../../../assets/characters/cat-stats-empty.png")}
               title="まだ仮眠の記録がありません"
               body="仮眠を記録すると、ここに履歴が表示されます。"
             />
@@ -75,7 +75,6 @@ export default function NapHistoryScreen() {
                       icon={<AlarmBadgeIcon size={41} />}
                       time={record.time}
                       subtitle={record.detail}
-                      showCaret
                       onPress={() =>
                         router.push({
                           pathname: "/naps/reflection",
