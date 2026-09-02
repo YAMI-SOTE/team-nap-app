@@ -15,7 +15,7 @@ import { updateProfile } from "@/services/authApi";
 import { ApiError } from "@/services/api";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
@@ -125,7 +125,7 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}

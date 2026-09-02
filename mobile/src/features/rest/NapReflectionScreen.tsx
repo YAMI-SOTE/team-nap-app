@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { getNap } from "@/services/naps";
 import { isConnectionError } from "@/services/api";
-import SkyBackdrop from "@/components/SkyBackdrop";
+import SceneBackground from "@/components/SceneBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
 import PillButton from "@/components/PillButton";
@@ -64,8 +64,11 @@ export default function NapReflectionScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      <SkyBackdrop />
+    <SceneBackground
+      source={require("../../../assets/backgrounds/nap-day.png")}
+      scrim="bottom"
+      imageOpacity={1}
+    >
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <ScreenHeader title="ふりかえり" onBack={() => router.back()} />
 
@@ -77,7 +80,7 @@ export default function NapReflectionScreen() {
           ) : data ? (
             <>
               <Image
-                source={require("../../../assets/characters/thinking-lightbulb.png")}
+                source={require("../../../assets/characters/cat-advice.png")}
                 style={styles.character}
                 resizeMode="contain"
               />
@@ -88,7 +91,7 @@ export default function NapReflectionScreen() {
 
               <View style={styles.card}>
                 <View style={styles.cardHead}>
-                  <MoonStarsIcon size={18} color={colors.textBrand} />
+                  <MoonStarsIcon size={18} color={colors.primary} />
                   <Text style={styles.cardHeadText}>AIアドバイス</Text>
                 </View>
                 <Text style={styles.adviceText}>
@@ -104,12 +107,13 @@ export default function NapReflectionScreen() {
             variant="primary"
             label="ホームに戻る"
             elevated={false}
-            icon={<HouseIcon size={20} color={colors.white} />}
+            icon={<HouseIcon size={24} color={colors.white} />}
             onPress={goHome}
+            style={styles.homeButton}
           />
         </View>
       </SafeAreaView>
-    </View>
+    </SceneBackground>
   );
 }
 
@@ -124,8 +128,8 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   character: {
-    width: 196,
-    height: 196,
+    width: 200,
+    height: 200,
   },
   heading: {
     width: "100%",
@@ -178,6 +182,10 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingBottom: 8,
+  },
+  homeButton: {
+    // Figma（node 733:4351）は py10 + 16px/1.7 の1行 = 47px。
+    minHeight: 47,
   },
   errorText: {
     fontSize: 13,

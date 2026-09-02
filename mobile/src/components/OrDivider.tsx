@@ -1,8 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/theme/colors";
-import { spacing } from "@/theme/spacing";
 
+/**
+ * 「または」の区切り（Figma "Or", node 733:4288）。
+ * 罫線 1px と 12px のキャプションを 12px 間隔で並べるだけで、
+ * 上下の余白は親のスタックギャップに任せる。
+ */
 export default function OrDivider() {
   return (
     <View style={styles.container}>
@@ -15,18 +19,19 @@ export default function OrDivider() {
 
 const styles = StyleSheet.create({
   container: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: spacing.lg,
+    gap: 12,
   },
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderDefault,
   },
   text: {
-    marginHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textTertiary,
   },
 });

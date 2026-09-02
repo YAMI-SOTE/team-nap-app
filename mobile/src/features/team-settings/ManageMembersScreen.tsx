@@ -12,7 +12,7 @@ import { useRouter } from "expo-router";
 
 import { useTeamSettings } from "@/hooks/useTeamSettings";
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -50,7 +50,7 @@ export default function ManageMembersScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}

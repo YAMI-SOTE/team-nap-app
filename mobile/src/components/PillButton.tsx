@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
+  type Insets,
   Pressable,
   StyleSheet,
   Text,
@@ -24,6 +25,14 @@ type PillButtonProps = {
   loading?: boolean;
   /** Drop shadow on the "primary" variant. Default true. */
   elevated?: boolean;
+  /**
+   * 44pt を下回る高さのボタンでタップ領域を補う。
+   * （例: Home「みんなを誘う」はデザイン上 40pt なので上下 4pt 足す）
+   */
+  hitSlop?: number | Insets;
+  /** アイコンとラベルの間隔。Figma のボタンごとに 8 か 10。 */
+  gap?: number;
+  testID?: string;
   style?: ViewStyle;
   textStyle?: TextStyle;
 };
@@ -43,6 +52,9 @@ export default function PillButton({
   disabled = false,
   loading = false,
   elevated = true,
+  hitSlop,
+  gap = 8,
+  testID,
   style,
   textStyle,
 }: PillButtonProps) {
@@ -63,6 +75,8 @@ export default function PillButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: isDisabled }}
+      hitSlop={hitSlop}
+      testID={testID}
       style={({ pressed }) => [
         styles.base,
         variantStyle,
@@ -77,7 +91,7 @@ export default function PillButton({
           color={isPrimary ? colors.white : colors.textBrand}
         />
       ) : (
-        <View style={styles.content}>
+        <View style={[styles.content, { gap }]}>
           {icon}
           <Text
             style={[
@@ -105,7 +119,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
   primary: {
     backgroundColor: colors.primary,

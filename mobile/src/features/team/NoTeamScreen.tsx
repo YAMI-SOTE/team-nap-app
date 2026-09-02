@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import Logo from "@/components/Logo";
 import NotificationBell from "@/components/NotificationBell";
 import CharacterSlot from "@/components/CharacterSlot";
@@ -19,7 +19,7 @@ export default function NoTeamScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.content}>
           <View style={styles.header}>
@@ -29,7 +29,7 @@ export default function NoTeamScreen() {
 
           <View style={styles.main}>
             <CharacterSlot
-              size={150}
+              size={200}
               source={require("../../../assets/characters/plus-team.png")}
             />
 
@@ -47,6 +47,7 @@ export default function NoTeamScreen() {
                 label="チームをつくる"
                 elevated={false}
                 icon={<UsersThreeIcon size={24} color={colors.white} />}
+                style={styles.primaryButton}
                 onPress={() => router.push("/team/create")}
               />
               <PillButton
@@ -74,7 +75,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: 8,
+    // Figma: Content pt63 − ステータスバー 47 ＝ セーフエリア下 16px
+    paddingTop: 16,
     paddingHorizontal: 24,
     paddingBottom: 24,
     gap: 16,
@@ -112,6 +114,9 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 10,
     paddingTop: 8,
+  },
+  primaryButton: {
+    minHeight: 47,
   },
   outlineButton: {
     height: 47,

@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useStats } from "@/hooks/useStats";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
 import EmptyState from "@/components/EmptyState";
 import Logo from "@/components/Logo";
@@ -42,7 +42,7 @@ export default function StatsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}

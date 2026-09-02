@@ -14,6 +14,12 @@ type SettingsRowProps = {
   danger?: boolean;
   /** Show the 1px bottom divider. Default true. */
   divider?: boolean;
+  /**
+   * 行の高さの取り方。Figma では末尾がキャレットの行は上下 8px の余白を持ち、
+   * トグルの行は余白なし（トグル自身の 31px が高さを決める）で、
+   * 区切り線までの間隔も 8 / 11.5 と differ する（node 733:4254 / 733:4261）。
+   */
+  variant?: "link" | "control";
 };
 
 /**
@@ -26,17 +32,19 @@ export default function SettingsRow({
   trailing,
   danger = false,
   divider = true,
+  variant = "link",
 }: SettingsRowProps) {
+  const isControl = variant === "control";
   const Container = onPress ? Pressable : View;
   const resolvedTrailing =
     trailing ?? (onPress ? <CaretRightIcon size={16} /> : null);
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, isControl && styles.wrapControl]}>
       <Container
         onPress={onPress}
         accessibilityRole={onPress ? "button" : undefined}
-        style={styles.row}
+        style={[styles.row, isControl && styles.rowControl]}
       >
         <Text
           style={[styles.label, danger && styles.labelDanger]}
@@ -56,6 +64,9 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 8,
   },
+  wrapControl: {
+    gap: 11.5,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -63,6 +74,10 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8,
     minHeight: 36,
+  },
+  rowControl: {
+    paddingVertical: 0,
+    minHeight: 31,
   },
   label: {
     flex: 1,

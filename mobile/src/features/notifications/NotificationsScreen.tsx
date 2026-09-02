@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useNotifications } from "@/hooks/useNotifications";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import NotificationCard from "@/components/NotificationCard";
 import {
@@ -38,7 +38,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}

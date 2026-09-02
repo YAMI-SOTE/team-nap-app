@@ -10,7 +10,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useNapHistory } from "@/hooks/useNapHistory";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import EmptyState from "@/components/EmptyState";
 import ScreenHeader from "@/components/ScreenHeader";
 import StatSummary from "@/components/StatSummary";
@@ -23,7 +23,7 @@ export default function NapHistoryScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}

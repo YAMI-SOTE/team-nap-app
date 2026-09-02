@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,12 +11,12 @@ import { useRouter } from "expo-router";
 
 import { useCalendarSettings } from "@/hooks/useCalendarSettings";
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
 import Hairline from "@/components/Hairline";
 import PillButton from "@/components/PillButton";
-import { CalendarIcon, CheckCircleIcon } from "@/components/icons";
+import { CalendarIcon, CheckCircleIcon, GoogleIcon } from "@/components/icons";
 
 export default function CalendarSettingsScreen() {
   const router = useRouter();
@@ -26,7 +25,7 @@ export default function CalendarSettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -44,11 +43,7 @@ export default function CalendarSettingsScreen() {
           {/* Google カレンダー */}
           <Card>
             <View style={styles.row}>
-              <Image
-                source={require("../../../assets/google-icon.png")}
-                style={styles.googleIcon}
-                resizeMode="contain"
-              />
+              <GoogleIcon size={20} />
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Google カレンダー</Text>
                 <Text style={styles.rowSub}>
@@ -143,10 +138,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  googleIcon: {
-    width: 28,
-    height: 28,
   },
   rowText: {
     flex: 1,

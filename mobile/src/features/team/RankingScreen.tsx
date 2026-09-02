@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useTeamRanking } from "@/hooks/useTeamRanking";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
 import Hairline from "@/components/Hairline";
@@ -33,7 +33,7 @@ export default function RankingScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -120,9 +120,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingTop: 8,
+    // Figma: Content pt63 − ステータスバー 47 ＝ セーフエリア下 16px。
+    // 下は余白なしで、メンバー一覧カードが画面下端まで伸びる。
+    paddingTop: 16,
     paddingHorizontal: 24,
-    paddingBottom: 24,
     gap: 16,
   },
   card: {
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
     gap: 0,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 0,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
@@ -152,9 +153,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   note: {
-    marginTop: 6,
+    // Figma: Micro/Medium — 11px / 1.5
     fontSize: 11,
-    lineHeight: 18,
+    lineHeight: 17,
     fontWeight: "500",
     color: colors.textTertiary,
   },
