@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  SLEEP_WINDOW_MESSAGE,
+  isValidSleepWindow,
+} from "../lib/sleep-window.js";
+
 const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "時刻は HH:MM 形式で入力してください");
 
 export const notificationSettingsBody = z
@@ -11,7 +16,12 @@ export const notificationSettingsBody = z
   })
   .partial();
 
-export const sleepScheduleBody = z.object({
-  bedtime: clockTime,
-  wakeTime: clockTime,
-});
+export const sleepScheduleBody = z
+  .object({
+    bedtime: clockTime,
+    wakeTime: clockTime,
+  })
+  .refine((v) => isValidSleepWindow(v.bedtime, v.wakeTime), {
+    message: SLEEP_WINDOW_MESSAGE,
+    path: ["wakeTime"],
+  });
