@@ -1,7 +1,13 @@
-import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useSchedule } from "@/hooks/useSchedule";
@@ -25,14 +31,43 @@ import {
 export default function ScheduleScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const { data, loading, error, connectionError, reload } =
+  const { data, loading, revalidating, error, connectionError, reload } =
     useSchedule(selectedDate);
+
+  // Native pull spinner state (only for an actual pull gesture).
+  const [pulling, setPulling] = useState(false);
+  const firstFocus = useRef(true);
+
+  const onPullRefresh = useCallback(async () => {
+    setPulling(true);
+    try {
+      await reload();
+    } finally {
+      setPulling(false);
+    }
+  }, [reload]);
+
+  // Re-fetch every time the screen regains focus (e.g. coming back from
+  // 予定を追加 / 予定を編集 after creating or deleting an event) — but not
+  // on the first mount, which the hook already loads.
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      void reload();
+    }, [reload]),
+  );
 
   if (connectionError) {
     return <ConnectionErrorView onRetry={reload} />;
   }
 
-  const showLoading = loading && !data;
+  // Show the animated calendar loading screen on the first load AND on
+  // any revalidation (pull-to-refresh, or returning after a create /
+  // delete) so the refreshed list always comes in behind it.
+  const showLoading = (loading && !data) || revalidating;
   const tasks = data?.tasks ?? [];
   const isEmpty = !showLoading && !error && tasks.length === 0 && !data?.freeSlot;
 
@@ -43,6 +78,14 @@ export default function ScheduleScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={pulling}
+              onRefresh={onPullRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />

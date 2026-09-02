@@ -5,6 +5,7 @@ import { HttpError } from "../lib/http-error.js";
 import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
 import { addNotification } from "./notifications.service.js";
+import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
 // ---------------------------------------------------------------------------
@@ -59,11 +60,23 @@ const teamSummarySnapshot: TeamSummaryResponse = {
 // joined a team yet (Team tab shows the empty state).
 // ---------------------------------------------------------------------------
 
+export type TeamRole = "owner" | "member";
+
+export type TeamSettingsMember = Member & {
+  /** Display name, or null if the member never set one. */
+  name: string | null;
+  role: TeamRole;
+  /** True for the member row that is the caller. */
+  isSelf: boolean;
+};
+
 export type TeamSettingsResponse = {
   teamName: string;
   memberCount: number;
   inviteCode: string;
-  members: Member[];
+  /** True when the caller is the team owner (can rename / remove members). */
+  canManage: boolean;
+  members: TeamSettingsMember[];
 };
 
 /** Activity is stored as `online | resting`; "offline" is not modelled. */
@@ -76,7 +89,7 @@ function initial(name: string | null): string {
 }
 
 /** Compare codes on their alphanumerics only, so "NAP-4821" == "nap4821". */
-function normalizeCode(code: string): string {
+export function normalizeCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
@@ -84,11 +97,11 @@ function generateInviteCode(): string {
   return `NAP-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-async function uniqueInviteCode(): Promise<string> {
+async function uniqueInviteCode(): Promise<{ code: string; normalized: string }> {
   for (let i = 0; i < 20; i += 1) {
     const code = generateInviteCode();
     const clash = await prisma.team.findUnique({ where: { inviteCode: code } });
-    if (!clash) return code;
+    if (!clash) return { code, normalized: normalizeCode(code) };
   }
   throw new HttpError(500, "招待コードを発行できませんでした");
 }
@@ -119,20 +132,29 @@ type TeamWithMembers = {
   members: {
     userId: string;
     activity: MemberActivity;
+    role: string;
     user: { name: string | null };
   }[];
 };
 
-function toSettings(team: TeamWithMembers): TeamSettingsResponse {
+function toSettings(
+  team: TeamWithMembers,
+  callerUserId: string,
+): TeamSettingsResponse {
+  const members: TeamSettingsMember[] = team.members.map((m) => ({
+    id: m.userId,
+    label: initial(m.user.name),
+    name: m.user.name?.trim() || null,
+    status: mapActivity(m.activity),
+    role: m.role === "owner" ? "owner" : "member",
+    isSelf: m.userId === callerUserId,
+  }));
   return {
     teamName: team.name,
-    memberCount: team.members.length,
+    memberCount: members.length,
     inviteCode: team.inviteCode,
-    members: team.members.map((m) => ({
-      id: m.userId,
-      label: initial(m.user.name),
-      status: mapActivity(m.activity),
-    })),
+    canManage: members.some((m) => m.isSelf && m.role === "owner"),
+    members,
   };
 }
 
@@ -151,7 +173,7 @@ export async function getCurrentTeam(
   userId: string,
 ): Promise<TeamSettingsResponse | null> {
   const membership = await findMembership(userId);
-  return membership ? toSettings(membership.team) : null;
+  return membership ? toSettings(membership.team, userId) : null;
 }
 
 export async function getTeamSummary(
@@ -169,16 +191,19 @@ export async function createTeam(
     throw HttpError.conflict("既にチームに参加しています");
   }
   await ensureUser(userId);
+  const invite = await uniqueInviteCode();
   try {
     const team = await prisma.team.create({
       data: {
         name,
-        inviteCode: await uniqueInviteCode(),
-        members: { create: { userId } },
+        inviteCode: invite.code,
+        inviteCodeNormalized: invite.normalized,
+        // The creator is the team owner.
+        members: { create: { userId, role: "owner" } },
       },
       include: teamWithMembers,
     });
-    return toSettings(team);
+    return toSettings(team, userId);
   } catch (err) {
     // Lost a race with a concurrent create/join for the same user.
     if (isUniqueViolation(err)) {
@@ -197,9 +222,11 @@ export async function joinTeam(
     throw HttpError.conflict("既にチームに参加しています");
   }
 
-  const wanted = normalizeCode(inviteCode);
-  const teams = await prisma.team.findMany();
-  const target = teams.find((t) => normalizeCode(t.inviteCode) === wanted);
+  // Indexed lookup on the normalized column (no full-table scan).
+  const target = await prisma.team.findUnique({
+    where: { inviteCodeNormalized: normalizeCode(inviteCode) },
+    select: { id: true },
+  });
   if (!target) {
     throw HttpError.notFound("招待コードが正しくありません");
   }
@@ -233,6 +260,7 @@ export async function joinTeam(
     });
   }
 
+  await broadcastTeamMembers(target.id);
   return (await getCurrentTeam(userId))!;
 }
 
@@ -258,13 +286,69 @@ export async function leaveTeam(userId: string): Promise<void> {
   if (!membership) return;
 
   await prisma.teamMembership.delete({ where: { userId } });
+  closeUserSockets(userId);
 
   const remaining = await prisma.teamMembership.count({
     where: { teamId: membership.teamId },
   });
   if (remaining === 0) {
     await prisma.team.delete({ where: { id: membership.teamId } });
+  } else {
+    // If the owner left, hand ownership to the next-oldest member.
+    if (membership.role === "owner") {
+      const next = await prisma.teamMembership.findFirst({
+        where: { teamId: membership.teamId },
+        orderBy: { joinedAt: "asc" },
+      });
+      if (next) {
+        await prisma.teamMembership.update({
+          where: { id: next.id },
+          data: { role: "owner" },
+        });
+      }
+    }
+    await broadcastTeamMembers(membership.teamId);
   }
+}
+
+/** Owner-only: remove another member from the team. */
+export async function removeMember(
+  actorUserId: string,
+  targetUserId: string,
+): Promise<TeamSettingsResponse> {
+  if (actorUserId === targetUserId) {
+    throw HttpError.badRequest("自分を削除することはできません");
+  }
+  const actor = await prisma.teamMembership.findUnique({
+    where: { userId: actorUserId },
+  });
+  if (!actor) throw HttpError.notFound("チームに参加していません");
+  if (actor.role !== "owner") {
+    throw HttpError.forbidden("メンバーを削除できるのはオーナーだけです");
+  }
+
+  const target = await prisma.teamMembership.findUnique({
+    where: { userId: targetUserId },
+  });
+  if (!target || target.teamId !== actor.teamId) {
+    throw HttpError.notFound("対象のメンバーが見つかりません");
+  }
+  if (target.role === "owner") {
+    throw HttpError.badRequest("オーナーは削除できません");
+  }
+
+  await prisma.teamMembership.delete({ where: { userId: targetUserId } });
+  closeUserSockets(targetUserId);
+  addNotification(targetUserId, {
+    kind: "member_joined",
+    title: "チームから退出しました",
+    body: "オーナーによってチームから外されました",
+    timestamp: "たった今",
+    read: false,
+    group: "today",
+  });
+  await broadcastTeamMembers(actor.teamId);
+  return (await getCurrentTeam(actorUserId))!;
 }
 
 export async function setActivity(
@@ -278,6 +362,7 @@ export async function setActivity(
     throw HttpError.notFound("チームに参加していません");
   }
   await prisma.teamMembership.update({ where: { userId }, data: { activity } });
+  await broadcastTeamMembers(membership.teamId);
   return (await getCurrentTeam(userId))!;
 }
 

@@ -15,6 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
 import { toClockTime, toISODate } from "@/utils/date";
+import { setMyStatus } from "@/services/team";
 
 // 15分（900秒）
 const INITIAL_TIME = 15 * 60;
@@ -36,6 +37,15 @@ export default function RestScreen() {
   const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevTimeLeftRef = useRef(INITIAL_TIME);
+
+  // While the nap screen is open, show up as 仮眠中 to teammates; flip
+  // back to 作業中 on leave. Best-effort (no-ops when not in a team).
+  useEffect(() => {
+    setMyStatus("resting");
+    return () => {
+      setMyStatus("online");
+    };
+  }, []);
 
   const buildNapWindow = (elapsedSeconds: number) => {
     const minutes = Math.round(elapsedSeconds / 60);

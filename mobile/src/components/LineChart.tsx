@@ -10,11 +10,14 @@ import Svg, { Circle, Polyline } from "react-native-svg";
 import { colors } from "@/theme/colors";
 
 type LineChartProps = {
-  /** One value per point (any scale); the line is auto-normalized. */
+  /** One value per point. Auto-normalized unless a domain is given. */
   values: number[];
   /** X-axis labels, rendered under the plot. */
   labels: string[];
   height?: number;
+  /** Fix the vertical scale (e.g. a 0–100 score) instead of min/max of the data. */
+  domainMin?: number;
+  domainMax?: number;
 };
 
 /**
@@ -25,6 +28,8 @@ export default function LineChart({
   values,
   labels,
   height = 72,
+  domainMin,
+  domainMax,
 }: LineChartProps) {
   const [width, setWidth] = useState(0);
 
@@ -38,8 +43,8 @@ export default function LineChart({
   const usableW = Math.max(width - padX * 2, 0);
   const usableH = Math.max(height - bandTop - bandBottom, 0);
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = domainMin ?? Math.min(...values);
+  const max = domainMax ?? Math.max(...values);
   const span = max - min || 1;
 
   const points = values.map((v, i) => {

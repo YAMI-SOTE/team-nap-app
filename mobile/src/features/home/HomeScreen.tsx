@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
 import { useHomeSummary } from "@/hooks/useHomeSummary";
+import { useRealtimeMembers } from "@/features/realtime/RealtimeProvider";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
 import Logo from "@/components/Logo";
 import Hairline from "@/components/Hairline";
@@ -31,11 +32,15 @@ const SCREEN_PADDING = 28;
 export default function HomeScreen() {
   const router = useRouter();
   const { data, loading, error } = useHomeSummary();
+  const { memberStatus: liveMemberStatus } = useRealtimeMembers();
   const summary = data?.summary;
-  const memberStatus = data?.memberStatus;
 
   // Solo accounts never see team score / members / free-slot blocks.
   const hasTeam = summary?.hasTeam ?? false;
+
+  // Prefer the live presence snapshot (WebSocket) over the fetched one.
+  const memberStatus =
+    hasTeam && liveMemberStatus ? liveMemberStatus : data?.memberStatus;
 
   const handleSuggestTeamNap = () => {
     console.log("TODO: suggest a nap to everyone");

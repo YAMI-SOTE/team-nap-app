@@ -22,6 +22,7 @@ import { useLogin } from "@/hooks/useLogin";
 import SkyBackground from "@/components/SkyBackground";
 import OrDivider from "@/components/OrDivider";
 import Logo from "@/components/Logo";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -93,13 +94,12 @@ export default function LoginScreen() {
                 />
 
                 <Text style={styles.label}>パスワード</Text>
-                <TextInput
+                <PasswordInput
                   style={styles.input}
                   placeholder="パスワードを入力"
                   placeholderTextColor={colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
                   editable={!isBusy}
                   testID="login-password-input"
                 />
@@ -225,8 +225,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
+    minHeight: 48,
     fontSize: 16,
     color: colors.textPrimary,
+    includeFontPadding: false,
+    textAlignVertical: "center",
     marginBottom: spacing.lg,
   },
   forgotLink: {

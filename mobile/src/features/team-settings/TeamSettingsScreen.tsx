@@ -55,7 +55,7 @@ export default function TeamSettingsScreen() {
     if (ok) setEditingName(false);
   };
 
-  const handleManageMembers = () => console.log("TODO: open member management");
+  const handleManageMembers = () => router.push("/settings/team-members");
   const handleLeaveTeam = async () => {
     const success = await leave();
     if (success) {
@@ -225,10 +225,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    minHeight: 40,
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   nameActions: {
     flexDirection: "row",

@@ -28,7 +28,7 @@
 [ コントローラ ] backend controllers/settings.controller.ts   body の受け取り・最小限の正規化・200 で返却
    |
    v
-[ サービス ] backend services/settings.service.ts   状態の保持（現状 in-memory の let 変数）と更新ロジック
+[ サービス ] backend services/settings.service.ts   ユーザーの `Onboarding` 行の読み書きと、レスポンス形への変換
 ```
 
 型（レスポンスの形）は **フロント `mobile/src/types/api.ts`** と
@@ -42,10 +42,12 @@
 
 ## 3. エンドポイント一覧
 
+> アカウント名 / メールは `User` テーブルにあり、`GET /auth/me` で取得、
+> `PATCH /auth/me` で更新します。**`/settings/account` エンドポイントは
+> 存在しません**（以前の実装は削除済み）。
+
 | メソッド & パス | 用途 | リクエスト body | レスポンス型 | フロント: サービス関数 / フック | 画面 |
 |---|---|---|---|---|---|
-| `GET /settings/account` | アカウント情報の取得 | – | `AccountSettingsResponse` | `getAccountSettings` / `useAccountSettings` | `features/account` |
-| `POST /settings/account` | アカウント情報の更新 | `{ username, email }` | `AccountSettingsResponse` | `updateAccountSettings` / `useAccountSettings.save` | 〃 |
 | `GET /settings/notifications` | 通知トグルの取得 | – | `NotificationSettingsResponse` | `getNotificationSettings` / `useNotificationSettings` | `features/settings`（設定タブ） |
 | `POST /settings/notifications` | 通知トグルの更新（部分更新） | `Partial<NotificationSettingsResponse>` | `NotificationSettingsResponse` | `updateNotificationSettings` / `useNotificationSettings.setNotification` | 〃 |
 | `GET /settings/sleep-schedule` | 睡眠スケジュールの取得 | – | `SleepScheduleResponse` | `getSleepSchedule` / `useSleepSchedule` | `features/sleep-schedule` |
@@ -66,15 +68,19 @@
 | ファイル | 責務 | やらないこと |
 |---|---|---|
 | `routes/settings.routes.ts` | URL とメソッドをコントローラに割り当てる | ロジックは持たない |
-| `controllers/settings.controller.ts` | `req.body` を受け取り、型が違うときのフォールバック（例: `bedtime` が string でなければ `"23:30"`）だけ行い、サービスを呼んで **200 + JSON** を返す | 業務ルールの検証、DBアクセス |
-| `services/settings.service.ts` | 設定の状態を保持（現状 `let` 変数）し、取得 / 更新（部分マージ）を行う。レスポンスの形を決める | HTTP のことは知らない |
+| `controllers/settings.controller.ts` | `requireUserId(req)` で呼び出しユーザーを取り、`req.body`（zod で検証済み）を渡してサービスを呼び、**200 + JSON** を返す | 業務ルールの検証、DBアクセス |
+| `services/settings.service.ts` | そのユーザーの `Onboarding` 行（無ければ upsert で作成）を読み書きし、レスポンス形に変換する | HTTP のことは知らない |
 
-**現状の制約（重要）**
+**現状**
 
-- **永続化なし**: 状態はプロセス内の `let` 変数。サーバー再起動で初期値に戻る（DB / Prisma 未接続）。
-- **ユーザー単位ではない**: グローバルに1件だけ。認証・ユーザーIDの概念がない。
-- **エラーを返さない**: すべて 200。バリデーション失敗や 404 の分岐がない。
-- **業務バリデーションなし**: 例えば睡眠スケジュールの「就寝 < 起床」チェックはサーバーには無い（フロントのみ）。
+- **永続化あり**: 睡眠スケジュール / 通知トグル / カレンダー連携状態は、そのユーザーの
+  `Onboarding` 行（`bedtime` / `wakeTime` / `napCutoffHour` / `notify*` / `calendar*Connected`）。
+  オンボーディングと**同じ行**なので値が食い違わない。
+- **ユーザー単位**: 全ルート `authenticate` 必須。`Onboarding` 行が単一ソース。
+- **カレンダー連携はモック**: `google/sync` は `calendarConnected` を true にするだけ
+  （実 OAuth・実同期は無し）。`google.email` / `lastSyncedLabel` は常に `null`。
+- **業務バリデーション**: zod スキーマ（`schemas/settings.schema.ts`）で形式は検証。
+  就寝〜起床が 16 時間以内かはサーバー（zod refine, `lib/sleep-window.ts`）でも検証。
 
 ### フロントエンド
 
@@ -91,7 +97,7 @@
 | 画面 | フック | 型 | ルート |
 |---|---|---|---|
 | `features/settings/SettingsScreen` | `useNotificationSettings` | `NotificationSettingsResponse` | `/settings`（`(tabs)`） |
-| `features/account/AccountScreen` | `useAccountSettings` | `AccountSettingsResponse` | `/settings/account` |
+| `features/account/AccountScreen` | `useAuth()`（`/auth/me` + `PATCH /auth/me`） | `AuthUser` | `/settings/account` |
 | `features/sleep-schedule/SleepScheduleScreen` | `useSleepSchedule` | `SleepScheduleResponse` | `/settings/sleep-schedule` |
 | `features/calendar/CalendarSettingsScreen` | `useCalendarSettings` | `CalendarIntegrationResponse` | `/settings/calendar` |
 | `features/team-settings/TeamSettingsScreen` | `useTeamSettings` | `TeamSettingsResponse` | `/settings/team` |
@@ -103,7 +109,7 @@
 1. `SettingsScreen` が表示され、`useNotificationSettings` が `GET /settings/notifications` を実行 → `data` に反映。
 2. ユーザーが `Toggle` を切り替え → `setNotification("napEnd", false)`。
 3. フック: `data` を先に楽観的更新（UI 即反映）→ `POST /settings/notifications { napEnd: false }`。
-4. バックエンド: controller が body をそのままサービスへ → サービスが `let notificationSettings` を部分マージ → 200 で全体を返す。
+4. バックエンド: controller が `requireUserId` + body をサービスへ → サービスがそのユーザーの `Onboarding` 行の `notify*` 列を部分更新 → 200 で全体を返す。
 5. フック: レスポンスで `data` を差し替え（成功）。失敗時は手順3の値に巻き戻し、`error` を表示。
 
 ---
@@ -114,7 +120,7 @@
 |---|---|---|
 | 即時フィードバック（入力形式・順序など） | **フロント（画面）** | 睡眠スケジュール: 「起床は就寝より後（オーバーナイト考慮の睡眠時間 0〜16時間）」を画面で判定し、不正なら保存ボタンを無効化＋エラー表示 |
 | 型の正規化 | バックエンド（controller） | string でなければデフォルト値に落とす程度 |
-| 業務ルール（本来サーバーでも必須） | **未実装** | 就寝<起床、メール形式、招待コードの有効性、権限チェックなど。今後 controller / service に追加が必要 |
+| 業務ルール（本来サーバーでも必須） | **一部のみ** | zod スキーマで型・形式・範囲を検証。メール重複は 409、招待コード照合は正規化列の一意インデックス、睡眠ウィンドウ（就寝〜起床 ≤16h）はサーバーでも refine、メンバー削除はオーナー権限チェックあり |
 
 方針: **UX 用のチェックはフロント、正当性の保証はサーバー**。現状はサーバー側が薄いので、
 重要なルールはサーバーにも二重で入れる。
@@ -123,20 +129,22 @@
 
 ## 7. 現状のギャップ / TODO
 
-**バックエンド**
+**済み**
 
-- [ ] 永続化: `let` 変数 → Prisma / PostgreSQL（`docs/db.md` の設計に寄せる）
-- [ ] 認証・ユーザー単位化: 今はグローバル1件。ユーザーID で引く
-- [ ] サーバー側バリデーションとエラーレスポンス（400 / 404 / 標準エラー形）
-- [ ] `POST /settings/team/leave` の実体（現状 `{ success: true }` を返すだけ）
+- [x] 永続化 + ユーザー単位化: 睡眠スケジュール / 通知トグル / カレンダー連携状態は
+  そのユーザーの `Onboarding` 行（オンボーディングと同じ行 → 値が食い違わない）
+- [x] `/settings/account` は削除。アカウント名 / メールは `/auth/me` + `PATCH /auth/me`
+- [x] 「ログアウト」はアカウント画面・設定タブとも二段階確認ダイアログ＋`useAuth().signOut()`
+- [x] `POST /settings/team/leave` は `team.service` 経由で実際に離脱する
+- [x] チーム設定: メンバー管理（`ManageMembersScreen` + `DELETE /teams/members/:id`）/ 招待リンク共有（ディープリンク）/ コードのコピー
+- [x] 睡眠ウィンドウのサーバー検証（`lib/sleep-window.ts`）
 
-**フロントエンド（画面に TODO コメントで残っている未接続操作）**
+**未対応**
 
-- [ ] アカウント: 写真を変更 / アカウントを削除
-- [ ] 睡眠スケジュール: 画面内バリデーションはあるが、`napCutoffHour` は編集不可（サーバー所有）
-- [ ] カレンダー: 招待コードのコピー、実際の Google OAuth フロー
-- [ ] チーム設定: チーム名編集 / メンバー管理 / 招待リンク共有 / 招待コードのコピー
-- [ ] 「ログアウト」は `router.replace("/login")` のみ（トークン破棄なし＝モック認証のため）
+- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状はフラグを立てるだけのモック）
+- [ ] 睡眠スケジュール: `napCutoffHour` はサーバー所有で編集 UI なし
+- [ ] アカウント: プロフィール写真
+- [ ] チーム名変更をオーナー限定にするか未決
 
 ---
 
@@ -144,14 +152,19 @@
 
 ### バックエンド
 
-1. `services/settings.service.ts`: 状態（`let`）と `getXxx` / `updateXxx` を追加し、`export type XxxResponse` を定義。
-2. `controllers/settings.controller.ts`: `getXxxController` / `updateXxxController` を追加（body の正規化はここ）。
-3. `routes/settings.routes.ts`: `router.get/post("/xxx", ...)` を追加。
+1. 保存先を決める。ユーザー設定なら `Onboarding` に列を足す（`schema.prisma` +
+   `prisma migrate dev`）。別テーブルが要るなら新設。
+2. `services/settings.service.ts`: `getXxx(userId)` / `updateXxx(userId, patch)` を追加し、
+   `Onboarding` 行を読み書き。`export type XxxResponse` を定義。
+3. `schemas/settings.schema.ts`: body の zod スキーマを追加。
+4. `controllers/settings.controller.ts`: `requireUserId(req)` を渡す `getXxxController` /
+   `updateXxxController` を追加。
+5. `routes/settings.routes.ts`: `router.get/post("/xxx", validate({ body }), ...)` を追加。
 
 ### フロントエンド
 
-4. `mobile/src/types/api.ts`: `XxxResponse` を追加（バックエンドの型と一致させる）。
-5. `mobile/src/services/settings.ts`: `getXxx` / `updateXxx`（`api.get`/`api.post`）を追加。
-6. `mobile/src/hooks/useXxxSettings.ts`: `data / loading / saving / error` ＋ 更新関数のフックを作成（既存フックをコピーが早い）。
-7. 画面（`features/…`）で `useXxxSettings` を使い、必要なら画面内バリデーションを実装。
-8. サブ画面なら `mobile/src/app/settings/xxx.tsx` に re-export を1行追加し、`SettingsScreen` の該当 `SettingsRow` から `router.push("/settings/xxx")`。
+6. `mobile/src/types/api.ts`: `XxxResponse` を追加（バックエンドの型と一致させる）。
+7. `mobile/src/services/settings.ts`: `getXxx` / `updateXxx`（`api.get`/`api.post`）を追加。
+8. `mobile/src/hooks/useXxxSettings.ts`: `data / loading / saving / error` ＋ 更新関数のフックを作成（既存フックをコピーが早い）。
+9. 画面（`features/…`）で `useXxxSettings` を使い、必要なら画面内バリデーションを実装。
+10. サブ画面なら `mobile/src/app/settings/xxx.tsx` に re-export を1行追加し、`SettingsScreen` の該当 `SettingsRow` から `router.push("/settings/xxx")`。

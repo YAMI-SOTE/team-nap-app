@@ -1,7 +1,6 @@
 import { api } from "@/services/api";
 
 import type {
-  AccountSettingsResponse,
   CalendarIntegrationResponse,
   NotificationSettingsResponse,
   SleepScheduleResponse,
@@ -18,15 +17,8 @@ export function updateNotificationSettings(
   return api.post<NotificationSettingsResponse>("/settings/notifications", body);
 }
 
-export function getAccountSettings(): Promise<AccountSettingsResponse> {
-  return api.get<AccountSettingsResponse>("/settings/account");
-}
-
-export function updateAccountSettings(
-  body: AccountSettingsResponse,
-): Promise<AccountSettingsResponse> {
-  return api.post<AccountSettingsResponse>("/settings/account", body);
-}
+// Account name / email are read from `useAuth().user` (GET /auth/me) and
+// saved via `updateProfile` (PATCH /auth/me), not through /settings.
 
 export function getSleepSchedule(): Promise<SleepScheduleResponse> {
   return api.get<SleepScheduleResponse>("/settings/sleep-schedule");

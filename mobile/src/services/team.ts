@@ -64,3 +64,23 @@ export async function sendRestNudge(memberId: string): Promise<void> {
     {},
   );
 }
+
+/** Owner-only: remove a member from the team. */
+export async function removeTeamMember(
+  memberId: string,
+): Promise<TeamSettingsResponse> {
+  return api.del<TeamSettingsResponse>(
+    `/teams/members/${encodeURIComponent(memberId)}`,
+  );
+}
+
+/** Set the signed-in user's own activity. Ignored when not in a team. */
+export async function setMyStatus(
+  status: "online" | "resting",
+): Promise<void> {
+  try {
+    await api.put("/teams/me/status", { status });
+  } catch {
+    /* not in a team (404) or offline — presence is best-effort */
+  }
+}

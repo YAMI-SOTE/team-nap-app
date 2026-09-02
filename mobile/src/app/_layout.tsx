@@ -5,6 +5,7 @@ import { Stack } from "expo-router";
 import { notifyFrontendBoot } from "@/services/appBoot";
 import { AuthProvider } from "@/features/auth/AuthContext";
 import { NotificationsProvider } from "@/features/notifications/NotificationsProvider";
+import { RealtimeProvider } from "@/features/realtime/RealtimeProvider";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -28,13 +29,15 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <NotificationsProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
-        />
-      </NotificationsProvider>
+      <RealtimeProvider>
+        <NotificationsProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </NotificationsProvider>
+      </RealtimeProvider>
     </AuthProvider>
   );
 }
