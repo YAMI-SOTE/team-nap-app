@@ -138,6 +138,64 @@ ${JSON.stringify(data, null, 2)}
   return callGemma(prompt);
 }
 
+
+// ---------------------------------------------------------------------------
+// Nap reflection advice
+// ---------------------------------------------------------------------------
+
+export type NapAdviceAiData = {
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+  start: string;
+};
+
+export async function generateNapAdvice(
+  data: NapAdviceAiData,
+): Promise<string> {
+  const prompt = `
+あなたは休息支援アプリの「仮眠後のふりかえり画面」に表示する
+短いアドバイスの文章作成を担当します。
+
+入力された仮眠データだけを使って、
+今回の休息について自然で短い日本語のコメントを作成してください。
+
+【入力項目】
+minutes:
+仮眠した時間（分）
+
+wakeStars:
+起床後の目覚めの自己評価。1〜5で、5が最も良い評価です。
+
+focusDeltaPt:
+仮眠後の集中度を表す値です。
+正の値は集中しやすい状態、負の値は集中しにくい状態を表します。
+
+start:
+仮眠を開始した時刻です。
+
+【最重要ルール】
+・入力されていない情報を推測しないでください
+・医学的な診断や効果の断定をしないでください
+・ユーザーを責める表現を使わないでください
+・強い命令表現を避けてください
+・具体的すぎる健康上の助言をしないでください
+・今回の仮眠についてのみコメントしてください
+
+【出力ルール】
+・日本語のみ
+・1〜3文
+・120文字以内
+・前置きは不要
+・コメント本文だけを返してください
+
+【入力データ】
+${JSON.stringify(data, null, 2)}
+`;
+
+  return callGemma(prompt);
+}
+
 // ---------------------------------------------------------------------------
 // Home AI comments
 // ---------------------------------------------------------------------------
@@ -300,7 +358,7 @@ ${JSON.stringify(data, null, 2)}
 // ---------------------------------------------------------------------------
 
 /** Give up on the model after this long so a slow/absent Ollama never wedges a request. */
-const OLLAMA_TIMEOUT_MS = 8000;
+const OLLAMA_TIMEOUT_MS = 30000;
 
 async function callGemma(prompt: string): Promise<string> {
   const controller = new AbortController();
