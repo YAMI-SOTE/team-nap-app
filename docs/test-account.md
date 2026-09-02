@@ -11,15 +11,18 @@
 
 チーム **サンプルチーム**（招待コード `NAP-2001`）に 4 人。全員パスワード
 `samplepass123`、全員オンボーディング完了済み。別々の端末 / ブラウザで
-それぞれログインすれば、メンバー一覧・ステータス表示・ナッジ・仮眠提案・
-ランキングを実データで確認できます。
+それぞれログインすれば、メンバー一覧・ステータス表示・**在席のライブ更新
+（WebSocket）**・メンバー管理・ナッジ・仮眠提案・ランキングを確認できます。
 
-| メール | 名前 | 在席 (activity) | 起床サポート |
-| --- | --- | --- | --- |
-| `sample@teamnap.app` | サンプル 太郎 | online（作業中） | on |
-| `hanako@teamnap.app` | サンプル 花子 | resting（仮眠中） | on |
-| `jiro@teamnap.app` | サンプル 次郎 | online（作業中） | **off** ← wake ナッジは 409 |
-| `saburo@teamnap.app` | サンプル 三郎 | resting（仮眠中） | on |
+| メール | 名前 | 役割 | 在席 (activity) | 起床サポート |
+| --- | --- | --- | --- | --- |
+| `sample@teamnap.app` | サンプル 太郎 | **owner** | online（作業中） | on |
+| `hanako@teamnap.app` | サンプル 花子 | member | resting（仮眠中） | on |
+| `jiro@teamnap.app` | サンプル 次郎 | member | online（作業中） | **off** ← wake ナッジは 409 |
+| `saburo@teamnap.app` | サンプル 三郎 | member | resting（仮眠中） | on |
+
+太郎だけがオーナーなので、`設定 > チーム設定 > メンバーを管理` で他 3 人を
+削除できます（`testing-guide.md` 4b）。在席のライブ更新は 4a を参照。
 
 ```bash
 curl -s -XPOST http://localhost:3000/api/v1/auth/login \

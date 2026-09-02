@@ -113,11 +113,14 @@ erDiagram
     USER ||--o{ TEAM_MEMBERSHIP : has
     TEAM ||--o{ TEAM_MEMBERSHIP : has
     USER ||--o{ NAP_RECORD : records
+    USER ||--|| ONBOARDING : has
+    USER ||--o{ SESSION : has
 
     USER {
         string id PK
         string email UK
         string name "nullable"
+        string passwordHash "nullable"
         datetime createdAt
     }
 
@@ -125,6 +128,7 @@ erDiagram
         string id PK
         string name
         string inviteCode UK
+        string inviteCodeNormalized UK
         datetime createdAt
     }
 
@@ -134,12 +138,28 @@ erDiagram
         string userId FK "unique（1ユーザー1チーム）"
         enum   activity "online | resting"
         boolean wakeAssistEnabled
+        string role "owner | member"
         datetime joinedAt
+    }
+
+    ONBOARDING {
+        string userId PK
+        string bedtime
+        string wakeTime
+        int napCutoffHour
+        boolean calendarConnected
+        boolean calendarDeviceConnected
+        boolean notificationsEnabled
+        boolean notifyNapSuggestion
+        boolean notifyNapEnd
+        boolean notifyTeamNapSuggestion
+        boolean notifyWakeSupport
+        datetime completedAt "nullable"
     }
 
     NAP_RECORD {
         string id PK
-        string userId FK "unique（userId, date）"
+        string userId FK "index (userId, date)"
         string date "YYYY-MM-DD"
         string start "HH:MM"
         string end "HH:MM"
@@ -149,7 +169,17 @@ erDiagram
         string aiAdvice "nullable"
         datetime createdAt
     }
+
+    SESSION {
+        string id PK
+        string userId FK
+        string tokenHash UK
+        datetime expiresAt
+        datetime revokedAt "nullable"
+    }
 ```
+
+（`PasswordResetToken` も同様に `USER` に 1:N でぶら下がります。図では省略。）
 
 ### 4.2 今後の予定（未実装）
 
@@ -340,7 +370,9 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 @@unique([userId])           1ユーザーは同時に1チームのみ（サービス層でも二重チェック）
 ```
 
-`role` 列は現状ありません（作成者と参加者を区別していません）。
+`role` はチーム作成者が `"owner"`、以降の参加者は `"member"`。オーナーだけが
+`DELETE /api/v1/teams/members/:id` でメンバーを削除でき、オーナーが離脱すると
+最古参メンバーへ自動委譲します。`renameTeam` は現状メンバーなら誰でも可能です。
 
 `activity` は API 上は `MemberStatus`（`working` / `resting` / `offline`）へ
 写像されますが、DB に `offline` は存在しません（`mapActivity()`）。
@@ -665,8 +697,8 @@ Session            （サインアップ / ログイン / セッション管理 
 PasswordResetToken （パスワード再設定 / 変更）
 Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー）
 NapRecord          （仮眠の記録 + 生成した AI アドバイス）
-Team
-TeamMembership     （チーム作成 / 参加 / 離脱 / 改名 / 在席ステータス）
+Team               （招待コード + 正規化列でインデックス検索）
+TeamMembership     （作成 / 参加 / 離脱 / 改名 / 在席ステータス / role（owner・member）/ メンバー削除 / WS ライブ更新）
 ```
 
 `/health` と `/auth`（signup / login / password-reset）以外の

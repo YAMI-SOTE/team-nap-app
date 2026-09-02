@@ -51,6 +51,10 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 | `PUT /` | 4 項目の任意の部分集合 | 途中保存。完了にはしない |
 | `POST /complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | 初回のみ `completedAt` を刻む。以降は冪等（回答だけ更新） |
 
+`bedtime` / `wakeTime` は zod で「就寝→起床が 16 時間以内」を検証（`lib/sleep-window.ts`。
+`/settings/sleep-schedule` と同じルール）。`Onboarding` 行は設定画面
+（睡眠 / 通知 / カレンダー）の保存先も兼ねる（`db.md` 参照）。
+
 ---
 
 ## 3. セッション（トークン）

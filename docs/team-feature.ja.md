@@ -53,24 +53,18 @@
 
 ## 3. データモデル（Prisma）
 
-`backend/prisma/schema.prisma` / マイグレーション
-`prisma/migrations/20260830091652_team_feature/`。
+`backend/prisma/schema.prisma`。関連マイグレーション:
+`20260830091652_team_feature`（初版）/
+`20260901224358_team_roles_and_invite_index`（`role` + `inviteCodeNormalized`）。
 
 ```prisma
-model User {
-  id          String           @id @default(uuid())
-  email       String           @unique
-  name        String?
-  createdAt   DateTime         @default(now())
-  memberships TeamMembership[]
-}
-
 model Team {
-  id         String           @id @default(uuid())
-  name       String
-  inviteCode String           @unique
-  createdAt  DateTime         @default(now())
-  members    TeamMembership[]
+  id                   String           @id @default(uuid())
+  name                 String
+  inviteCode           String           @unique
+  inviteCodeNormalized String           @unique @default("")
+  createdAt            DateTime         @default(now())
+  members              TeamMembership[]
 }
 
 enum MemberActivity {
@@ -84,6 +78,7 @@ model TeamMembership {
   userId            String
   activity          MemberActivity @default(online)
   wakeAssistEnabled Boolean        @default(true)
+  role              String         @default("member")   // "owner" | "member"
   joinedAt          DateTime       @default(now())
 
   @@unique([teamId, userId])
@@ -91,12 +86,16 @@ model TeamMembership {
 }
 ```
 
+（`User` は他機能でも列が増えているため省略。`db.md` 参照。）
+
 ポイント。
 
 | 制約 | 意味 |
 | --- | --- |
 | `TeamMembership.@@unique([userId])` | 1 ユーザーは同時に 1 チームだけ。DB とサービス層の両方で担保。 |
-| `Team.inviteCode @unique` | 招待コードは全体で一意。 |
+| `Team.inviteCode @unique` | 招待コードは全体で一意。表示用。 |
+| `Team.inviteCodeNormalized @unique` | `normalizeCode(inviteCode)`。`joinTeam` はこの列をインデックス検索（全件走査なし）。 |
+| `TeamMembership.role` | `"owner"`（作成者）/ `"member"`。メンバー削除はオーナーのみ。オーナー離脱で最古参へ委譲。 |
 | `onDelete: Cascade`（team / user） | チームまたはユーザー削除で membership も消える。 |
 | `activity` は `online \| resting` のみ | 「offline」はモデル化していない。API 上は `working / resting / offline` の `MemberStatus` に写像するが、DB からは `offline` は出ない。 |
 | `wakeAssistEnabled` | 起床サポート ON/OFF。OFF のメンバーへの wake ナッジは 409。 |
@@ -126,6 +125,9 @@ Prisma クライアントは `src/lib/prisma.ts` の共有シングルトン（P
 | `GET /teams/members/:id` | – | 200 / 404 | `getMemberDetail` | `MemberDetailResponse` |
 | `POST /teams/members/:id/wake` | – | 200 | `sendNudge(…, "wake")` | `{ success: true }` |
 | `POST /teams/members/:id/rest` | – | 200 | `sendNudge(…, "rest")` | `{ success: true }` |
+| `DELETE /teams/members/:id` | – | 200 / 400 / 403 | `removeMember` | `TeamSettingsResponse` |
+
+WebSocket は `/api/v1/realtime`（`src/realtime/hub.ts`）。§11 参照。
 
 ### 4.2 `/settings/team`（`routes/settings.routes.ts`）
 
@@ -185,9 +187,10 @@ uniqueInviteCode()    →  最大 20 回リトライして未使用コードを�
 normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" と "nap4821" を同一視
 ```
 
-`joinTeam` は `inviteCode` の `@unique` 検索ではなく、
-**全 `Team` を取得して正規化比較**している（ハイフンや大小文字の揺れを
-吸収するため）。チーム数が増えたらここは要見直し。
+`joinTeam` は入力コードを `normalizeCode()` し、`Team.inviteCodeNormalized`
+（`@unique` インデックス）を `findUnique` で直接引く。全件走査はしない。
+採番時（`uniqueInviteCode()`）に `inviteCode` と `inviteCodeNormalized` を
+両方保存する。
 
 ### 5.5 `ensureUser(userId)`
 
@@ -226,6 +229,8 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 - `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
   —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
+- `removeMember`: 除名された本人のフィードへ `member_joined` kind で
+  「チームから退出しました」通知（＋ WS ソケット切断）
 - `sendNudge(wake)`: `wake_request` を **対象（`toUserId`）の**フィードへ —「〇〇から「起きて〜」」
 - `sendNudge(rest)`: `rest_request` を対象のフィードへ —「〇〇から「休んでね」」
 - `suggestTeamNap`: `team_nap_suggestion` を **自分以外の全メンバーの**フィードへ
@@ -254,7 +259,9 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 `team.service.ts` が公開する型がフロントとの契約。フロントは
 `mobile/src/types/api.ts` に同じ形を手で持っているので、変更時は両方直す。
 
-- `TeamSettingsResponse` — `{ teamName, memberCount, inviteCode, members: Member[] }`
+- `TeamSettingsResponse` — `{ teamName, memberCount, inviteCode, canManage,
+  members: TeamSettingsMember[] }`。`canManage` は呼び出し元がオーナーか。
+  `TeamSettingsMember` = `Member & { name, role: "owner"|"member", isSelf }`
 - `TeamSummaryResponse` — 週次サマリー + 提案 + achievement
 - `TeamRankingResponse` — `{ memberCount, entries: TeamRankingEntry[] }`
 - `MemberDetailResponse`（`member.service.ts`）
