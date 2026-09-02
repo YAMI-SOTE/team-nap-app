@@ -184,19 +184,26 @@ async function main() {
 
   const team = await prisma.team.upsert({
     where: { inviteCode: "NAP-4821" },
-    update: { name: "TEAM NAP 開発チーム" },
-    create: { name: "TEAM NAP 開発チーム", inviteCode: "NAP-4821" },
+    update: { name: "TEAM NAP 開発チーム", inviteCodeNormalized: "NAP4821" },
+    create: {
+      name: "TEAM NAP 開発チーム",
+      inviteCode: "NAP-4821",
+      inviteCodeNormalized: "NAP4821",
+    },
   });
 
-  for (const m of MEMBERSHIPS) {
+  for (const [i, m] of MEMBERSHIPS.entries()) {
+    // The first seeded member owns the team.
+    const role = i === 0 ? "owner" : "member";
     await prisma.teamMembership.upsert({
       where: { userId: m.userId },
       update: {
         teamId: team.id,
         activity: m.activity,
         wakeAssistEnabled: m.wakeAssistEnabled,
+        role,
       },
-      create: { teamId: team.id, ...m },
+      create: { teamId: team.id, role, ...m },
     });
   }
 
@@ -211,29 +218,39 @@ async function main() {
 
   // --- Sample test team (docs/testing-guide.md) ---------------------------
   const sampleHash = await hashPassword(SAMPLE_PASSWORD);
+  const sampleNormalized = SAMPLE_TEAM.inviteCode
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
   const sampleTeam = await prisma.team.upsert({
     where: { inviteCode: SAMPLE_TEAM.inviteCode },
-    update: { name: SAMPLE_TEAM.name },
-    create: { name: SAMPLE_TEAM.name, inviteCode: SAMPLE_TEAM.inviteCode },
+    update: { name: SAMPLE_TEAM.name, inviteCodeNormalized: sampleNormalized },
+    create: {
+      name: SAMPLE_TEAM.name,
+      inviteCode: SAMPLE_TEAM.inviteCode,
+      inviteCodeNormalized: sampleNormalized,
+    },
   });
-  for (const m of SAMPLE_MEMBERS) {
+  for (const [i, m] of SAMPLE_MEMBERS.entries()) {
     await prisma.user.upsert({
       where: { id: m.id },
       update: { email: m.email, name: m.name, passwordHash: sampleHash },
       create: { id: m.id, email: m.email, name: m.name, passwordHash: sampleHash },
     });
+    const role = i === 0 ? "owner" : "member"; // サンプル 太郎 owns the team
     await prisma.teamMembership.upsert({
       where: { userId: m.id },
       update: {
         teamId: sampleTeam.id,
         activity: m.activity,
         wakeAssistEnabled: m.wakeAssistEnabled,
+        role,
       },
       create: {
         teamId: sampleTeam.id,
         userId: m.id,
         activity: m.activity,
         wakeAssistEnabled: m.wakeAssistEnabled,
+        role,
       },
     });
     await prisma.onboarding.upsert({

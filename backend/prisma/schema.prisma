@@ -106,6 +106,9 @@ model Team {
   id         String           @id @default(uuid())
   name       String
   inviteCode String           @unique
+  /// inviteCode with case + separators stripped (normalizeCode), for an
+  /// indexed lookup on join instead of scanning every team.
+  inviteCodeNormalized String  @unique @default("")
   createdAt  DateTime         @default(now())
   members    TeamMembership[]
 }
@@ -123,6 +126,8 @@ model TeamMembership {
   userId            String
   activity          MemberActivity @default(online)
   wakeAssistEnabled Boolean        @default(true)
+  /// "owner" (the creator) or "member". Only an owner can remove members.
+  role              String         @default("member")
   joinedAt          DateTime       @default(now())
 
   // A user belongs to at most one team; enforced additionally in the service.
