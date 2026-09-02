@@ -8,8 +8,10 @@ import type { TeamSettingsResponse } from "@/types/api";
  * State + submit for the "チームに参加" screen (S04-08). The invite code
  * is uppercased as the user types.
  */
-export function useJoinTeam() {
-  const [code, setCodeRaw] = useState("");
+export function useJoinTeam(initialCode = "") {
+  const [code, setCodeRaw] = useState(() =>
+    initialCode.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 

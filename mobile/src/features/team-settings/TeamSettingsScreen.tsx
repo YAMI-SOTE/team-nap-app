@@ -55,7 +55,7 @@ export default function TeamSettingsScreen() {
     if (ok) setEditingName(false);
   };
 
-  const handleManageMembers = () => console.log("TODO: open member management");
+  const handleManageMembers = () => router.push("/settings/team-members");
   const handleLeaveTeam = async () => {
     const success = await leave();
     if (success) {

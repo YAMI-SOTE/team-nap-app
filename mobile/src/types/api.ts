@@ -119,11 +119,23 @@ export interface CalendarIntegrationResponse {
   };
 }
 
+export type TeamRole = "owner" | "member";
+
+export interface TeamSettingsMember extends HomeMember {
+  /** Display name, or null if never set. */
+  name: string | null;
+  role: TeamRole;
+  /** True for the row that is the signed-in user. */
+  isSelf: boolean;
+}
+
 export interface TeamSettingsResponse {
   teamName: string;
   memberCount: number;
   inviteCode: string;
-  members: HomeMember[];
+  /** True when the signed-in user is the owner (can rename / remove members). */
+  canManage: boolean;
+  members: TeamSettingsMember[];
 }
 
 export interface TeamRankingEntry {

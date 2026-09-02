@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useJoinTeam } from "@/hooks/useJoinTeam";
@@ -22,7 +22,11 @@ import PillButton from "@/components/PillButton";
  */
 export default function JoinTeamScreen() {
   const router = useRouter();
-  const { code, setCode, isSubmitting, errorMessage, submit } = useJoinTeam();
+  // A shared invite link opens this screen with ?code=NAP-XXXX.
+  const { code: codeParam } = useLocalSearchParams<{ code?: string }>();
+  const { code, setCode, isSubmitting, errorMessage, submit } = useJoinTeam(
+    codeParam ?? "",
+  );
 
   const handleSubmit = async () => {
     const team = await submit();
