@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 
 import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
@@ -21,6 +22,8 @@ import NotificationBell from "@/components/NotificationBell";
 import { MoonStarsIcon, TimerIcon, UsersThreeIcon } from "@/components/icons";
 import { CAT_IDLE_FRAMES, CAT_IDLE_FRAME_MS } from "@/constants/characters";
 import HomeNoTeamView from "@/features/home/HomeNoTeamView";
+import NapProposalSheet from "@/features/team/NapProposalSheet";
+import Toast from "@/components/Toast";
 
 /**
  * ホーム（Figma S02-01_Home, node 733:4460）。
@@ -40,6 +43,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { data, loading, error } = useHomeSummary();
   const { memberStatus: liveMemberStatus } = useRealtimeMembers();
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const summary = data?.summary;
 
   // Solo accounts never see team score / members / free-slot blocks.
@@ -56,11 +61,6 @@ export default function HomeScreen() {
       <HomeNoTeamView summary={summary} loading={loading} error={error} />
     );
   }
-
-  const handleSuggestTeamNap = () => {
-    console.log("TODO: suggest a nap to everyone");
-    // TODO: wire to the "suggest a nap to everyone" backend action.
-  };
 
   const restingCount = memberStatus?.memberStatusCounts.resting ?? 0;
   const nextFree = summary?.nextFree ?? null;
@@ -156,7 +156,9 @@ export default function HomeScreen() {
               variant="outline"
               label={hasTeam ? "みんなを誘う" : "チームに参加する"}
               onPress={
-                hasTeam ? handleSuggestTeamNap : () => router.push("/team/join")
+                hasTeam
+                  ? () => setProposalOpen(true)
+                  : () => router.push("/team/join")
               }
               icon={<UsersThreeIcon size={20} color={colors.primary} />}
               hitSlop={{ top: 4, bottom: 4 }}
@@ -171,6 +173,26 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* チーム画面と同じ提案シート（OV-01 → OV-02） */}
+      <NapProposalSheet
+        visible={proposalOpen}
+        slotNote={
+          nextFree
+            ? `${nextFree.start}〜${nextFree.end} ・ ${nextFree.availableMemberCount}人が予定なし`
+            : undefined
+        }
+        onClose={() => setProposalOpen(false)}
+        onSent={(minutes) => {
+          setProposalOpen(false);
+          setToast(`${minutes}分の仮眠を提案しました`);
+        }}
+      />
+      <Toast
+        visible={toast != null}
+        message={toast ?? ""}
+        onHide={() => setToast(null)}
+      />
     </SceneBackground>
   );
 }
