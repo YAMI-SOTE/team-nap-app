@@ -154,6 +154,16 @@ Frontend が正常に起動してアプリがマウントされると、Expo 側
 
 このログは Frontend から `POST /api/v1/health/frontend-boot` が成功したことを意味します。
 
+## リアルタイム在席（WebSocket）
+
+Backend は同じポートで WebSocket も待ち受けます:
+`ws://localhost:3000/api/v1/realtime?token=<セッショントークン>`。
+`EXPO_PUBLIC_API_URL` の `http`→`ws` 置換で自動的に導出されるので、
+モバイル側の追加設定は不要です。チームのメンバーが在席ステータスを
+変えると、接続中の全メンバーへ `member-status` が push されます。
+実機で試す場合は `EXPO_PUBLIC_API_URL` が PC の LAN IP を指していれば
+そのまま WS も通ります（同一ポート）。
+
 ## API リクエストが必ず失敗する（最優先チェック）
 
 1. **Backend が起動しているか**

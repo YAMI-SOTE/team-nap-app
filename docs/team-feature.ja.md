@@ -239,7 +239,9 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 | --- | --- |
 | チーム作成 / 参加 / 離脱 / 改名 | ✅ Postgres 永続化 |
 | メンバー一覧・在席ステータス・起床サポート | ✅ Postgres |
-| メンバー詳細（`nap` を除く） | ✅ Postgres |
+| **在席ステータスのライブ更新** | ✅ WebSocket（`/api/v1/realtime`）。`setActivity` / join / leave / remove で全メンバーへ push。休憩画面の開閉が `PUT /teams/me/status` を叩く |
+| **メンバー管理**（オーナー権限・除名・オーナー委譲） | ✅ `role` 列 + `DELETE /teams/members/:id`（オーナーのみ） |
+| 招待コード照合 | ✅ `inviteCodeNormalized` の一意インデックスを直接引く（全件スキャン廃止） |
 | メンバー詳細の `nap` | ⚠️ 常に `null`（未実装） |
 | `GET /teams/summary` | ⚠️ `teamSummarySnapshot` 固定値 |
 | `GET /teams/ranking` | ⚠️ `rankingSnapshot` 固定値（`memberX` はダミー、`score` も手書き） |
@@ -302,26 +304,42 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 
 ---
 
-## 11. 既知の TODO / 注意点
+## 11. リアルタイム在席（WebSocket）
 
-- `joinTeam` の招待コード照合が全件スキャン。件数増加時にインデックス
-  検索（`normalizeCode` を保存列にする等）へ移行する。
+`src/realtime/hub.ts` — `ws` で `/api/v1/realtime` にサーバを立てる
+（`server.ts` が `http.createServer(app)` にアタッチ）。
+
+- 接続: `ws://<host>/api/v1/realtime?token=<bearer>`。`resolveSession` で
+  userId を解決 → 所属チーム。未ログイン `4001` / チーム未加入 `4002`。
+- 接続直後に `{ type: "member-status", data }`（`GET /home/member-status`
+  と同形）を送信。以後は `broadcastTeamMembers(teamId)` が呼ばれるたびに送信。
+- `broadcastTeamMembers` の呼び出し元: `setActivity` / `joinTeam` /
+  `leaveTeam` / `removeMember`。離脱・除名された本人のソケットは `4003` で切断。
+- 30 秒ごとに ping/pong で死んだ接続を落とす。**片方向**（ステータス変更は
+  引き続き `PUT /teams/me/status`）。
+- モバイル: `services/realtime.ts`（グローバル `WebSocket`、指数バックオフ再接続）
+  + `RealtimeProvider`（サインイン中だけ接続）。Home / Team 画面はこの
+  スナップショットを取得済みデータに上書きする。休憩画面の mount/unmount で
+  `setMyStatus("resting" | "online")`。
+
+## 12. メンバー管理
+
+- `TeamMembership.role`（`"owner"` / `"member"`）。`createTeam` で作成者を owner に。
+- `DELETE /api/v1/teams/members/:id` — オーナーのみ（`403`）。自分・他オーナーは
+  削除不可（`400`）。削除後は broadcast + 対象へ通知 + ソケット切断。
+- オーナーが `leaveTeam` した場合、最古参メンバーへ owner を委譲。
+- モバイル: `ManageMembersScreen`（`/settings/team-members`）。`canManage` が
+  true のとき各行に「削除」（二段階確認）。
+
+## 13. 既知の TODO / 注意点
+
 - `summary` / `ranking` を実データ（仮眠履歴）から算出する。
 - メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
-- 通知フィードは userId ごとになったが、まだ in-memory（`Map`）。
-  DB 化（`Notification` テーブル）すれば再起動で消えなくなる。
+- 通知フィードは userId ごとだがまだ in-memory（`Map`）。DB 化すれば
+  再起動で消えなくなる。
 - 認証は `routes/index.ts` で `/health` と `/auth` 以外の全ルートに
-  一括適用（`router.use(authenticate)`）。home / schedule / stats / naps /
-  settings も含めすべて `Authorization: Bearer` 必須。呼び出しユーザーは
-  常にセッションの `userId`。`ensureUser` は歴史的経緯で残しているだけ
-  （実質 no-op）。
-- `home/member-status` は認証後 `req.auth.userId` の**実チーム**を返す
-  （以前は `DEV_USER_ID` の固定チームが漏れていた）。
-- **在席ステータスのライブ更新は未実装**。`PUT/GET /teams/me/status` は
-  あるがフロント未接続、ポーリング/WebSocket も無いのでメンバーの
-  「作業中/仮眠中」表示は画面を開いた時点のスナップショット。
-- **メンバー管理**（除名・オーナー/権限・譲渡）は未実装。`role` /
-  `ownerId` 列も無く `renameTeam` はメンバーなら誰でも可能。
-  `TeamSettingsScreen` の「メンバーを管理」は TODO。
-- 「◯分仮眠を提案」は `POST /teams/nap-suggestion` + `NapProposalSheet`
-  で接続済み。
+  一括適用（`router.use(authenticate)`）。呼び出しユーザーは常にセッションの
+  `userId`。`ensureUser` は歴史的経緯で残しているだけ（実質 no-op）。
+- 招待コードは `inviteCodeNormalized` の一意インデックスで直接引く
+  （旧: 全件スキャン）。
+- `renameTeam` は現状メンバーなら誰でも可能（owner 限定にするかは未決）。

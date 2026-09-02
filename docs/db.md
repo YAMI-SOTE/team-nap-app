@@ -27,7 +27,8 @@ Mobile App から PostgreSQL へ直接アクセスすることはありません
 > `20260901163406_password_reset_tokens` / `20260901163741_onboarding_profile`
 > / `20260901195734_nap_records` /
 > `20260901210222_nap_records_allow_multiple_per_day` /
-> `20260901222623_onboarding_settings_fields`）。
+> `20260901222623_onboarding_settings_fields` /
+> `20260901224358_team_roles_and_invite_index`）。
 > `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
 > 単回・短命トークン、`Onboarding` は初期設定＋設定画面（睡眠 / 通知 / カレンダー）の保存先、
 > `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`（`src/services/`）。
@@ -306,15 +307,17 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 
 チーム情報と招待コードを保存します。
 
-| 列         | 型         | 備考                                          |
-| ---------- | ---------- | --------------------------------------------- |
-| id         | String PK  | `uuid()`                                      |
-| name       | String     | 1〜50 文字（zod で検証）                        |
-| inviteCode | String     | `@unique`。`NAP-1000`〜`NAP-9999` 形式で採番    |
-| createdAt  | DateTime   | `now()`                                       |
+| 列                   | 型         | 備考                                          |
+| -------------------- | ---------- | --------------------------------------------- |
+| id                   | String PK  | `uuid()`                                      |
+| name                 | String     | 1〜50 文字（zod で検証）                        |
+| inviteCode           | String     | `@unique`。`NAP-1000`〜`NAP-9999` 形式で採番    |
+| inviteCodeNormalized | String     | `@unique`。`normalizeCode(inviteCode)`（大文字・英数字のみ）。join はこの列でインデックス検索（全件スキャンを廃止） |
+| createdAt            | DateTime   | `now()`                                       |
 
 招待コードの照合は大文字小文字・ハイフンを無視します
-（`normalizeCode()`。`NAP-4821` と `nap4821` は同一扱い）。
+（`normalizeCode()`。`NAP-4821` と `nap4821` は同一扱い）。join は
+`inviteCodeNormalized` の一意インデックスを直接引きます。
 
 #### TeamMembership
 
@@ -325,8 +328,9 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 | id                | String PK             | `uuid()`                              |
 | teamId            | String FK             | `onDelete: Cascade`                   |
 | userId            | String FK             | `onDelete: Cascade`                   |
-| activity          | MemberActivity enum   | `online` \| `resting`（既定 `online`） |
+| activity          | MemberActivity enum   | `online` \| `resting`（既定 `online`）。realtime hub が変更を全メンバーへ push |
 | wakeAssistEnabled | Boolean               | 既定 `true`。起床サポート ON/OFF       |
+| role              | String                | `"owner"`（作成者）または `"member"`。メンバー削除はオーナーのみ。オーナー離脱時は最古参メンバーへ委譲 |
 | joinedAt          | DateTime              | `now()`                               |
 
 制約:
@@ -439,11 +443,12 @@ model Session {
 }
 
 model Team {
-  id         String           @id @default(uuid())
-  name       String
-  inviteCode String           @unique
-  createdAt  DateTime         @default(now())
-  members    TeamMembership[]
+  id                   String           @id @default(uuid())
+  name                 String
+  inviteCode           String           @unique
+  inviteCodeNormalized String           @unique @default("")
+  createdAt            DateTime         @default(now())
+  members              TeamMembership[]
 }
 
 enum MemberActivity {
@@ -459,6 +464,7 @@ model TeamMembership {
   userId            String
   activity          MemberActivity @default(online)
   wakeAssistEnabled Boolean        @default(true)
+  role              String         @default("member")
   joinedAt          DateTime       @default(now())
 
   @@unique([teamId, userId])
@@ -619,6 +625,7 @@ git add backend/prisma && git commit
 20260901195734_nap_records            NapRecord テーブル
 20260901210222_nap_records_allow_multiple_per_day  NapRecord の (userId, date) UNIQUE を撤去
 20260901222623_onboarding_settings_fields  Onboarding に napCutoffHour / notify* / calendarDeviceConnected を追加
+20260901224358_team_roles_and_invite_index  TeamMembership.role + Team.inviteCodeNormalized（一意）
 ```
 
 ---
