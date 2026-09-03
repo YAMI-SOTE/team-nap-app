@@ -286,6 +286,7 @@ docker compose down
 - [docs/settings-architecture.md](docs/settings-architecture.md) — 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応
 - [docs/ai-development.md](docs/ai-development.md) — AI コメント機能（Ollama / Gemma）の構成と編集ポイント
 - [docs/testing-guide.md](docs/testing-guide.md) — 機能を手で確認する手順
+- [docs/device-testing.md](docs/device-testing.md) — iPhone / Android 実機・複数アカウントでのテスト手順（LAN 設定・チーム機能・トラブルシュート）
 - [docs/test-account.md](docs/test-account.md) — テスト用アカウント（`*@teamnap.app` は `samplepass123` / `*@teamnap.local` は `teamnap-dev`。`npm run db:seed` で投入）
 - [docs/implementation-checklist.md](docs/implementation-checklist.md) — リポジトリ全体の実装点検チェックリスト
 

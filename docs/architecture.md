@@ -133,5 +133,6 @@ src/
 | [settings-architecture.md](./settings-architecture.md) | 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応 |
 | [ai-development.md](./ai-development.md) | AI コメント機能（Ollama / Gemma）の構成と編集ポイント |
 | [testing-guide.md](./testing-guide.md) | 機能ごとの手動確認手順 |
+| [device-testing.md](./device-testing.md) | iPhone / Android 実機・複数アカウントでのテスト手順 |
 | [test-account.md](./test-account.md) | シード投入されるテストアカウントとパスワード |
 | [implementation-checklist.md](./implementation-checklist.md) | リポジトリ全体の実装点検チェックリスト |
