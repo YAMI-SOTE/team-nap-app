@@ -8,14 +8,16 @@ Team Nap アプリ向けの Express + TypeScript 製 API サーバーです。
 
 Prisma 7 + PostgreSQL。接続はドライバアダプタ `@prisma/adapter-pg` 経由で
 行います（`src/lib/prisma.ts`）。永続化しているモデルは
-**`User` / `Team` / `TeamMembership`** です
+**`User` / `Session` / `PasswordResetToken` / `Onboarding` / `NapRecord` /
+`CalendarEvent` / `Team` / `TeamMembership`** です
 （`prisma/schema.prisma`、詳細は [../docs/db.md](../docs/db.md)）。
 
-チーム関連のサービスは DB 化済みです（`team.service` / `member.service` /
-`nudge.service` と `home.service` のメンバーステータス部分）。
-それ以外（`settings` / `schedule` / `notifications` / `naps`、および
-今週の Team Nap サマリー・ランキングのスナップショット）は、まだ
-`src/services/*` のインメモリ状態です。
+DB 化済み: 認証系・`onboarding` / `settings`（`Onboarding` 行）・`naps`・
+`schedule`（`CalendarEvent`。ユーザーごとの CRUD ＋ Google カレンダーの
+サンプル取り込み）・`team` / `member` / `nudge` と `home.service` の
+メンバーステータス部分。まだインメモリなのは `notifications.service`
+（userId ごとの `Map`）と、今週の Team Nap サマリー・ランキングの
+スナップショットです。
 
 認証はまだありません。呼び出しユーザーは `X-User-Id` ヘッダ、無ければ
 `env.DEV_USER_ID` です（`src/lib/request-user.ts`）。

@@ -31,8 +31,9 @@ Mobile App から PostgreSQL へ直接アクセスすることはありません
 > `20260901224358_team_roles_and_invite_index`）。
 > `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
 > 単回・短命トークン、`Onboarding` は初期設定＋設定画面（睡眠 / 通知 / カレンダー）の保存先、
-> `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`（`src/services/`）。
-> スケジュール（`schedule.service`）・通知フィード（`notifications.service`）・
+> `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`、`CalendarEvent` は
+> ユーザーごとの予定（`schedule.service` の CRUD ＋ Google カレンダー取り込み、
+> `20260903024003_calendar_events`）。通知フィード（`notifications.service`）・
 > 休息提案などは、まだ各 `src/services/*` のインメモリ状態で、
 > サーバ再起動で消えます。本ドキュメントの後半では「今後の予定」として扱います。
 
@@ -113,6 +114,7 @@ erDiagram
     USER ||--o{ TEAM_MEMBERSHIP : has
     TEAM ||--o{ TEAM_MEMBERSHIP : has
     USER ||--o{ NAP_RECORD : records
+    USER ||--o{ CALENDAR_EVENT : schedules
     USER ||--|| ONBOARDING : has
     USER ||--o{ SESSION : has
 
@@ -155,7 +157,22 @@ erDiagram
         boolean notifyNapEnd
         boolean notifyTeamNapSuggestion
         boolean notifyWakeSupport
+        datetime calendarLastSyncedAt "nullable"
         datetime completedAt "nullable"
+    }
+
+    CALENDAR_EVENT {
+        string id PK
+        string userId FK "index (userId, date)"
+        string title
+        string date "YYYY-MM-DD"
+        string start "HH:MM"
+        string end "HH:MM"
+        boolean allDay
+        string source "manual | google"
+        string externalId "nullable, unique (userId, externalId)"
+        datetime createdAt
+        datetime updatedAt
     }
 
     NAP_RECORD {
@@ -184,22 +201,13 @@ erDiagram
 
 ### 4.2 今後の予定（未実装）
 
-> 睡眠設定は `Onboarding` の列として実装済みのため、専用テーブルは作りません。
+> 睡眠設定は `Onboarding` の列、スケジュールは `CalendarEvent`（4.1）として
+> 実装済みのため、専用テーブルは作りません。休息提案の履歴だけが未実装です。
 
 ```mermaid
 erDiagram
 
-    USER ||--o{ SCHEDULE : has
     USER ||--o{ REST_RECOMMENDATION : receives
-
-    SCHEDULE {
-        string id PK
-        string userId FK
-        string title
-        datetime startTime
-        datetime endTime
-        string source
-    }
 
     REST_RECOMMENDATION {
         string id PK
@@ -287,8 +295,9 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 | bedtime                   | String     | `HH:MM`（既定 `23:30`）                 |
 | wakeTime                  | String     | `HH:MM`（既定 `07:30`）                 |
 | napCutoffHour             | Int        | 既定 `15`。サーバー所有（編集 UI なし）  |
-| calendarConnected         | Boolean    | 既定 `false`。Google 連携（モック）     |
+| calendarConnected         | Boolean    | 既定 `false`。Google カレンダー連携中か（OAuth なし・サンプル取り込み） |
 | calendarDeviceConnected   | Boolean    | 既定 `false`。端末カレンダー連携（モック）|
+| calendarLastSyncedAt      | DateTime?  | 最後に Google の予定を取り込んだ時刻。未連携で `null` |
 | notificationsEnabled      | Boolean    | 既定 `false`。オンボーディングの通知オプトイン |
 | notifyNapSuggestion       | Boolean    | 既定 `true`。設定 > 通知「仮眠の提案」    |
 | notifyNapEnd              | Boolean    | 既定 `true`。設定 > 通知「仮眠の終了」    |
@@ -334,6 +343,35 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 各行の矢印も同じ `GET /naps/:id` を開きます。`buildAdvice()` は現状
 ルールベースで、後で Ollama 等の実 AI 呼び出しに差し替えても
 列・シグネチャは変えずに済む構造です。
+
+#### CalendarEvent
+
+ユーザー 1 人のスケジュール 1 件 1 行（`src/services/schedule.service.ts`）。
+スケジュール画面の CRUD（`/api/v1/schedule/events`）と、当日ビュー・空き時間
+計算（休息提案 `rest-recommendation.service`／ホームの「次の空き時間」）が
+同じ行を読みます。以前は全ユーザー共有のインメモリ配列でした
+（`20260903024003_calendar_events` で永続化）。
+
+| 列         | 型         | 備考                                                        |
+| ---------- | ---------- | --------------------------------------------------------- |
+| id         | String PK  | `uuid()`                                                  |
+| userId     | String FK  | `onDelete: Cascade`。`@@index([userId, date])`             |
+| title      | String     | 予定名（既定 `""`）                                         |
+| date       | String     | `YYYY-MM-DD`（ローカル暦日）                                |
+| start      | String     | `HH:MM`                                                    |
+| end        | String     | `HH:MM`                                                    |
+| allDay     | Boolean    | 既定 `false`。終日予定がある日は空き時間なし扱い            |
+| source     | String     | `"manual"`（手入力）/ `"google"`（カレンダー取り込み）。既定 `"manual"` |
+| externalId | String?    | 取り込み元の ID。`@@unique([userId, externalId])`。手入力は `null` |
+| createdAt  | DateTime   | `now()`                                                    |
+| updatedAt  | DateTime   | `@updatedAt`                                               |
+
+Google カレンダー連携は OAuth を持たず、`POST /settings/calendar/google/sync`
+が定型のサンプル 1 週間分（`src/services/google-calendar-sample.ts`、当週の
+月曜アンカー）を `source: "google"` として取り込みます。再同期は `externalId`
+一致で洗い替え（手入力の行は保持）、`POST /settings/calendar/google/disconnect`
+は `source: "google"` の行を全削除します。`sample@teamnap.app` はシードで
+このサンプル＋手入力 2 件が入り、Google 連携済みの状態になっています。
 
 #### Team
 
@@ -381,12 +419,12 @@ User と Team を関連付ける中間テーブルです（旧称 `TeamMember`�
 
 ### 5.2 今後の予定
 
-Schedule / RestRecommendation は未実装です（仮眠の記録は `NapRecord`、
-睡眠設定・通知トグル・カレンダー連携は `Onboarding` の列として実装済み。
-「5.1 実装済み」参照）。
-想定項目は「4.2 今後の予定」ER図および過去版の記述を参照してください。
-`source` は `manual | google_calendar | apple_calendar`、`reasonCode` は
-`LOW_SLEEP | LONG_WORK_PERIOD | FREE_TIME_AVAILABLE | HIGH_FATIGUE` を想定します。
+RestRecommendation（休息提案の履歴・受諾フラグ）は未実装です。仮眠の記録は
+`NapRecord`、スケジュールは `CalendarEvent`、睡眠設定・通知トグル・カレンダー
+連携状態は `Onboarding` の列として実装済み（「5.1 実装済み」参照）。
+`reasonCode` は `rest-decision.service.ts` の `RestReasonCode`
+（`REST_RECOMMENDED | RECENTLY_RESTED | NO_FREE_TIME | TOO_LATE | NO_REST_NEEDED`）
+を想定します。
 
 ---
 
@@ -416,6 +454,25 @@ model User {
   passwordResetTokens PasswordResetToken[]
   onboarding          Onboarding?
   naps                NapRecord[]
+  calendarEvents      CalendarEvent[]
+}
+
+model CalendarEvent {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  title      String   @default("")
+  date       String   // "YYYY-MM-DD"
+  start      String   // "HH:MM"
+  end        String   // "HH:MM"
+  allDay     Boolean  @default(false)
+  source     String   @default("manual") // "manual" | "google"
+  externalId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, externalId])
+  @@index([userId, date])
 }
 
 model NapRecord {
@@ -442,6 +499,7 @@ model Onboarding {
   napCutoffHour           Int       @default(15)
   calendarConnected       Boolean   @default(false)
   calendarDeviceConnected Boolean   @default(false)
+  calendarLastSyncedAt    DateTime?
   notificationsEnabled    Boolean   @default(false)
   notifyNapSuggestion     Boolean   @default(true)
   notifyNapEnd            Boolean   @default(true)
@@ -512,18 +570,9 @@ model TeamMembership {
 `User` にリレーションを足しつつ、以下のようなモデルを段階的に追加します。
 
 ```prisma
-model Schedule {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  startTime DateTime
-  endTime   DateTime
-  source    String   @default("manual")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// 睡眠設定は Onboarding の bedtime / wakeTime / napCutoffHour 列で
-// 実装済みのため、専用モデルは追加しない。
+// スケジュールは CalendarEvent（実装済み・§6）、睡眠設定は Onboarding の
+// bedtime / wakeTime / napCutoffHour 列で実装済みのため、専用モデルは
+// 追加しない。残りは休息セッション／提案履歴の例。
 
 model RestSession {
   id        String    @id @default(uuid())
@@ -662,6 +711,7 @@ git add backend/prisma && git commit
 20260901222623_onboarding_settings_fields  Onboarding に napCutoffHour / notify* / calendarDeviceConnected を追加
 20260901224358_team_roles_and_invite_index  TeamMembership.role + Team.inviteCodeNormalized（一意）
 20260902110246_user_avatar            User.avatar 追加（選択アイコン ID、null 可）
+20260903024003_calendar_events        CalendarEvent テーブル + Onboarding.calendarLastSyncedAt
 ```
 
 ---
@@ -699,8 +749,9 @@ backend/src/generated/prisma
 User               （email + passwordHash）
 Session            （サインアップ / ログイン / セッション管理 / logout）
 PasswordResetToken （パスワード再設定 / 変更）
-Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー）
+Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー連携状態）
 NapRecord          （仮眠の記録 + 生成した AI アドバイス）
+CalendarEvent      （ユーザーごとの予定 CRUD ＋ Google カレンダー取り込み / 空き時間計算）
 Team               （招待コード + 正規化列でインデックス検索）
 TeamMembership     （作成 / 参加 / 離脱 / 改名 / 在席ステータス / role（owner・member）/ メンバー削除 / WS ライブ更新）
 ```
@@ -712,15 +763,12 @@ TeamMembership     （作成 / 参加 / 離脱 / 改名 / 在席ステータス 
 次に追加を検討:
 
 ```text
-Schedule
-  ↓
-RestRecommendation
+RestRecommendation （休息提案の履歴・受諾フラグ）
 ```
 
 現在インメモリで動いていて、DB化の候補になっている機能:
 
 ```text
-schedule.service   予定・当日スケジュール
 notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
 team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
 ```
