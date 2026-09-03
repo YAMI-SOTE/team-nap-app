@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { freeTimesFrom } from "./schedule.service.js";
+import { freeTimesFrom, intersectFreeTimes } from "./schedule.service.js";
 import { googleSampleEvents } from "./google-calendar-sample.js";
 
 describe("freeTimesFrom", () => {
@@ -104,5 +104,53 @@ describe("googleSampleEvents", () => {
         `no 15-min gap after 13:00 on ${dayEvents[0]?.date}`,
       );
     }
+  });
+});
+
+describe("intersectFreeTimes", () => {
+  const ft = (...spans: [string, string][]) =>
+    spans.map(([start, end]) => ({
+      start,
+      end,
+      durationMinutes:
+        (Number(end.slice(0, 2)) * 60 + Number(end.slice(3))) -
+        (Number(start.slice(0, 2)) * 60 + Number(start.slice(3))),
+    }));
+
+  it("keeps only windows every member shares (≥15 min)", () => {
+    const out = intersectFreeTimes([
+      ft(["09:00", "12:00"], ["14:00", "18:00"]),
+      ft(["10:00", "15:00"]),
+      ft(["10:30", "11:00"], ["14:30", "17:00"]),
+    ]);
+    assert.deepEqual(
+      out.map((f) => `${f.start}-${f.end}`),
+      ["10:30-11:00", "14:30-15:00"],
+    );
+  });
+
+  it("a member free all day (one big window) doesn't constrain", () => {
+    const out = intersectFreeTimes([
+      ft(["08:00", "24:00"]), // no events → free all day
+      ft(["13:00", "14:00"]),
+    ]);
+    assert.deepEqual(out.map((f) => `${f.start}-${f.end}`), ["13:00-14:00"]);
+  });
+
+  it("a member with no free windows (all-day event) kills every slot", () => {
+    const out = intersectFreeTimes([ft(["09:00", "18:00"]), []]);
+    assert.deepEqual(out, []);
+  });
+
+  it("drops overlaps shorter than 15 minutes", () => {
+    const out = intersectFreeTimes([
+      ft(["09:00", "09:10"]),
+      ft(["09:00", "12:00"]),
+    ]);
+    assert.deepEqual(out, []);
+  });
+
+  it("returns [] for no members", () => {
+    assert.deepEqual(intersectFreeTimes([]), []);
   });
 });

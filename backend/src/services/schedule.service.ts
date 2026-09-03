@@ -8,7 +8,7 @@
  */
 
 import { prisma } from "../lib/prisma.js";
-import { calendarWeek } from "../lib/datetime.js";
+import { calendarWeek, jstNow, todayISO } from "../lib/datetime.js";
 import type { FreeTime } from "./rest-decision.service.js";
 import { listNaps } from "./naps.service.js";
 
@@ -107,6 +107,46 @@ function windowIsFree(freeTimes: FreeTime[], startMinutes: number): boolean {
     (f) =>
       timeToMinutes(f.start) <= startMinutes && timeToMinutes(f.end) >= endMinutes,
   );
+}
+
+/**
+ * Windows (≥ 15 min) where **every** member is free — the intersection of
+ * each member's free windows for a day. `perMember` is one member's
+ * `freeTimesFrom(...)` result per entry; a member with no events on the
+ * day contributes one big window (they're "free all day"), a member with
+ * an all-day event contributes `[]` and kills every team slot. Pure.
+ */
+export function intersectFreeTimes(perMember: FreeTime[][]): FreeTime[] {
+  if (perMember.length === 0) return [];
+
+  let acc = perMember[0].map((f) => ({
+    start: timeToMinutes(f.start),
+    end: timeToMinutes(f.end),
+  }));
+
+  for (let i = 1; i < perMember.length && acc.length > 0; i += 1) {
+    const other = perMember[i].map((f) => ({
+      start: timeToMinutes(f.start),
+      end: timeToMinutes(f.end),
+    }));
+    const next: { start: number; end: number }[] = [];
+    for (const a of acc) {
+      for (const b of other) {
+        const start = Math.max(a.start, b.start);
+        const end = Math.min(a.end, b.end);
+        if (end - start >= MIN_FREE_TIME_MINUTES) next.push({ start, end });
+      }
+    }
+    acc = next;
+  }
+
+  return acc
+    .sort((x, y) => x.start - y.start)
+    .map((w) => ({
+      start: minutesToTime(w.start),
+      end: w.end >= END_OF_DAY ? "24:00" : minutesToTime(w.end),
+      durationMinutes: w.end - w.start,
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +256,48 @@ export async function getNextFreeSlot(
     end: slot.end,
     availableMemberCount,
     teamSize: members.length,
+  };
+}
+
+export type TeamFreeSlots = {
+  /** "YYYY-MM-DD" the slots are for. */
+  date: string;
+  teamSize: number;
+  /** Windows where every team member is free, earliest first. May be empty. */
+  slots: FreeTime[];
+};
+
+/**
+ * Windows on `dateISO` where the whole team is free (see
+ * `intersectFreeTimes`). For today the anchor is now (JST); for another
+ * day it's 08:00, matching the day-view. `null` when the caller has no
+ * team.
+ */
+export async function getTeamFreeSlots(
+  userId: string,
+  dateISO: string = todayISO(),
+): Promise<TeamFreeSlots | null> {
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId },
+    select: { teamId: true },
+  });
+  if (!membership) return null;
+
+  const anchor = dateISO === todayISO() ? jstNow().time : "08:00";
+
+  const members = await prisma.teamMembership.findMany({
+    where: { teamId: membership.teamId },
+    select: { userId: true },
+  });
+
+  const perMember = await Promise.all(
+    members.map((m) => getFreeTimesForDate(m.userId, dateISO, anchor)),
+  );
+
+  return {
+    date: dateISO,
+    teamSize: members.length,
+    slots: intersectFreeTimes(perMember),
   };
 }
 

@@ -6,7 +6,7 @@ import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
 import { todayISO } from "../lib/datetime.js";
 import { addNotification } from "./notifications.service.js";
-import { teamIdOf } from "./team-presence.service.js";
+import { deriveStatus, teamIdOf } from "./team-presence.service.js";
 import { teamWeek } from "./team-nap-stats.service.js";
 import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
@@ -115,6 +115,7 @@ type TeamWithMembers = {
     userId: string;
     activity: MemberActivity;
     role: string;
+    lastSeenAt: Date;
     user: { name: string | null; avatar: string | null };
   }[];
 };
@@ -127,7 +128,7 @@ function toSettings(
     id: m.userId,
     label: initial(m.user.name),
     name: m.user.name?.trim() || null,
-    status: mapActivity(m.activity),
+    status: deriveStatus(m.activity, m.lastSeenAt),
     avatar: m.user.avatar ?? null,
     role: m.role === "owner" ? "owner" : "member",
     isSelf: m.userId === callerUserId,
@@ -394,7 +395,7 @@ export async function getMyStatus(
   if (!membership) {
     throw HttpError.notFound("チームに参加していません");
   }
-  return { status: mapActivity(membership.activity) };
+  return { status: deriveStatus(membership.activity, membership.lastSeenAt) };
 }
 
 /**

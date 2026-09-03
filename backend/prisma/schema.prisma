@@ -219,6 +219,10 @@ model TeamMembership {
   /// "owner" (the creator) or "member". Only an owner can remove members.
   role              String         @default("member")
   joinedAt          DateTime       @default(now())
+  /// Last authenticated request / WS pong from this member. Bumped at most
+  /// once every ~90s (touchLastSeen). Older than OFFLINE_AFTER → the
+  /// roster shows them "offline" regardless of `activity`.
+  lastSeenAt        DateTime       @default(now())
 
   // A user belongs to at most one team; enforced additionally in the service.
   @@unique([teamId, userId])

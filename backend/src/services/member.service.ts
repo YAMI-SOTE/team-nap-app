@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { mapActivity } from "./team.service.js";
+import { deriveStatus } from "./team-presence.service.js";
 import { activeNapSession } from "./nap-session.service.js";
 import type { MemberStatus } from "../types/domain.js";
 
@@ -50,7 +50,7 @@ export async function getMemberDetail(
     id: target.userId,
     name: target.user.name ?? "メンバー",
     label: initial(target.user.name),
-    status: mapActivity(target.activity),
+    status: deriveStatus(target.activity, target.lastSeenAt),
     avatar: target.user.avatar ?? null,
     nap: nap
       ? { wakeAt: nap.wakeAt, minutesRemaining: nap.minutesRemaining }

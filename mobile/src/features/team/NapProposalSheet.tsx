@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { suggestTeamNap } from "@/services/team";
+import { getTeamFreeSlots, suggestTeamNap } from "@/services/team";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { CheckCircleIcon } from "@/components/icons";
@@ -43,14 +43,31 @@ export default function NapProposalSheet({
   const [minutes, setMinutes] = useState(defaultMinutes);
   const [notified, setNotified] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Window where the whole team is free today, if any.
+  const [teamSlotNote, setTeamSlotNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (visible) {
-      setPhase("pick");
-      setMinutes(defaultMinutes);
-      setError(null);
-    }
+    if (!visible) return;
+    setPhase("pick");
+    setMinutes(defaultMinutes);
+    setError(null);
+    setTeamSlotNote(null);
+
+    let alive = true;
+    getTeamFreeSlots()
+      .then((res) => {
+        const slot = res?.slots[0];
+        if (alive && slot) {
+          setTeamSlotNote(`みんなの空き時間 ・ ${slot.start}〜${slot.end}`);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [visible, defaultMinutes]);
+
+  const shownNote = teamSlotNote ?? slotNote;
 
   const handleSend = async () => {
     setPhase("sending");
@@ -105,8 +122,8 @@ export default function NapProposalSheet({
                 <Text style={styles.title}>
                   みんなで{minutes}分の仮眠はどうですか？
                 </Text>
-                {slotNote ? (
-                  <Text style={styles.subtitle}>{slotNote}</Text>
+                {shownNote ? (
+                  <Text style={styles.subtitle}>{shownNote}</Text>
                 ) : null}
 
                 <View style={styles.durationRow}>

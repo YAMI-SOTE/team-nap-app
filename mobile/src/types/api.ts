@@ -158,6 +158,23 @@ export interface TeamRankingResponse {
   entries: TeamRankingEntry[];
 }
 
+export interface TeamFreeSlot {
+  /** "HH:MM" */
+  start: string;
+  /** "HH:MM" ("24:00" = midnight) */
+  end: string;
+  durationMinutes: number;
+}
+
+/** `GET /teams/free-slots` — windows where the whole team is free. */
+export interface TeamFreeSlotsResponse {
+  /** "YYYY-MM-DD" */
+  date: string;
+  teamSize: number;
+  /** Earliest first. Empty = no window everyone shares. */
+  slots: TeamFreeSlot[];
+}
+
 export interface CreateTeamPayload {
   name: string;
 }

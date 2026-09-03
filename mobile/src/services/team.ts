@@ -4,6 +4,7 @@ import type {
   CreateTeamPayload,
   HomeMemberStatusResponse,
   JoinTeamPayload,
+  TeamFreeSlotsResponse,
   TeamRankingResponse,
   TeamSettingsResponse,
   TeamSummaryResponse,
@@ -17,6 +18,17 @@ export async function getTeamSummary(): Promise<TeamSummaryResponse | null> {
 /** Members ordered by rest score. `null` when not in a team. */
 export async function getTeamRanking(): Promise<TeamRankingResponse | null> {
   return api.get<TeamRankingResponse | null>("/teams/ranking");
+}
+
+/**
+ * Windows where the whole team is free on `date` (default: today).
+ * `null` when not in a team; `slots` may be empty.
+ */
+export async function getTeamFreeSlots(
+  date?: string,
+): Promise<TeamFreeSlotsResponse | null> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+  return api.get<TeamFreeSlotsResponse | null>(`/teams/free-slots${qs}`);
 }
 
 export async function getSharedMemberStatus(): Promise<HomeMemberStatusResponse> {

@@ -16,6 +16,7 @@ import { resolveSession } from "../services/session.service.js";
 import {
   teamIdOf,
   teamMemberStatus,
+  touchLastSeen,
 } from "../services/team-presence.service.js";
 
 export const REALTIME_PATH = "/api/v1/realtime";
@@ -83,6 +84,8 @@ export function attachRealtime(server: Server): void {
     ws.isAlive = true;
     ws.on("pong", () => {
       ws.isAlive = true;
+      // A live socket counts as presence even with no REST traffic.
+      if (ws.userId) void touchLastSeen(ws.userId).catch(() => {});
     });
     ws.on("close", () => unregister(ws));
     ws.on("error", () => unregister(ws));
@@ -105,6 +108,7 @@ export function attachRealtime(server: Server): void {
       ws.userId = session.userId;
       ws.teamId = teamId;
       register(teamId, ws);
+      void touchLastSeen(session.userId).catch(() => {});
       step("service", "realtime: client connected", {
         userId: session.userId,
       });

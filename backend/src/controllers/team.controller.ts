@@ -15,6 +15,7 @@ import {
   suggestTeamNap,
 } from "../services/team.service.js";
 import { sendNudge } from "../services/nudge.service.js";
+import { getTeamFreeSlots } from "../services/schedule.service.js";
 
 export async function getTeamSummaryController(req: Request, res: Response) {
   res.status(200).json(await getTeamSummary(requireUserId(req)));
@@ -22,6 +23,12 @@ export async function getTeamSummaryController(req: Request, res: Response) {
 
 export async function getTeamRankingController(req: Request, res: Response) {
   res.status(200).json(await getTeamRanking(requireUserId(req)));
+}
+
+/** Windows where the whole team is free (auto team-nap suggestion). */
+export async function getTeamFreeSlotsController(req: Request, res: Response) {
+  const date = req.query.date as string | undefined;
+  res.status(200).json(await getTeamFreeSlots(requireUserId(req), date));
 }
 
 export async function createTeamController(req: Request, res: Response) {
