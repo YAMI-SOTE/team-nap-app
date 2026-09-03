@@ -8,16 +8,17 @@
 - チームをつくる / 招待コードで参加する / チームを抜ける
 - チーム設定（名前変更、メンバー一覧、招待コード表示）
 - 自分の在席ステータス（作業中 / 休憩中）の取得・更新
-- メンバー詳細と「起きて」「休んで」のナッジ送信
-- 今週の Team Nap サマリー、仮眠上手ランキング（現状は静的スナップショット）
+- メンバー詳細（進行中の仮眠「あと◯分」を含む）と「起きて」「休んで」のナッジ送信
+- 今週の Team Nap サマリー・仮眠上手ランキング（`NapRecord` 由来の実データ）
 
-関連ドキュメント: [db.md](./db.md) / [settings-architecture.md](./settings-architecture.md)
+関連ドキュメント: [db.md](./db.md) / [backend.md](./backend.md) /
+[settings-architecture.md](./settings-architecture.md) / [notifications.md](./notifications.md)
 
 ---
 
 ## 2. 全体像
 
-リクエストの流れは他機能と同じ（`backend/README.md` の Request flow を踏襲）。
+リクエストの流れは他機能と同じ（[backend.md](./backend.md) の「リクエストの流れ」）。
 
 ```text
 [ ルート ]        backend/src/routes/team.routes.ts        URL と HTTP メソッド + validate()
@@ -165,8 +166,13 @@ WebSocket は `/api/v1/realtime`（`src/realtime/hub.ts`）。§11 参照。
 | `hasTeam(userId)` | membership 件数 > 0。`stats.service` などからも使用。 |
 | `getCurrentTeam(userId)` | チーム設定。未加入なら `null`。 |
 | `getMyStatus(userId)` | 自分の `activity` を `MemberStatus` に写像。未加入は 404。 |
-| `getTeamSummary(userId)` | **静的スナップショット** `teamSummarySnapshot` を返すだけ（加入時のみ、未加入は `null`）。 |
-| `getTeamRanking(userId)` | **静的スナップショット** `rankingSnapshot` を score 降順で返す（未加入は `null`）。 |
+| `getTeamSummary(userId)` | `teamWeek()`（今週 / 先週）から達成率・差分・日次バー・提案文・達成メッセージを組み立てる（未加入は `null`）。 |
+| `getTeamRanking(userId)` | 実メンバーを今週の休息スコア降順で返す（未加入は `null`）。 |
+
+`teamWeek()` は `src/services/team-nap-stats.service.ts`。チームメンバーの
+その週の `NapRecord` を集計し、per-member 週スコア（`lib/rest-score.ts` の式）・
+達成人数・チーム平均の日次コンディション（未来日は `null`）・日次仮眠率などを返す。
+`home.service` のチームスコアと `stats.service.getTeamStats` も同じ集計を使う。
 
 ### 5.3 更新系
 
@@ -177,7 +183,7 @@ WebSocket は `/api/v1/realtime`（`src/realtime/hub.ts`）。§11 参照。
 | `renameTeam(userId, name)` | 自分の membership からチームを引いて `Team.name` を更新。 | チーム無し 404 |
 | `leaveTeam(userId)` | membership を削除。残り 0 人ならチーム本体も削除。membership が無ければ黙って return。 | なし（冪等） |
 | `setActivity(userId, activity)` | `TeamMembership.activity` を更新して最新のチーム設定を返す。 | チーム無し 404 |
-| `suggestTeamNap(userId, minutes)` | 自分以外の全メンバーのフィードへ `team_nap_suggestion` 通知を積む → `{ success, notified }`。 | チーム無し 404 |
+| `suggestTeamNap(userId, minutes)` | 自分以外の全メンバーのフィードへ `team_nap_suggestion` 通知を積む（+ プッシュ）→ `{ success, notified }`。 | チーム無し 404 |
 
 ### 5.4 招待コード
 
@@ -201,14 +207,28 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ---
 
-## 6. メンバー詳細とナッジ
+## 6. メンバー詳細・ナッジ・ライブ仮眠
 
 ### 6.1 `member.service.getMemberDetail(userId, targetId)`
 
 - 呼び出し元と対象が **同じチーム** のときだけ結果を返す。違えば
   `undefined` → コントローラが 404。
-- `nap` は常に `null`（ライブな仮眠セッションのモデルがまだ無い）。
+- `nap` は対象の進行中 `NapSession` から `{ wakeAt（JST "HH:MM"）,
+  minutesRemaining }`。無ければ `null`（`nap-session.service.activeNapSession`）。
 - `wakeSupport.wakeAssistEnabled` は `TeamMembership.wakeAssistEnabled`。
+
+### 6.1a ライブ仮眠セッション（`NapSession`）
+
+`src/services/nap-session.service.ts`。休憩タイマー画面が自分のセッションを
+publish し、teammate の「あと◯分」カードのソースになる。
+
+| API | 動作 |
+| --- | --- |
+| `PUT /api/v1/rest/session { plannedMinutes }` | upsert（`wakeAt = now + plannedMinutes`）。タイマー開始 / 再開で呼ぶ |
+| `DELETE /api/v1/rest/session` | 削除（冪等）。終了 / キャンセル / 画面離脱 / `POST /naps` で呼ぶ |
+
+`wakeAt` を 30 分以上過ぎた行は「アプリが落ちて終了できなかった」とみなして
+読み出し時に無視 + 掃除する。1 ユーザー最大 1 行（`userId @unique`）。
 
 ### 6.2 `nudge.service.sendNudge(fromUserId, toUserId, kind)`
 
@@ -222,10 +242,10 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ## 7. 通知連携
 
-`joinTeam` / `sendNudge` / `suggestTeamNap` は
-`notifications.service.addNotification(userId, …)` を呼ぶ。通知フィードは
-**userId ごと**（`Map`、まだ in-memory でサーバ再起動で消える）。
-`/api/v1/notifications/*` は `authenticate` 必須。
+`joinTeam` / `sendNudge` / `removeMember` / `suggestTeamNap` は
+`notifications.service.addNotification(userId, { kind, title, body })` を呼ぶ。
+フィードは Postgres 永続化（`Notification` テーブル）で、同時に Expo プッシュも
+飛ぶ（宛先が通知オプトイン済みのとき）。詳細は [notifications.md](./notifications.md)。
 
 - `joinTeam`: `member_joined` を **加入前からいた各メンバーの**フィードへ
   —「〇〇がチームに参加しました / チームは N 人になりました」（加入者本人には積まない）
@@ -238,19 +258,19 @@ normalizeCode(code)   →  英数字以外を除去し大文字化。"NAP-4821" 
 
 ---
 
-## 8. 実データと静的スナップショットの境界
+## 8. 実装状況
 
 | 部分 | 状態 |
 | --- | --- |
-| チーム作成 / 参加 / 離脱 / 改名 | ✅ Postgres 永続化 |
+| チーム作成 / 参加 / 離脱 / 改名 | ✅ Postgres |
 | メンバー一覧・在席ステータス・起床サポート | ✅ Postgres |
-| **在席ステータスのライブ更新** | ✅ WebSocket（`/api/v1/realtime`）。`setActivity` / join / leave / remove で全メンバーへ push。休憩画面の開閉が `PUT /teams/me/status` を叩く |
-| **メンバー管理**（オーナー権限・除名・オーナー委譲） | ✅ `role` 列 + `DELETE /teams/members/:id`（オーナーのみ） |
-| 招待コード照合 | ✅ `inviteCodeNormalized` の一意インデックスを直接引く（全件スキャン廃止） |
-| メンバー詳細の `nap` | ⚠️ 常に `null`（未実装） |
-| `GET /teams/summary` | ⚠️ `teamSummarySnapshot` 固定値 |
-| `GET /teams/ranking` | ⚠️ `rankingSnapshot` 固定値（`memberX` はダミー、`score` も手書き） |
-| 通知フィード | ⚠️ userId ごとだがまだ in-memory（`Map`） |
+| 在席ステータスのライブ更新 | ✅ WebSocket（`/api/v1/realtime`）。`setActivity` / join / leave / remove で全メンバーへ push。休憩画面の開閉が `PUT /teams/me/status` を叩く |
+| メンバー管理（オーナー権限・除名・オーナー委譲） | ✅ `role` 列 + `DELETE /teams/members/:id`（オーナーのみ） |
+| 招待コード照合 | ✅ `inviteCodeNormalized` の一意インデックスを直接引く |
+| メンバー詳細の `nap`（「あと◯分」） | ✅ `NapSession` から（§6.1a） |
+| `GET /teams/summary` / `ranking` | ✅ `NapRecord` 由来の実データ（`team-nap-stats.service`） |
+| 通知フィード | ✅ Postgres 永続化 + Expo プッシュ（[notifications.md](./notifications.md)） |
+| `renameTeam` のオーナー限定 | ⚠️ 未決（現状はメンバーなら誰でも可） |
 
 ---
 
@@ -340,13 +360,8 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 
 ## 13. 既知の TODO / 注意点
 
-- `summary` / `ranking` を実データ（仮眠履歴）から算出する。
-- メンバー詳細の `nap`（ライブ仮眠セッション）モデルが未定義。
-- 通知フィードは userId ごとだがまだ in-memory（`Map`）。DB 化すれば
-  再起動で消えなくなる。
-- 認証は `routes/index.ts` で `/health` と `/auth` 以外の全ルートに
-  一括適用（`router.use(authenticate)`）。呼び出しユーザーは常にセッションの
-  `userId`。`ensureUser` は歴史的経緯で残しているだけ（実質 no-op）。
-- 招待コードは `inviteCodeNormalized` の一意インデックスで直接引く
-  （旧: 全件スキャン）。
 - `renameTeam` は現状メンバーなら誰でも可能（owner 限定にするかは未決）。
+- `activity` に本当の "offline" が無い（`online` / `resting` のみ）。
+  `lastSeenAt` を足して N 分無応答→offline を導出する余地。
+- WebSocket 在席ハブ（`realtime/hub.ts`）はプロセス内状態。単一インスタンス前提。
+- `ensureUser` は旧 `X-User-Id` 経路向けの保険で、現行経路では未到達（実質 no-op）。
