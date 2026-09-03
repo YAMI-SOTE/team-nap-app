@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { mapActivity } from "./team.service.js";
+import { activeNapSession } from "./nap-session.service.js";
 import type { MemberStatus } from "../types/domain.js";
 
 export type MemberDetailResponse = {
@@ -27,7 +28,8 @@ function initial(name: string | null): string {
 /**
  * Detail for a teammate of the caller. `undefined` when the target is
  * not on the caller's team (controller turns that into a 404).
- * `nap` is always `null` — there is no live nap-session model yet.
+ * `nap` is populated from the target's live `NapSession`
+ * (`nap-session.service`) while they have the Rest timer open.
  */
 export async function getMemberDetail(
   userId: string,
@@ -42,13 +44,17 @@ export async function getMemberDetail(
   });
   if (!target || target.teamId !== me.teamId) return undefined;
 
+  const nap = await activeNapSession(target.userId);
+
   return {
     id: target.userId,
     name: target.user.name ?? "メンバー",
     label: initial(target.user.name),
     status: mapActivity(target.activity),
     avatar: target.user.avatar ?? null,
-    nap: null,
+    nap: nap
+      ? { wakeAt: nap.wakeAt, minutesRemaining: nap.minutesRemaining }
+      : null,
     wakeSupport: { wakeAssistEnabled: target.wakeAssistEnabled },
   };
 }

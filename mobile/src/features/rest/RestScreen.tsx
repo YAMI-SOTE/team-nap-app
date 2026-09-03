@@ -20,6 +20,7 @@ import {
 } from "@/constants/characters";
 import { toClockTime, toISODate } from "@/utils/date";
 import { setMyStatus } from "@/services/team";
+import { startNapSession, endNapSession } from "@/services/rest";
 
 // 15分（900秒）
 const INITIAL_TIME = 15 * 60;
@@ -48,8 +49,19 @@ export default function RestScreen() {
     setMyStatus("resting");
     return () => {
       setMyStatus("online");
+      // Clear the live "あと◯分" card no matter how the screen is left
+      // (finished, cancelled, back, auto-complete → rating).
+      endNapSession();
     };
   }, []);
+
+  // Publish / refresh the live nap session whenever the countdown starts
+  // or resumes, so teammates' "あと◯分" tracks the real wake time.
+  useEffect(() => {
+    if (isActive && timeLeft > 0) {
+      startNapSession(Math.ceil(timeLeft / 60));
+    }
+  }, [isActive]);
 
   const buildNapWindow = (elapsedSeconds: number) => {
     const minutes = Math.round(elapsedSeconds / 60);
@@ -141,6 +153,8 @@ export default function RestScreen() {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
     prevTimeLeftRef.current = INITIAL_TIME;
+    // Stay on screen but no longer napping → drop the teammate card now.
+    endNapSession();
   };
 
   const handleEnd = () => {
