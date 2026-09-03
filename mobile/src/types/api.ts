@@ -9,6 +9,8 @@ export interface AuthUser {
   id: string;
   name: string | null;
   email: string;
+  /** Chosen avatar id ("cat" | "man" | "woman"), or null → initials fallback. */
+  avatar: string | null;
   /** false until onboarding is finished — the client gates routing on this. */
   onboardingCompleted: boolean;
 }
@@ -246,8 +248,11 @@ export interface StatFocus {
 }
 
 export interface WeeklyCondition {
-  /** One value per weekday (mon–fri), any scale. */
-  values: number[];
+  /**
+   * One entry per day Sun→Sat, any scale. `null` marks a day that has
+   * not happened yet this week — the chart draws no marker for it.
+   */
+  values: Array<number | null>;
   labels: string[];
 }
 

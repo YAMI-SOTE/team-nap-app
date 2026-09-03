@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import { colors } from "@/theme/colors";
 import { TEAM_SCORE_MAX } from "@/constants/home";
 import { useHomeSummary } from "@/hooks/useHomeSummary";
 import { useRealtimeMembers } from "@/features/realtime/RealtimeProvider";
+import { useRestRecommendation } from "@/hooks/useRestRecommendation";
 import SceneBackground from "@/components/SceneBackground";
 import SpriteLoop from "@/components/SpriteLoop";
 import StatusPill from "@/components/StatusPill";
@@ -43,6 +45,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { data, loading, error } = useHomeSummary();
   const { memberStatus: liveMemberStatus } = useRealtimeMembers();
+  const { data: restRecommendation } = useRestRecommendation();
   const [proposalOpen, setProposalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const summary = data?.summary;
@@ -129,6 +132,38 @@ export default function HomeScreen() {
                 />
               ) : null}
             </View>
+
+            {/* 個人向け休息提案（上流 PR #33） */}
+            {restRecommendation?.shouldRest &&
+            restRecommendation.recommendedStart &&
+            restRecommendation.recommendedEnd ? (
+              <View style={styles.restRecommendation}>
+                <View style={styles.restRecommendationText}>
+                  <Text style={styles.restRecommendationLabel}>
+                    そろそろ休息がおすすめです
+                  </Text>
+                  <Text style={styles.restRecommendationTime}>
+                    {restRecommendation.recommendedStart}〜
+                    {restRecommendation.recommendedEnd}
+                  </Text>
+                  <Text style={styles.restRecommendationDetail}>
+                    {restRecommendation.recommendedMinutes}分だけ休んでみませんか？
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => router.push("/rest")}
+                  accessibilityRole="button"
+                  accessibilityLabel="仮眠を開始"
+                  style={styles.restRecommendationButton}
+                >
+                  <MoonStarsIcon size={20} color={colors.primary} />
+                  <Text style={styles.restRecommendationButtonText}>
+                    仮眠を開始
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.spacer} />
@@ -277,6 +312,47 @@ const styles = StyleSheet.create({
   spacer: {
     flexGrow: 1,
     minHeight: 8,
+  },
+  restRecommendation: {
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    gap: 14,
+  },
+  restRecommendationText: {
+    gap: 3,
+  },
+  restRecommendationLabel: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: colors.white,
+  },
+  restRecommendationTime: {
+    fontSize: 26,
+    lineHeight: 36,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  restRecommendationDetail: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.white,
+  },
+  restRecommendationButton: {
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.surface,
+  },
+  restRecommendationButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
   },
   actions: {
     width: "100%",

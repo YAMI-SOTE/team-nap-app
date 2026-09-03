@@ -14,17 +14,15 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { updateProfile } from "@/services/authApi";
 import { ApiError } from "@/services/api";
 import { colors } from "@/theme/colors";
-import { radius } from "@/theme/spacing";
-import AppBackground from "@/components/AppBackground";
+import { isAvatarId, type AvatarId } from "@/constants/avatars";
+import AuroraBackdrop from "@/components/AuroraBackdrop";
+import Avatar from "@/components/Avatar";
+import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
 import SettingsRow from "@/components/SettingsRow";
-import AvatarPickerSheet from "@/components/AvatarPickerSheet";
-import DefaultAvatar, {
-  type DefaultAvatarType,
-} from "@/components/DefaultAvatar";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -40,23 +38,26 @@ export default function AccountScreen() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [emailConfirm, setEmailConfirm] = useState("");
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // TODO(backend): アイコンをアカウントに保存する API が生えたら
-  // useAuth 経由で読み書きする（Figma OV-08_Avatar_Picker）。
-  const [avatar, setAvatar] = useState<DefaultAvatarType>("cat");
-  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     setUsername(user.name ?? "");
     setEmail(user.email);
     setEmailConfirm("");
+    setAvatarId(isAvatarId(user.avatar) ? user.avatar : null);
   }, [user]);
+
+  const avatarChanged = useMemo(
+    () => user != null && avatarId !== (isAvatarId(user.avatar) ? user.avatar : null),
+    [avatarId, user],
+  );
 
   const emailChanged = useMemo(
     () => user != null && email.trim().toLowerCase() !== user.email.toLowerCase(),
@@ -84,9 +85,10 @@ export default function AccountScreen() {
       }
     }
 
-    const patch: { name?: string; email?: string } = {};
+    const patch: { name?: string; email?: string; avatar?: string | null } = {};
     if (nextName !== (user.name ?? "")) patch.name = nextName;
     if (emailChanged) patch.email = email.trim();
+    if (avatarChanged) patch.avatar = avatarId;
     if (Object.keys(patch).length === 0) {
       setSavedNote("変更はありません");
       return;
@@ -108,8 +110,6 @@ export default function AccountScreen() {
       setSaving(false);
     }
   };
-
-  const handlePickPhoto = () => console.log("TODO: upload a profile photo");
 
   const confirmLogout = async () => {
     setLogoutOpen(false);
@@ -134,7 +134,7 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.root}>
-      <AppBackground />
+      <AuroraBackdrop />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -144,14 +144,18 @@ export default function AccountScreen() {
           <ScreenHeader title="アカウント情報" onBack={() => router.back()} />
 
           <View style={styles.avatar}>
-            <DefaultAvatar type={avatar} size={AVATAR_SIZE} />
-            <Pressable
-              onPress={() => setAvatarPickerOpen(true)}
-              accessibilityRole="button"
-              hitSlop={6}
-            >
-              <Text style={styles.changePhoto}>アイコンを変更</Text>
-            </Pressable>
+            <Avatar
+              avatarId={avatarId}
+              name={user?.name}
+              size={AVATAR_SIZE}
+              ring
+            />
+            <Text style={styles.changePhoto}>アイコンを選ぶ</Text>
+            <AvatarPicker
+              selected={avatarId}
+              onSelect={setAvatarId}
+              disabled={saving}
+            />
           </View>
 
           <View style={styles.form}>
@@ -230,17 +234,6 @@ export default function AccountScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <AvatarPickerSheet
-        visible={avatarPickerOpen}
-        value={avatar}
-        onCancel={() => setAvatarPickerOpen(false)}
-        onConfirm={(next) => {
-          setAvatar(next);
-          setAvatarPickerOpen(false);
-        }}
-        onPickPhoto={handlePickPhoto}
-      />
-
       <ConfirmDialog
         visible={logoutOpen}
         title="ログアウトしますか？"
@@ -287,7 +280,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: "100%",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   changePhoto: {
     fontSize: 12,
@@ -295,13 +288,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textBrand,
   },
-  form: {
-    width: "100%",
-    gap: 12,
-  },
   saveButton: {
     // Figma: py10 + 16px/1.7 の1行 = 47px
     minHeight: 47,
+  },
+  form: {
+    width: "100%",
+    gap: 12,
   },
   spacer: {
     flex: 1,

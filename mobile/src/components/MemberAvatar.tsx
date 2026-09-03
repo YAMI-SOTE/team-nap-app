@@ -7,7 +7,8 @@ import {
 } from "react-native";
 
 import { colors } from "@/theme/colors";
-import DefaultAvatar, { defaultAvatarFor } from "@/components/DefaultAvatar";
+import Avatar from "@/components/Avatar";
+import { defaultAvatarFor } from "@/utils/defaultAvatar";
 
 export type MemberStatus = "working" | "resting" | "offline";
 
@@ -17,7 +18,6 @@ type MemberAvatarProps = {
   /** Presence state — drives the status dot color. */
   status: MemberStatus;
   /** Optional avatar photo. Falls back to a default icon (cat / man / woman). */
-  imageUri?: string;
   /**
    * 写真未設定のときにどのデフォルトアイコンを出すかを決める種。
    * 通常はメンバーIDを渡す（同じ人には常に同じ絵が出る）。
@@ -52,7 +52,6 @@ const STATUS_COLOR: Record<MemberStatus, string> = {
 export default function MemberAvatar({
   label,
   status,
-  imageUri,
   avatarSeed,
   showLabel = true,
   napBadge = false,
@@ -70,10 +69,10 @@ export default function MemberAvatar({
       accessibilityLabel={onPress ? label : undefined}
     >
       <View style={styles.avatarWrap}>
-        <DefaultAvatar
-          type={defaultAvatarFor(avatarSeed ?? label)}
+        <Avatar
+          avatarId={defaultAvatarFor(avatarSeed ?? label)}
+          name={label}
           size={AVATAR_SIZE}
-          imageUri={imageUri}
         />
 
         <View

@@ -19,6 +19,8 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
+import { type AvatarId } from "@/constants/avatars";
+import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
 import { BellIcon, CalendarIcon, CaretDownIcon } from "@/components/icons";
@@ -95,6 +97,31 @@ const SLIDES: Slide[] = [
     title: "仕事中って休みにくいよね",
     body: "休みたいけど...\n自分だけ寝るのも、ちょっと気まずい。",
     lead: "TEAM NAPは、\nみんなで休みやすい時間を見つけます。",
+    primaryLabel: "つぎへ",
+    showSkip: false,
+  },
+  {
+    // 上流 PR #35 で追加されたアバター選択ステップ。Figma に対応フレームが
+    // 無いため、Intro のシーンと座標をそのまま流用している。
+    key: "avatar",
+    background: require("../../../assets/onboarding/scenes/bg-intro.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-intro.png"),
+    illustrationHeight: 470,
+    catX: 36,
+    catY: 267,
+    catSize: 330,
+    catAboveSheet: true,
+    bubble: {
+      text: "きみのアイコン、\nどれにする？",
+      x: 242,
+      y: 216,
+      width: 119,
+      rotate: -2,
+      tailLeft: 10,
+      tailTop: 50,
+    },
+    title: "アイコンを選ぼう",
+    body: "チームのみんなに表示されるよ。\nあとで設定から変えられます。",
     primaryLabel: "つぎへ",
     showSkip: false,
   },
@@ -191,6 +218,7 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [calendarPromptOpen, setCalendarPromptOpen] = useState(false);
@@ -226,6 +254,7 @@ export default function OnboardingScreen() {
         wakeTime: toClock(wakeTime),
         calendarConnected,
         notificationsEnabled,
+        avatar: avatarId,
       });
       await refresh();
       router.replace("/home");
@@ -433,6 +462,16 @@ export default function OnboardingScreen() {
                       >
                         {slide.lead}
                       </Text>
+                    ) : null}
+
+                    {slide.key === "avatar" ? (
+                      <View style={styles.avatarPickerRow}>
+                        <AvatarPicker
+                          selected={avatarId}
+                          onSelect={setAvatarId}
+                          disabled={finishing}
+                        />
+                      </View>
                     ) : null}
 
                     {slide.key === "sleep-rhythm" ? (
@@ -661,6 +700,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textBrand,
     textAlign: "center",
+  },
+  avatarPickerRow: {
+    marginTop: 8,
+    alignSelf: "stretch",
   },
   timeRow: {
     flexDirection: "row",

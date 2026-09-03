@@ -10,8 +10,12 @@ import Svg, { Circle, Polyline } from "react-native-svg";
 import { colors } from "@/theme/colors";
 
 type LineChartProps = {
-  /** One value per point. Auto-normalized unless a domain is given. */
-  values: number[];
+  /**
+   * One value per point. `null` (or `undefined`) is a gap — no marker and
+   * no line segment through it (used for days that have not happened yet).
+   * Auto-normalized unless a domain is given.
+   */
+  values: Array<number | null | undefined>;
   /** X-axis labels, rendered under the plot. */
   labels: string[];
   height?: number;
@@ -22,7 +26,8 @@ type LineChartProps = {
 
 /**
  * Small weekly line chart — a brand polyline with dot markers and a
- * highlighted last point (Figma "Plot", node 272:776).
+ * highlighted last point (Figma "Plot", node 272:776). Gaps in `values`
+ * (null) break the line and are left unplotted.
  */
 export default function LineChart({
   values,
@@ -43,34 +48,62 @@ export default function LineChart({
   const usableW = Math.max(width - padX * 2, 0);
   const usableH = Math.max(height - bandTop - bandBottom, 0);
 
-  const min = domainMin ?? Math.min(...values);
-  const max = domainMax ?? Math.max(...values);
+  const numeric = values.filter((v): v is number => typeof v === "number");
+  const min = domainMin ?? (numeric.length ? Math.min(...numeric) : 0);
+  const max = domainMax ?? (numeric.length ? Math.max(...numeric) : 1);
   const span = max - min || 1;
 
-  const points = values.map((v, i) => {
-    const x = padX + (values.length > 1 ? (i / (values.length - 1)) * usableW : 0);
-    const y = bandTop + (1 - (v - min) / span) * usableH;
-    return { x, y };
+  // One slot per value; `y` is null for gaps. `x` is always kept so the
+  // plotted points stay aligned with their day labels.
+  const slots = values.map((v, i) => {
+    const x =
+      padX + (values.length > 1 ? (i / (values.length - 1)) * usableW : 0);
+    const y =
+      typeof v === "number"
+        ? bandTop + (1 - (v - min) / span) * usableH
+        : null;
+    return { x, y, index: i };
   });
+
+  const drawn = slots.filter(
+    (s): s is { x: number; y: number; index: number } => s.y !== null,
+  );
+  const lastDrawnIndex = drawn.length ? drawn[drawn.length - 1].index : -1;
+
+  // Split into continuous runs so a gap breaks the polyline.
+  const segments: { x: number; y: number }[][] = [];
+  let run: { x: number; y: number }[] = [];
+  for (const s of slots) {
+    if (s.y === null) {
+      if (run.length) segments.push(run);
+      run = [];
+    } else {
+      run.push({ x: s.x, y: s.y });
+    }
+  }
+  if (run.length) segments.push(run);
 
   return (
     <View>
       <View style={{ height }} onLayout={onLayout}>
         {width > 0 ? (
           <Svg width={width} height={height}>
-            <Polyline
-              points={points.map((p) => `${p.x},${p.y}`).join(" ")}
-              fill="none"
-              stroke={colors.primary}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {points.map((p, i) => {
-              const last = i === points.length - 1;
+            {segments.map((seg, i) => (
+              <Polyline
+                key={`seg-${i}`}
+                points={seg.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke={colors.primary}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+            {drawn.map((p) => {
+              const last = p.index === lastDrawnIndex;
               return (
                 <Circle
-                  key={i}
+                  key={p.index}
                   cx={p.x}
                   cy={p.y}
                   r={4}

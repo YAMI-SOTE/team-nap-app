@@ -26,7 +26,7 @@ export function getMe(): Promise<{ user: AuthUser }> {
 }
 
 export function updateProfile(
-  patch: { name?: string; email?: string },
+  patch: { name?: string; email?: string; avatar?: string | null },
 ): Promise<{ user: AuthUser }> {
   return api.patch<{ user: AuthUser }>("/auth/me", patch);
 }
@@ -68,6 +68,8 @@ export function completeOnboarding(data: {
   wakeTime: string;
   calendarConnected?: boolean;
   notificationsEnabled?: boolean;
+  /** Chosen avatar id, or null to keep the initials fallback. */
+  avatar?: string | null;
 }): Promise<OnboardingResponse> {
   return api.post<OnboardingResponse>("/onboarding/complete", data);
 }

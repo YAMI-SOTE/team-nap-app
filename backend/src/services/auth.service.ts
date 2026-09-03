@@ -14,6 +14,8 @@ import { leaveTeam } from "./team.service.js";
 export type PublicUser = {
   id: string;
   name: string | null;
+  /** Chosen avatar id, or null (initials fallback). */
+  avatar: string | null;
   email: string;
   /** false until the user finishes onboarding — the client gates on this. */
   onboardingCompleted: boolean;
@@ -27,6 +29,7 @@ export type AuthResult = {
 type UserWithOnboarding = {
   id: string;
   name: string | null;
+  avatar: string | null;
   email: string;
   onboarding: { completedAt: Date | null } | null;
 };
@@ -35,6 +38,7 @@ function toPublicUser(u: UserWithOnboarding): PublicUser {
   return {
     id: u.id,
     name: u.name,
+    avatar: u.avatar ?? null,
     email: u.email,
     onboardingCompleted: u.onboarding?.completedAt != null,
   };
@@ -94,10 +98,11 @@ export async function getPublicUser(userId: string): Promise<PublicUser> {
  */
 export async function updateProfile(
   userId: string,
-  input: { name?: string; email?: string },
+  input: { name?: string; email?: string; avatar?: string | null },
 ): Promise<PublicUser> {
-  const data: { name?: string; email?: string } = {};
+  const data: { name?: string; email?: string; avatar?: string | null } = {};
   if (input.name !== undefined) data.name = input.name.trim();
+  if (input.avatar !== undefined) data.avatar = input.avatar || null;
   if (input.email !== undefined) {
     const email = normalizeEmail(input.email);
     const clash = await prisma.user.findUnique({ where: { email } });

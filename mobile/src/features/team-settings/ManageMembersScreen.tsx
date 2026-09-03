@@ -17,7 +17,8 @@ import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import MemberActionsSheet from "@/components/MemberActionsSheet";
-import DefaultAvatar, { defaultAvatarFor } from "@/components/DefaultAvatar";
+import Avatar from "@/components/Avatar";
+import { defaultAvatarFor } from "@/utils/defaultAvatar";
 import PillButton from "@/components/PillButton";
 import { DotsThreeIcon, UsersThreeIcon } from "@/components/icons";
 
@@ -91,7 +92,7 @@ export default function ManageMembersScreen() {
                 <View key={m.id}>
                   {i > 0 ? <View style={styles.divider} /> : null}
                   <View style={styles.row}>
-                    <DefaultAvatar type={defaultAvatarFor(m.id)} size={40} />
+                    <Avatar avatarId={defaultAvatarFor(m.id)} name={m.name} size={40} />
 
                     <View style={styles.rowText}>
                       <View style={styles.nameRow}>
