@@ -1,7 +1,9 @@
 import { calendarWeek, calendarWeekAgo, todayISO } from "../lib/datetime.js";
-import { getHomeMemberStatus } from "./home.service.js";
+import { restScore } from "../lib/rest-score.js";
 import { getNapSummary, listNaps, type NapEntry } from "./naps.service.js";
 import { hasTeam } from "./team.service.js";
+import { teamIdOf } from "./team-presence.service.js";
+import { teamWeek } from "./team-nap-stats.service.js";
 import type { Member } from "../types/domain.js";
 
 /**
@@ -55,15 +57,8 @@ const round = (n: number) => Math.round(n);
 const avg = (xs: number[]) =>
   xs.length === 0 ? 0 : xs.reduce((s, x) => s + x, 0) / xs.length;
 
-/** napCount·15 + avgWakeStars·8 + avgFocusDelta, clamped to 0–100. */
-function restScore(entries: NapEntry[]): number {
-  if (entries.length === 0) return 0;
-  const raw =
-    entries.length * 15 +
-    avg(entries.map((n) => n.wakeStars)) * 8 +
-    avg(entries.map((n) => n.focusDeltaPt));
-  return Math.max(0, Math.min(100, round(raw)));
-}
+// `restScore` (napCount·15 + avgWakeStars·8 + avgFocusDelta, clamped
+// 0–100) is shared with the team stats/ranking via lib/rest-score.
 
 export async function getPersonalStats(
   userId: string,
@@ -127,30 +122,83 @@ export async function getPersonalStats(
   };
 }
 
+const TEAM_DISCLAIMER =
+  "チーム全体で休めているかを見る指標です。個人を比較するものではありません。";
+
 export async function getTeamStats(
   userId: string,
 ): Promise<TeamStatsResponse> {
-  const { members, memberCount } = await getHomeMemberStatus(userId);
-  // No per-member nap aggregation exists yet — team nap metrics are 0.
-  // Still null-out days that have not happened yet this week.
-  const today = todayISO();
-  const conditionValues = calendarWeek().days.map((iso) =>
-    iso <= today ? 0 : null,
-  );
+  const teamId = await teamIdOf(userId);
+  if (!teamId) {
+    // getStats only calls this for team members; guard anyway.
+    return {
+      hasRecords: false,
+      achievementRate: 0,
+      achievedMemberLabel: "今週 0 / 0人が目標達成",
+      achievementDeltaLabel: "",
+      achievedMembers: [],
+      focus: { before: 0, after: 0, deltaPt: 0 },
+      napCount: 0,
+      avgNapMinutes: 0,
+      everyoneNappedDays: 0,
+      condition: {
+        values: [null, null, null, null, null, null, null],
+        labels: WEEKDAY_LABELS,
+      },
+      achievementBanner: "",
+      disclaimer: TEAM_DISCLAIMER,
+    };
+  }
+
+  const [thisW, lastW] = await Promise.all([
+    teamWeek(teamId),
+    teamWeek(teamId, 1),
+  ]);
+
+  // Members who hit the weekly goal (≥1 nap), up to the roster display cap.
+  const achievedMembers: Member[] = thisW.members
+    .filter((m) => m.achieved)
+    .slice(0, 6)
+    .map((m) => ({
+      id: m.userId,
+      label: m.label,
+      status: m.status,
+      avatar: m.avatar,
+    }));
+
+  const deltaPts = round(thisW.achievementRate - lastW.achievementRate);
+  const achievementDeltaLabel =
+    !thisW.hasRecords && !lastW.hasRecords
+      ? ""
+      : `先週より ${deltaPts >= 0 ? "+" : ""}${deltaPts}%`;
+
+  const achievementBanner =
+    thisW.memberCount > 0 && thisW.achievedCount === thisW.memberCount
+      ? "今週はチーム全員が仮眠を記録しました 🎉"
+      : thisW.everyoneNappedDays > 0
+        ? `今週は${thisW.everyoneNappedDays}日、全員そろって仮眠しました`
+        : "";
+
   return {
-    hasRecords: false,
-    achievementRate: 0,
-    achievedMemberLabel: `今週 0 / ${memberCount}人が目標達成`,
-    achievementDeltaLabel: "",
-    achievedMembers: members,
-    focus: { before: 0, after: 0, deltaPt: 0 },
-    napCount: 0,
-    avgNapMinutes: 0,
-    everyoneNappedDays: 0,
-    condition: { values: conditionValues, labels: WEEKDAY_LABELS },
-    achievementBanner: "",
-    disclaimer:
-      "チーム全体で休めているかを見る指標です。個人を比較するものではありません。",
+    hasRecords: thisW.hasRecords,
+    achievementRate: round(thisW.achievementRate),
+    achievedMemberLabel: `今週 ${thisW.achievedCount} / ${thisW.memberCount}人が目標達成`,
+    achievementDeltaLabel,
+    achievedMembers,
+    focus: {
+      before: thisW.focusBefore,
+      after: thisW.focusBefore + thisW.focusDeltaPt,
+      deltaPt: thisW.focusDeltaPt,
+    },
+    napCount: thisW.napCount,
+    avgNapMinutes: thisW.avgNapMinutes,
+    everyoneNappedDays: thisW.everyoneNappedDays,
+    condition: {
+      values: thisW.dailyTeamScore,
+      labels: thisW.weekdayLabels,
+    },
+    achievementBanner,
+    disclaimer: TEAM_DISCLAIMER,
   };
 }
 
