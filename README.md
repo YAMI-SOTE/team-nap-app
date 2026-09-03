@@ -75,13 +75,15 @@ EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
 | [db.md](docs/db.md) | Prisma スキーマ・ER 図・マイグレーション |
 | [testing-guide.md](docs/testing-guide.md) / [test-account.md](docs/test-account.md) | 手動確認手順 / テストアカウント |
 | [implementation-checklist.md](docs/implementation-checklist.md) | 実装点検チェックリストと残タスク |
+| [dependency-security.md](docs/dependency-security.md) | `npm audit` の対応方針と残存脆弱性の受容理由 |
 
 ## 開発フロー
 
 - 機能単位で `develop` から feature ブランチを切り、`develop` へ PR。
 - Expo パッケージは `npx expo install <pkg>` で追加（SDK 版に整合させる）。
   不整合の確認は `npx expo-doctor`。
-- `npm audit fix --force` は依存を破壊的に更新しうるため実行前に内容を確認する。
+- `npm audit fix --force` は依存を破壊的に更新しうる（Prisma 7→6 / Expo 57→46）ため
+  実行しない。監査対応の方針は [dependency-security.md](docs/dependency-security.md)。
 
 ## License
 
