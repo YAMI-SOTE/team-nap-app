@@ -484,13 +484,29 @@ iOS も対象（Appetize がクラウドで iOS シミュレータを動かす�
 
 ```bash
 cd mobile
-eas build --profile preview --platform android    # → .apk
-eas build --profile "preview:sim" --platform ios  # → iOS シミュレータ用（.tar.gz）
+
+# 1. 配布ビルドが指す API URL を EAS の "preview" 環境に登録（未実施なら必須）。
+#    これをしないと、ビルドされたアプリは EXPO_PUBLIC_API_URL 未設定で
+#    全画面「サーバーに接続できません」になる。
+eas env:set --environment preview \
+  --name EXPO_PUBLIC_API_URL --value https://<公開APIホスト>/api/v1
+eas env:list --environment preview     # 確認
+
+# 2. ビルド
+eas build --profile preview     --platform android   # → .apk（Appetize / 直接配布 兼用）
+eas build --profile preview:sim --platform ios       # → iOS シミュレータ用（.tar.gz）
 ```
 
-`preview:sim` は `eas.json` にある（`preview` を継承して `ios.simulator: true`）。
-できた成果物を <https://appetize.io> にアップロードすると、共有 URL または
-埋め込みが得られる。無料枠の分数に注意（審査時間中の同時利用が多いと尽きる）。
+- `preview:sim` は `eas.json` にある（`preview` を継承して `ios.simulator: true`）。
+  **iOS 側は必ず `--platform ios`**（`preview:sim` で Android を作っても `preview`
+  と同じ APK になるだけ）。
+- **この iOS ビルドは Appetize 専用。実機の iPhone には入らない**
+  （シミュレータ用スライスなので）。実機 iOS は §7‑ter / ④ TestFlight。
+- ビルド完了ページ（`https://expo.dev/...`）の **Artifacts** から成果物
+  （`.apk` / `.tar.gz`）をダウンロードし、<https://appetize.io> にアップロード
+  → 共有 URL または `<iframe>` 埋め込みが得られる。
+- 無料枠（月 ~100 分・同時 1 セッション程度）。審査で同時アクセスが多いと
+  尽きるので、①の Web デプロイを主にしてこれは併用にする。
 
 ### ③ Android APK リンク
 
