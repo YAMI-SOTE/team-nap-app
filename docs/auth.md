@@ -1,7 +1,9 @@
 # 認証・セッション・オンボーディング（バックエンド）
 
 `feature/authentication-system` で入れた認証まわりの実装まとめ。
-Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.md](./team-feature.md)
+Google サインイン（`POST /auth/google` / `/auth/google/link`）は
+[google-integration.md](./google-integration.md) 参照。関連:
+[db.md](./db.md) / [team-feature.md](./team-feature.md)
 
 ---
 
@@ -126,7 +128,12 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.md](./team-
 - サインイン時に Expo プッシュトークンを登録、サインアウト時に解除
   （[notifications.md](./notifications.md)）
 
-未対応: Google OAuth（設計は [google-integration.md](./google-integration.md)）、`logout-others` / セッション一覧の UI。
+Google サインイン: `POST /auth/google`（code + PKCE → id_token 検証 →
+upsert/link → セッション発行、`/auth/login` と同形）。実装詳細と Google Cloud
+Console 設定は [google-integration.md](./google-integration.md)。client id 未設定なら
+従来どおりボタンは「現在ご利用いただけません」。
+
+未対応: `logout-others` / セッション一覧の UI。
 
 ---
 

@@ -54,7 +54,9 @@
 | `POST /settings/sleep-schedule` | 就寝 / 起床時間の更新 | `{ bedtime, wakeTime }` | `SleepScheduleResponse` | `updateSleepSchedule` / `useSleepSchedule.save` | 〃 |
 | `GET /settings/calendar` | カレンダー連携状態の取得 | – | `CalendarIntegrationResponse` | `getCalendarIntegration` / `useCalendarSettings` | `features/calendar` |
 | `POST /settings/calendar/google/sync` | Google カレンダーを今すぐ同期 | – | `CalendarIntegrationResponse` | `syncGoogleCalendar` / `useCalendarSettings.syncNow` | 〃 |
-| `POST /settings/calendar/google/disconnect` | Google 連携解除 | – | `CalendarIntegrationResponse` | `disconnectGoogleCalendar` / `useCalendarSettings.disconnectGoogle` | 〃 |
+| `POST /settings/calendar/google/refresh` | 静かな増分同期（前景トリガ用。未連携なら no-op） | – | `{ synced }` | `refreshGoogleCalendar` / `useForegroundCalendarSync` | – |
+| `POST /auth/google/link` | ログイン中に Google 連携を追加 | `{ code, codeVerifier, redirectUri }` | `{ user }` | `linkGoogleAccount` / `useCalendarSettings.linkGoogle` | 〃 |
+| `POST /settings/calendar/google/disconnect` | Google 連携解除（`GoogleAccount` + トークン削除） | – | `CalendarIntegrationResponse` | `disconnectGoogleCalendar` / `useCalendarSettings.disconnectGoogle` | 〃 |
 | `POST /settings/calendar/device/connect` | 端末カレンダー連携 | – | `CalendarIntegrationResponse` | `connectDeviceCalendar` / `useCalendarSettings.connectDevice` | 〃 |
 | `GET /settings/team` | チーム設定の取得 | – | `TeamSettingsResponse` | `getTeamSettings` / `useTeamSettings` | `features/team-settings` |
 | `POST /settings/team/leave` | チームを退出 | – | `{ success: true }` | `leaveTeam` / `useTeamSettings.leave` | 〃 |
@@ -78,7 +80,9 @@
   `calendar*Connected` / `calendarLastSyncedAt`）。オンボーディングと**同じ行**なので
   値が食い違わない。
 - **ユーザー単位**: 全ルート `authenticate` 必須。`Onboarding` 行が単一ソース。
-- **カレンダー連携は OAuth なしのサンプル取り込み**: `google/sync` は
+- **カレンダー連携**: `GoogleAccount` があれば実 OAuth 同期
+  （[google-integration.md](./google-integration.md)）。無ければ従来の
+  サンプル取り込み。`google/sync` は
   `calendarConnected` / `calendarLastSyncedAt` を更新し、`google-calendar-sample.ts`
   の定型 1 週間分を `schedule.service` 経由で**そのユーザーの `CalendarEvent` に
   取り込む**（`source: "google"`、`externalId` で洗い替え）。`google/disconnect` は
@@ -147,7 +151,8 @@
 
 **未対応**
 
-- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状は OAuth なしのサンプル取り込み。設計は [google-integration.md](./google-integration.md)）
+- [x] カレンダー: 実際の Google OAuth 同期（`GoogleAccount` 接続時。増分 + webhook + cron。[google-integration.md](./google-integration.md)）。要 Google Cloud Console 設定
+- [ ] 端末カレンダー同期（まだフラグのみ）
 - [ ] 睡眠スケジュール: `napCutoffHour` はサーバー所有で編集 UI なし
 - [ ] アカウント: プロフィール写真
 - [ ] チーム名変更をオーナー限定にするか未決

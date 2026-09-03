@@ -4,11 +4,17 @@
  * `LoginResult` だけを契約として扱う。
  *
  * セッション（トークン）の保存は `AuthContext.signIn()` の役割。ここでは
- * API 呼び出しとエラー正規化のみ行う。Google ログインは対象外。
+ * API 呼び出しとエラー正規化のみ行う。Google ログインは
+ * `services/googleAuth.ts`（OAuth フロー）へ委譲する。
  */
 
 import { ApiError } from "@/services/api";
 import * as authApi from "@/services/authApi";
+import {
+  GoogleAuthCancelled,
+  isGoogleAuthConfigured,
+  signInWithGoogle as runGoogleSignIn,
+} from "@/services/googleAuth";
 
 import type { AuthResult, AuthUser } from "@/types/api";
 
@@ -64,9 +70,22 @@ export async function signUp({
   }
 }
 
-/** Google ログインは未対応（バックエンドの OAuth 実装待ち）。 */
+/**
+ * Google ログイン。OAuth 同意（`expo-auth-session`）→ `POST /auth/google`
+ * → `{ token, user }`。クライアント id 未設定なら従来どおり無効メッセージ。
+ */
 export async function signInWithGoogle(): Promise<LoginResult> {
-  throw new AuthError("Googleログインは現在ご利用いただけません");
+  if (!isGoogleAuthConfigured()) {
+    throw new AuthError("Googleログインは現在ご利用いただけません");
+  }
+  try {
+    return await runGoogleSignIn();
+  } catch (error) {
+    if (error instanceof GoogleAuthCancelled) {
+      throw new AuthError(error.message);
+    }
+    throw toAuthError(error, "Googleログインに失敗しました");
+  }
 }
 
 export async function requestPasswordReset(

@@ -403,12 +403,24 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 | createdAt  | DateTime   | `now()`                                                    |
 | updatedAt  | DateTime   | `@updatedAt`                                               |
 
-Google カレンダー連携は OAuth を持たず、`POST /settings/calendar/google/sync`
-が定型のサンプル 1 週間分（`src/services/google-calendar-sample.ts`、当週の
-月曜アンカー）を `source: "google"` として取り込みます。再同期は `externalId`
-一致で洗い替え（手入力の行は保持）、`POST /settings/calendar/google/disconnect`
-は `source: "google"` の行を全削除します。`sample@teamnap.app` はシードで
-このサンプル＋手入力 2 件が入り、Google 連携済みの状態になっています。
+Google カレンダー連携: `GoogleAccount` があれば実 OAuth 同期
+（`src/services/google-calendar.service.ts`、増分 `syncToken` + `410`→フル）、
+無ければ従来のサンプル 1 週間分（`src/services/google-calendar-sample.ts`）を
+`source: "google"` として取り込みます。再同期は `externalId` 一致で upsert /
+削除（手入力の行は保持）、`POST /settings/calendar/google/disconnect` は
+`GoogleAccount` とトークンを削除し `source: "google"` の行を全削除します
+（`User.googleId` は残すので Google ログインは継続可）。`sample@teamnap.app`
+はシードでサンプル＋手入力 2 件が入り、連携済みの状態になっています。
+詳細: [google-integration.md](./google-integration.md)。
+
+#### GoogleAccount
+
+Google と連携したユーザー 1 人につき 1 行（`userId @id`）。OAuth の
+アクセス / リフレッシュトークンを **AES-256-GCM で暗号化**して保持
+（`src/lib/secret-box.ts`、鍵は `GOOGLE_TOKEN_ENC_KEY`）。生トークンは DB に
+入りません。`syncToken`（増分同期）、`watchChannelId` / `watchExpiresAt`
+（`events.watch` プッシュチャンネル）、`lastSyncedAt` を持ちます。
+`User` 削除で `onDelete: Cascade`。
 
 #### Notification
 
@@ -645,6 +657,8 @@ git add backend/prisma && git commit
 20260903093642_notifications_feed     Notification テーブル（通知フィードの永続化）
 20260903135854_nap_sessions           NapSession テーブル（進行中の仮眠）
 20260903141120_push_tokens            PushToken テーブル（Expo プッシュ）
+20260903204140_team_last_seen         TeamMembership.lastSeenAt（オフライン判定）
+20260904000000_google_account         User.googleId + GoogleAccount テーブル（Google 連携）
 ```
 
 ---

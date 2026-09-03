@@ -18,6 +18,15 @@ export const sessionIdParams = z.object({
   id: z.string().uuid(),
 });
 
+/** `POST /auth/google` and `POST /auth/google/link` — OAuth code + PKCE. */
+export const googleAuthBody = z.object({
+  code: z.string().min(1, "認可コードが必要です"),
+  codeVerifier: z.string().min(1, "codeVerifier が必要です"),
+  redirectUri: z.string().url("redirectUri の形式が正しくありません"),
+  /** Which OAuth client id the app used (web / ios / android). */
+  clientId: z.string().min(1).optional(),
+});
+
 export const passwordResetRequestBody = z.object({ email });
 
 export const passwordResetConfirmBody = z.object({

@@ -8,6 +8,7 @@ import {
   getSleepScheduleController,
   getTeamSettingsController,
   leaveTeamController,
+  refreshGoogleCalendarController,
   syncGoogleCalendarController,
   updateNotificationSettingsController,
   updateSleepScheduleController,
@@ -38,6 +39,7 @@ router.post(
 
 router.get("/calendar", getCalendarIntegrationController);
 router.post("/calendar/google/sync", syncGoogleCalendarController);
+router.post("/calendar/google/refresh", refreshGoogleCalendarController);
 router.post(
   "/calendar/google/disconnect",
   disconnectGoogleCalendarController,

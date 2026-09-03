@@ -9,6 +9,7 @@ import {
   getSleepSchedule,
   getTeamSettings,
   leaveTeam,
+  refreshGoogleCalendarIfConnected,
   syncGoogleCalendar,
   updateNotificationSettings,
   updateSleepSchedule,
@@ -55,6 +56,15 @@ export async function syncGoogleCalendarController(
   res: Response,
 ) {
   res.status(200).json(await syncGoogleCalendar(requireUserId(req)));
+}
+
+export async function refreshGoogleCalendarController(
+  req: Request,
+  res: Response,
+) {
+  res
+    .status(200)
+    .json(await refreshGoogleCalendarIfConnected(requireUserId(req)));
 }
 
 export async function disconnectGoogleCalendarController(

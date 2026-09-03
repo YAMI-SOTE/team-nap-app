@@ -6,6 +6,12 @@ import {
 } from "./team.service.js";
 import { googleSampleEvents } from "./google-calendar-sample.js";
 import { clearGoogleEvents, replaceGoogleEvents } from "./schedule.service.js";
+import {
+  stopCalendarWatch,
+  syncCalendar as syncGoogleCalendarEvents,
+} from "./google-calendar.service.js";
+import { revokeToken } from "./google-oauth.service.js";
+import { open } from "../lib/secret-box.js";
 
 export type { TeamSettingsResponse };
 
@@ -139,15 +145,20 @@ function relativeJa(from: Date | null): string | null {
   return `${from.getMonth() + 1}月${from.getDate()}日`;
 }
 
-function calendarView(row: {
-  calendarConnected: boolean;
-  calendarDeviceConnected: boolean;
-  calendarLastSyncedAt: Date | null;
-}): CalendarIntegrationResponse {
+function calendarView(
+  row: {
+    calendarConnected: boolean;
+    calendarDeviceConnected: boolean;
+    calendarLastSyncedAt: Date | null;
+  },
+  googleEmail?: string | null,
+): CalendarIntegrationResponse {
   return {
     google: {
       connected: row.calendarConnected,
-      email: row.calendarConnected ? "sample@gmail.com" : null,
+      email: row.calendarConnected
+        ? googleEmail ?? "sample@gmail.com"
+        : null,
       lastSyncedLabel: row.calendarConnected
         ? relativeJa(row.calendarLastSyncedAt)
         : null,
@@ -156,30 +167,87 @@ function calendarView(row: {
   };
 }
 
+/** The connected Google address, or null when only the sample set is in use. */
+async function googleEmailOf(userId: string): Promise<string | null> {
+  const account = await prisma.googleAccount.findUnique({
+    where: { userId },
+    select: { email: true },
+  });
+  return account?.email ?? null;
+}
+
 export async function getCalendarIntegration(
   userId: string,
 ): Promise<CalendarIntegrationResponse> {
-  return calendarView(await settingsRow(userId));
+  const [row, email] = await Promise.all([
+    settingsRow(userId),
+    googleEmailOf(userId),
+  ]);
+  return calendarView(row, email);
 }
 
+/**
+ * Refresh the user's Google-sourced events. With a real `GoogleAccount`
+ * this runs the OAuth-backed incremental sync; without one it falls back
+ * to importing the canned sample week (so the feature is demoable and
+ * `sample@teamnap.app` keeps its schedule).
+ */
 export async function syncGoogleCalendar(
   userId: string,
 ): Promise<CalendarIntegrationResponse> {
   await settingsRow(userId);
-  await replaceGoogleEvents(userId, googleSampleEvents());
+  const email = await googleEmailOf(userId);
+
+  if (email) {
+    await syncGoogleCalendarEvents(userId);
+  } else {
+    await replaceGoogleEvents(userId, googleSampleEvents());
+  }
+
   return calendarView(
     await prisma.onboarding.update({
       where: { userId },
       data: { calendarConnected: true, calendarLastSyncedAt: new Date() },
     }),
+    email,
   );
+}
+
+/**
+ * Silent incremental refresh for the app's foreground trigger. A no-op
+ * (never touches the sample set, never flips `calendarConnected`) unless
+ * the user has a real `GoogleAccount`.
+ */
+export async function refreshGoogleCalendarIfConnected(
+  userId: string,
+): Promise<{ synced: boolean }> {
+  const account = await prisma.googleAccount.findUnique({
+    where: { userId },
+    select: { userId: true },
+  });
+  if (!account) return { synced: false };
+
+  const result = await syncGoogleCalendarEvents(userId);
+  return { synced: result.connected };
 }
 
 export async function disconnectGoogleCalendar(
   userId: string,
 ): Promise<CalendarIntegrationResponse> {
   await settingsRow(userId);
+
+  const account = await prisma.googleAccount.findUnique({ where: { userId } });
+  if (account) {
+    await stopCalendarWatch(userId).catch(() => undefined);
+    if (account.refreshTokenEnc) {
+      void revokeToken(open(account.refreshTokenEnc)).catch(() => undefined);
+    }
+    // Keep `User.googleId` so "Sign in with Google" still works; only the
+    // calendar link + stored tokens go away.
+    await prisma.googleAccount.delete({ where: { userId } });
+  }
   await clearGoogleEvents(userId);
+
   return calendarView(
     await prisma.onboarding.update({
       where: { userId },
