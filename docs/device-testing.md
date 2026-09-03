@@ -356,7 +356,7 @@ Expo Go を最新にしても「incompatible」が消えない場合は、プロ
 cd mobile
 npm i -g eas-cli            # or: npx eas-cli@latest ...
 eas login                   # Expo アカウントが要る
-eas init                    # 初回のみ。app.json に extra.eas.projectId を書き込む
+# eas init は不要（app.json に extra.eas.projectId をコミット済み）
 eas device:create           # iOS のみ。iPhone を登録（プロビジョニングプロファイル）
 eas build --profile development --platform ios      # iOS
 eas build --profile development --platform android  # Android（.apk / dev client）
@@ -412,7 +412,7 @@ npm install
 npx expo-doctor                 # 問題があれば先に解消
 npm i -g eas-cli
 eas login
-eas init                        # 初回のみ。extra.eas.projectId を書き込む
+# eas init は不要（extra.eas.projectId は app.json にコミット済み）
 
 # 配布ビルドが指す API URL を EAS 側に登録（.env ではなく EAS の環境変数）
 eas env:set --environment preview \
