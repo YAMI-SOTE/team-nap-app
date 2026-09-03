@@ -58,7 +58,7 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
 | --- | --- | --- |
 | コマンド | `docker compose up -d db` ＋ `cd backend && npm run dev` | リポジトリ root で `docker compose up -d --build` |
 | Ollama | 含まれない（AI は常にフォールバック） | `ollama` ＋ `ollama-pull` も起動し、`OLLAMA_MODEL` を pull → **LLM 生成文が出る** |
-| 反復の速さ | 速い（ホットリロード） | やや遅い（初回はモデル pull。既定 `gemma3:1b` は ~815MB で数分以内。`gemma3n:e2b` に上げると ~5.6GB／~8GB RAM） |
+| 反復の速さ | 速い（ホットリロード） | やや遅い（初回はモデル pull。既定 `gemma4:e2b` は ~7.2GB／~8GB RAM 必要。RAM が少なければ `OLLAMA_MODEL=gemma3:1b`＝~815MB） |
 | seed | `npm run db:seed` を自分で実行 | `docker compose exec backend npm run db:seed` を自分で実行（自動では走らない） |
 
 > 迷ったら **モード A**。チーム機能・スワイプ・ふりかえり画面の導線はすべて
@@ -129,8 +129,9 @@ docker compose exec backend npm run db:seed
 
 - `backend` コンテナは `db` が healthy になれば起動する（`ollama-pull` は待たない）。
   pull が終わるまで AI はフォールバック、終われば LLM 生成に切り替わる。
-- 既定モデルは `gemma3:1b`（軽量・日本語やや不自然）。日本語を良くしたい／~8GB
-  以上あるなら `OLLAMA_MODEL=gemma3n:e2b docker compose up -d`（詳細は
+- 既定モデルは `gemma4:e2b`（日本語が最も自然。ollama サービスに ~8GB RAM / 2CPU
+  必要、生成はウォーム ~24 秒）。RAM が足りないホストでは
+  `OLLAMA_MODEL=gemma3:1b docker compose up -d`（~815MB, 4GB/1CPU。詳細は
   [ai-development.md](./ai-development.md)）。
 - `backend/.env` はモード B では使われない（compose が環境変数を直接渡す）。
 
@@ -305,7 +306,7 @@ npx expo start -c             # Metro キャッシュをクリア
    - **モード A（Ollama なし）** → `nap-advice.service.ts` のルールベース文
      （「適切な長さで、深く眠りすぎずに…」など、決まった組み合わせ）
    - **モード B（Ollama あり・pull 済み）** → LLM 生成文（毎回少し違う自然な日本語）。
-     生成に時間がかかる（`OLLAMA_TIMEOUT_MS`、既定 30s）。超えたら A と同じ文に落ちる
+     生成に時間がかかる（既定 `gemma4:e2b` はウォーム ~24s。`OLLAMA_TIMEOUT_MS`、既定 60s）。超えたら A と同じ文に落ちる
    - 履歴（統計 →「すべて見る」）の各行からも同じ画面を開き直せる（保存済みの文）
 - 猫の画像が出ない場合は Metro を **`npx expo start -c`** で再起動（キャッシュ）。
 
@@ -331,7 +332,7 @@ npx expo start -c             # Metro キャッシュをクリア
 | **IP が頻繁に変わる／社内・キャリア NW で LAN が届かない** | **Tailscale**（推奨）：Mac と端末の両方に Tailscale を入れ、`tailscale ip -4` の `100.x` を使う → `EXPO_PUBLIC_API_URL=http://100.x.x.x:3000/api/v1`、Metro も `exp://100.x.x.x:8081` で届く。ネットワークが変わっても固定。<br>または **tunnel**：Metro は `npx expo start --tunnel`（`@expo/ngrok` 導入を促される）。tunnel が張るのは Metro だけなので Backend は別途 `ngrok http 3000` し、その `https://xxxx.ngrok.app/api/v1` を `EXPO_PUBLIC_API_URL` に（`wss://` に自動変換） |
 | 認証必須ルートで 401 ばかり | ログインしていない。`/api/v1/{teams,notifications,onboarding,settings,...}` は Bearer 必須 |
 | チーム画面が空／`NAP-2001` で参加できない | seed 未実行。モード A: `cd backend && npm run db:seed`／モード B: `docker compose exec backend npm run db:seed` |
-| ふりかえりの AI 文がいつもルールベース（モード B のはず） | `docker compose exec ollama ollama list` にモデルが無い＝pull 未完了／失敗。`docker compose logs ollama-pull` を確認。重すぎる場合は `gemma3:1b` に切替 |
+| ふりかえりの AI 文がいつもルールベース（モード B のはず） | `docker compose exec ollama ollama list` にモデルが無い＝pull 未完了／失敗。`docker compose logs ollama-pull` を確認。`docker compose logs ollama` に `llama-server ... signal: killed` があれば RAM 不足＝`OLLAMA_MODEL=gemma3:1b` に切替 |
 
 ---
 

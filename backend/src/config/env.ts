@@ -14,18 +14,18 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().min(1).default("0.0.0.0"),
 
-  // AI comment generation (Ollama). Default `gemma3:1b` (~815MB) — pulls
-  // fast and generates in ~5-16s, so it fits under OLLAMA_TIMEOUT_MS on a
-  // normal box and on the 4GB/1CPU VPS. JP is a bit rough. For better
-  // wording (and ~8GB / 2CPU) set OLLAMA_MODEL=gemma3n:e2b. Any pullable
-  // tag works; if generation can't keep up everything falls back to the
-  // rule-based / canned copy.
+  // AI comment generation (Ollama). Default `gemma4:e2b` (~7.2GB) for the
+  // best Japanese wording. It needs ~8GB RAM / 2 CPU and generates in
+  // ~24s warm (cold model load can be ~45-60s), so OLLAMA_TIMEOUT_MS is
+  // set accordingly. On a smaller box set OLLAMA_MODEL=gemma3:1b (~815MB,
+  // ~5-16s, fits 4GB/1CPU). Any pullable tag works; if generation can't
+  // keep up everything falls back to the rule-based / canned copy.
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
-  OLLAMA_MODEL: z.string().min(1).default("gemma3:1b"),
+  OLLAMA_MODEL: z.string().min(1).default("gemma4:e2b"),
   // Abort a single generation after this long, then fall back to
-  // rule-based / canned copy. Heavier models (gemma3n:e2b) can take 20s+,
-  // so keep this generous.
-  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  // rule-based / canned copy. `gemma4:e2b` needs ~24s warm and longer for
+  // the first (cold) request, so keep this generous.
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
 
   // Postgres connection string for Prisma.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

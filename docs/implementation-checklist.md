@@ -57,7 +57,7 @@ Next Action:
 | `docs/api.md` | `docs/auth.md`（認証・オンボーディング API） |
 | `docs/database.md` | `docs/db.md` |
 | `docs/use-case.md` | 相当は `docs/testing-guide.md`（手動検証手順） |
-| llama.cpp + Gemma 3 1B | **Ollama**。既定モデル `gemma3:1b`（軽量。`gemma3n:e2b` は ~8GB 必要で任意）。`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`（既定 30s）、`callGemma` は `keep_alive:"30m"`。`backend/src/services/ai.service.ts` に集約。`llm/` は `llm.md` ＋ `prompts/{personal,team}.txt` のみ |
+| llama.cpp + Gemma 3 1B | **Ollama**。既定モデル `gemma4:e2b`（日本語重視。~8GB/2CPU 必要。軽量にするなら `gemma3:1b`）。`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`（既定 60s）、`callGemma` は `keep_alive:"30m"`。`backend/src/services/ai.service.ts` に集約。`llm/` は `llm.md` ＋ `prompts/{personal,team}.txt` のみ |
 
 現行モデル一覧: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
 `NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` + enum `MemberActivity`。
@@ -74,9 +74,9 @@ Next Action:
   - app.json の `splash` を `expo-splash-screen` プラグインへ移設（PR #43）
   - `expo-font` を直接依存に追加（PR #43）
   - `expo` / `expo-router` / `expo-linking` / `expo-secure-store` / `expo-constants` を SDK 57 パッチ版へ（PR #46）
-- **AI（Ollama）が実際に生成する状態に**（PR #44 / #47）
-  - 既定モデルを実在・軽量タグ `gemma3:1b` に（`gemma4:e2b` は重すぎてタイムアウト固定だった）
-  - `callGemma` に `keep_alive:"30m"`、`OLLAMA_TIMEOUT_MS`（30s）を env 化
+- **AI（Ollama）が実際に生成する状態に**（PR #44 / #47、既定モデルは後日 `gemma4:e2b` へ）
+  - 既定モデルを `gemma4:e2b`（日本語重視・~8GB/2CPU）に。RAM が足りないホストは `OLLAMA_MODEL=gemma3:1b`
+  - `callGemma` に `keep_alive:"30m"`、`OLLAMA_TIMEOUT_MS`（既定 60s）を env 化
   - `/ai/personal-comment` `/ai/team-comment` も失敗時フォールバック（旧: 502）
   - `docker compose up` で end-to-end 検証済み（`ollama list` にモデル / `/ai/personal-comment` が生成文 / Home headline が canned と変わる / `POST /naps` の `aiAdvice` が Gemma 出力）
 - **ドキュメント**：`docs/architecture.md` 追加（PR #42）、README のリンク切れ・環境変数節を修正（PR #42）、`docs/device-testing.md` 追加（PR #45）、root `.env.example` を per-package へのポインタに（PR #42）
@@ -94,7 +94,7 @@ Next Action:
 | P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル） |
 | P3 | `napCutoffHour`（設定値）が `decideRestTiming` に未反映 |
 | P3 | root `LICENSE` が空 |
-| P3 | `gemma3:1b` は日本語がやや粗い（品質重視なら要 8GB/2CPU の `gemma3n:e2b`） |
+| P3 | 既定 `gemma4:e2b` は ollama サービスに ~8GB RAM / 2CPU 必要。足りないホストは `OLLAMA_MODEL=gemma3:1b`（日本語はやや粗い）で運用 |
 
 ### 追加で洗い出したタスク（本チェックオフで発見）
 
@@ -104,7 +104,7 @@ Next Action:
 | P2 | 在席に本当の "offline" が無い | `MemberActivity` は `online`/`resting` のみ。`mapActivity` が全部 `working` に潰す。`lastSeenAt` を足して N 分無応答→offline |
 | P2 | チームの空きスロット交差計算が無い | `getNextFreeSlot` は「呼び出しユーザーの次の空き＋その枠に空いているメンバー数」まで。全員共通の空き時間＝自動チーム提案の前提 |
 | P3 | `(dev)/ai-test` 画面が本番バンドルに入る | `__DEV__` ガード、または production ビルドから除外 |
-| P3 | `sanitizeModelOutput` が接頭辞リークを除去しない | `gemma3:1b` が「【コメント】…」を付けることがある。`^【.*?】` を strip |
+| P3 | `sanitizeModelOutput` が接頭辞リークを除去しない | モデルが「【コメント】…」を付けることがある。`^【.*?】` を strip |
 | P3 | Home の AI がコールドモデルで最大 30 秒待つ | `GET /home/summary` が初回だけ遅い。呼び出し口ごとにタイムアウトを変える or 起動時ウォームアップ |
 | P3 | mobile 側のテストが無い | `mobile/` に test runner 未設定 |
 | P3 | WebSocket 在席が単一プロセス前提 | `realtime/hub.ts` の状態はメモリ。複数インスタンス／再起動で消える（現状 1 インスタンス運用なら可） |
@@ -521,8 +521,8 @@ EXPO_PUBLIC_API_URL=http://<LOCAL_LAN_IP>:3000
 * [x] `llm/` directoryが存在する（`llm.md` ＋ `prompts/{personal,team}.txt`）
 * [x] `backend/src/services/ai.service.ts` が LLM 呼び出しを集約（`callGemma`）
 * [x] `OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS` を env で定義（`config/env.ts`）
-* [x] モデルタグ：既定 `gemma3:1b`（実在・軽量）。`gemma3n:e2b` は任意（~8GB）
-* [x] AIタイムアウト：`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 30s、env 調整可）＋ `keep_alive:"30m"`
+* [x] モデルタグ：既定 `gemma4:e2b`（日本語重視・~8GB/2CPU）。軽量は `gemma3:1b`
+* [x] AIタイムアウト：`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 60s、env 調整可）＋ `keep_alive:"30m"`
 * [x] AI失敗時のフォールバック：home / nap / personal / team すべて（rule-based / 定型文）
 * [x] **AI 生成の end-to-end 検証済み**（PR #47。`docker compose up` → `/ai/personal-comment` が生成文、Home headline が変わる、`POST /naps` の `aiAdvice` が Gemma 出力）
 * [x] `.gguf` がGit管理されていない（`.gitignore` に `*.gguf`）

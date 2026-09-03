@@ -51,8 +51,8 @@ DB 化済み: 認証系・`onboarding` / `settings`（`Onboarding` 行）・`nap
 | `PORT`         |      | `3000`                              |                                 |
 | `HOST`         |      | `0.0.0.0`                           |                                 |
 | `OLLAMA_URL`   |      | `http://localhost:11434`            | AI コメント生成用                  |
-| `OLLAMA_MODEL` |      | `gemma3:1b`                       | 軽量な既定。日本語重視なら gemma3n:e2b（~8GB） |
-| `OLLAMA_TIMEOUT_MS` | | `30000`                             | 1 生成のタイムアウト（超えたら定型文にフォールバック） |
+| `OLLAMA_MODEL` |      | `gemma4:e2b`                     | 既定。日本語が最も自然（~8GB/2CPU）。軽量にするなら gemma3:1b |
+| `OLLAMA_TIMEOUT_MS` | | `60000`                             | 1 生成のタイムアウト（超えたら定型文にフォールバック） |
 | `DEBUG_API_FLOW` |    | `false`                            | `1`/`true` でリクエストごとの API フロートレースを出力（後述） |
 | `DEBUG_API_FLOW_SCOPE` | | –                              | URL の部分一致フィルタ（例 `/teams`） |
 
