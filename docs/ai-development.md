@@ -33,13 +33,18 @@ env ごとに指定する。フォールバックがあるので「未指定 = �
 
 | モデル | 状況 |
 | --- | --- |
-| **`gemma4:e2b`（既定・~7.2GB）** | 日本語が最も自然。**ollama サービスに ~8GB RAM / 2CPU 必要**。生成はウォーム ~24 秒 / コールド（モデルロード込み）~45〜60 秒 → `OLLAMA_TIMEOUT_MS` を 60 秒に設定。RAM が足りないと `llama-server` が OOM kill（`signal: killed`）され、全機能がフォールバックする |
-| `gemma3n:e2b`（~5.6GB） | 日本語は自然。所要リソースは `gemma4:e2b` とほぼ同じ（~8GB）。`OLLAMA_MODEL=gemma3n:e2b docker compose up` で切替 |
-| `gemma3:1b`（~815MB） | 軽量フォールバック用。pull が速く、生成はコールド ~16 秒 / ウォーム ~5〜7 秒。4GB/1CPU でも動く。**日本語がやや不自然**（例：「良い眠りだったですね！…」）。RAM の少ないホストでは `OLLAMA_MODEL=gemma3:1b docker compose up` |
+| **`gemma3:1b`（既定・~815MB）** | pull が速く、生成はコールド ~16 秒 / ウォーム ~5〜7 秒。4GB/1CPU でも動く。**実際に日本語のコメントを返す**（やや饒舌）。この構成で end-to-end 検証済み |
+| `gemma3n:e2b`（~5.6GB） | 日本語はより自然だが ~8GB / 2CPU 必要。**CPU-only Ollama では検証要**（下記の注意） |
+| `gemma4:e2b`（~7.2GB） | 同上。この開発機（CPU-only Docker）では **特殊トークンのみを出力**して実文を返さなかった（`<unused13>` / `<|"|>`）。GPU or 実績のある環境でのみ使う |
 | （未指定 / Ollama なし） | 生成しない。全機能がルールベース／定型文にフォールバック |
 
-既定は `gemma4:e2b`。ホスト（または Docker VM）の RAM が ~8GB に満たない場合は
-`OLLAMA_MODEL=gemma3:1b` に落として「pull → 生成」が通る状態を優先する。
+**注意（`e2b` 系）**: `gemma3n:e2b` / `gemma4:e2b` は CPU-only の Ollama で
+`<unused13><unused14>…` や `<|"|>` のような特殊トークンだけを返すことがある
+（モデルが実質機能していない状態）。`sanitizeModelOutput` がこれを検出して空文字を
+返し、呼び出し側がルールベースにフォールバックするので画面に `<|"|>` は出ないが、
+AI 文も出ない。切り替える前に
+`curl localhost:11434/api/generate -d '{"model":"<tag>","prompt":"テスト","stream":false}'`
+で実文が返るか確認すること。
 
 ### 個人RESTコメント
 

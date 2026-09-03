@@ -473,16 +473,41 @@ async function callGemma(prompt: string): Promise<string> {
   return cleanedResponse;
 }
 
-function sanitizeModelOutput(
+/**
+ * Strip the template / special-token debris models sometimes emit and
+ * decide whether what's left is real prose. A model that is misbehaving
+ * on this host (e.g. gemma4:e2b on CPU-only Ollama) can return *only*
+ * special tokens like `<unused13>` or `<|"|>`; after stripping those the
+ * string is empty / punctuation-only, and we return "" so `callGemma`
+ * throws and the caller falls back to the rule-based copy — instead of
+ * rendering `<|"|>` in the UI.
+ *
+ * Exported for tests.
+ */
+export function sanitizeModelOutput(
   response: string | undefined,
 ): string {
   if (!response) {
     return "";
   }
 
-  return response
+  const cleaned = response
+    // Gemma "unused" tokens and chat-template markers.
     .replace(/<unused\d+>/gi, "")
+    .replace(/<\/?(?:start_of_turn|end_of_turn|eos|bos|pad|s)>/gi, "")
+    // Generic `<|...|>` / `<|foo|>` style special tokens.
+    .replace(/<\|[^|]*\|>/g, "")
     .replace(/<\/?tool[^>]*>/gi, "")
+    // A leaked bracketed prefix, e.g. "【コメント】…".
+    .replace(/^\s*【[^】]*】\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Real output must contain at least one letter or CJK character.
+  // Anything that's only punctuation / leftover symbols is garbage.
+  if (!/[\p{L}\p{N}]/u.test(cleaned)) {
+    return "";
+  }
+
+  return cleaned;
 }

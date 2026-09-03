@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   personalFallbackComment,
+  sanitizeModelOutput,
   teamFallbackComment,
   type PersonalRestData,
   type TeamRestData,
@@ -98,5 +99,42 @@ describe("teamFallbackComment", () => {
         assert.ok(out.length > 0);
         assert.ok(!out.includes("undefined"));
       }
+  });
+});
+
+describe("sanitizeModelOutput", () => {
+  it("keeps real Japanese prose", () => {
+    assert.equal(
+      sanitizeModelOutput("15分の仮眠でよく休めました。"),
+      "15分の仮眠でよく休めました。",
+    );
+  });
+
+  it("returns '' for special-token-only garbage (e2b on CPU)", () => {
+    assert.equal(
+      sanitizeModelOutput("<unused22><unused13><unused14><unused28>"),
+      "",
+    );
+    assert.equal(sanitizeModelOutput('<|"|><|"|>'), "");
+    assert.equal(sanitizeModelOutput("<start_of_turn><end_of_turn>"), "");
+  });
+
+  it("strips a leaked bracket prefix but keeps the sentence", () => {
+    assert.equal(
+      sanitizeModelOutput("【コメント】よい休息でした。"),
+      "よい休息でした。",
+    );
+  });
+
+  it("strips embedded template tokens and collapses whitespace", () => {
+    assert.equal(
+      sanitizeModelOutput("よい<unused0>休息   でした。\n"),
+      "よい休息 でした。",
+    );
+  });
+
+  it("returns '' for undefined / empty / whitespace", () => {
+    assert.equal(sanitizeModelOutput(undefined), "");
+    assert.equal(sanitizeModelOutput("   \n  "), "");
   });
 });
