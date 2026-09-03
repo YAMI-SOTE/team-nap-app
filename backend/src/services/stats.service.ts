@@ -1,4 +1,4 @@
-import { calendarWeek, calendarWeekAgo } from "../lib/datetime.js";
+import { calendarWeek, calendarWeekAgo, todayISO } from "../lib/datetime.js";
 import { getHomeMemberStatus } from "./home.service.js";
 import { getNapSummary, listNaps, type NapEntry } from "./naps.service.js";
 import { hasTeam } from "./team.service.js";
@@ -15,7 +15,12 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 const STARS = (n: number) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
 
 export type StatFocus = { before: number; after: number; deltaPt: number };
-type WeeklyCondition = { values: number[]; labels: string[] };
+/**
+ * Weekly line-chart series, one entry per day Sun→Sat. Days that have not
+ * happened yet this calendar week are `null` so the chart draws no marker
+ * for them (the label still shows).
+ */
+type WeeklyCondition = { values: Array<number | null>; labels: string[] };
 
 export type PersonalStatsResponse = {
   /** false when there are no nap records — client renders the empty state. */
@@ -93,8 +98,11 @@ export async function getPersonalStats(
     list.push(n);
     napsByDate.set(n.date, list);
   }
+  // Only score days that have already occurred this week — future days
+  // are null so the chart plots nothing for them.
+  const today = todayISO();
   const conditionValues = thisWeek.days.map((iso) =>
-    restScore(napsByDate.get(iso) ?? []),
+    iso <= today ? restScore(napsByDate.get(iso) ?? []) : null,
   );
 
   return {
@@ -124,6 +132,11 @@ export async function getTeamStats(
 ): Promise<TeamStatsResponse> {
   const { members, memberCount } = await getHomeMemberStatus(userId);
   // No per-member nap aggregation exists yet — team nap metrics are 0.
+  // Still null-out days that have not happened yet this week.
+  const today = todayISO();
+  const conditionValues = calendarWeek().days.map((iso) =>
+    iso <= today ? 0 : null,
+  );
   return {
     hasRecords: false,
     achievementRate: 0,
@@ -134,7 +147,7 @@ export async function getTeamStats(
     napCount: 0,
     avgNapMinutes: 0,
     everyoneNappedDays: 0,
-    condition: { values: [0, 0, 0, 0, 0, 0, 0], labels: WEEKDAY_LABELS },
+    condition: { values: conditionValues, labels: WEEKDAY_LABELS },
     achievementBanner: "",
     disclaimer:
       "チーム全体で休めているかを見る指標です。個人を比較するものではありません。",
