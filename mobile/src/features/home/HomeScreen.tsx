@@ -1,8 +1,11 @@
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -67,13 +70,22 @@ export default function HomeScreen() {
   const restingCount = memberStatus?.memberStatusCounts.resting ?? 0;
   const nextFree = summary?.nextFree ?? null;
 
+  // On a short browser window the fixed layout would clip the CTAs. Drop
+  // the status chips to buy vertical room; the ScrollView catches the rest.
+  const { height: windowHeight } = useWindowDimensions();
+  const compact = Platform.OS === "web" && windowHeight < 760;
+
   return (
     <SceneBackground
       source={require("../../../assets/backgrounds/home-day.png")}
     >
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        {/* Fixed, non-scrolling — the layout is sized to fit one screen. */}
-        <View style={styles.content}>
+        {/* Grows to fill on a tall screen, scrolls on a short one. */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.top}>
             {/* Header */}
             <View style={styles.header}>
@@ -113,21 +125,23 @@ export default function HomeScreen() {
               </Text>
             ) : null}
 
-            {/* Status Chips */}
-            <View style={styles.chips}>
-              {hasTeam ? (
-                <StatusPill
-                  label={`${restingCount}人がひとやすみ中`}
-                  icon={<UsersThreeIcon size={16} color={colors.primary} />}
-                />
-              ) : null}
-              {nextFree ? (
-                <StatusPill
-                  label={`${nextFree.start}ごろ休めそう`}
-                  icon={<TimerIcon size={16} color={colors.primary} />}
-                />
-              ) : null}
-            </View>
+            {/* Status Chips — hidden on a cramped web window (see `compact`). */}
+            {!compact ? (
+              <View style={styles.chips}>
+                {hasTeam ? (
+                  <StatusPill
+                    label={`${restingCount}人がひとやすみ中`}
+                    icon={<UsersThreeIcon size={16} color={colors.primary} />}
+                  />
+                ) : null}
+                {nextFree ? (
+                  <StatusPill
+                    label={`${nextFree.start}ごろ休めそう`}
+                    icon={<TimerIcon size={16} color={colors.primary} />}
+                  />
+                ) : null}
+              </View>
+            ) : null}
 
             {/* 個人向け休息提案（上流 PR #33） */}
             {restRecommendation?.shouldRest &&
@@ -202,7 +216,7 @@ export default function HomeScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
 
       {/* チーム画面と同じ提案シート（OV-01 → OV-02） */}
@@ -232,8 +246,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  content: {
+  scroll: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     alignItems: "center",
     paddingTop: 4,
     paddingHorizontal: SCREEN_PADDING,
