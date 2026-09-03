@@ -1,10 +1,11 @@
 /**
- * Advice text shown on the ふりかえり screen for a nap and stored on the
- * `NapRecord` so it can be read back from history ("過去のアドバイス").
+ * Rule-based advice text for a nap, shown on the ふりかえり screen and
+ * stored on `NapRecord.aiAdvice` for history ("過去のアドバイス").
  *
- * Rule-based for now. TODO(ai): swap `buildAdvice` for an Ollama call
- * (see ai.service.ts) once the model prompt is ready — the signature and
- * the stored column stay the same.
+ * This is the **fallback**: `naps.service.createNap` calls
+ * `generateNapAdvice` (Ollama, `ai.service.ts`) first and only uses
+ * `buildAdvice` when that throws / times out. Same signature and stored
+ * column either way.
  */
 
 export type NapAdviceInput = {

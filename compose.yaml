@@ -14,6 +14,10 @@ services:
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://teamnap:teamnap_dev@db:5432/teamnap
       OLLAMA_URL: http://ollama:11434
+      # gemma3n:e2b needs ~8GB/2CPU for the ollama container. On a smaller
+      # host set OLLAMA_MODEL=gemma3:1b (weaker JP) — everything still
+      # falls back to rule-based copy if the model can't run. See
+      # docs/ai-development.md.
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3n:e2b}
 
     ports:
