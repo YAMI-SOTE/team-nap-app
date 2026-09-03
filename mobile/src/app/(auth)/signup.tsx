@@ -2,10 +2,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
   ScrollView,
   StyleSheet,
 } from "react-native";
@@ -16,6 +12,7 @@ import { colors } from "@/theme/colors";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
 import EntryBackground from "@/components/EntryBackground";
+import KeyboardDismiss from "@/components/KeyboardDismiss";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
 import { GoogleIcon } from "@/components/icons";
@@ -65,11 +62,7 @@ export default function SignUpScreen() {
   return (
     <EntryBackground>
       <StatusBar style="dark" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.flex}
-        >
+      <KeyboardDismiss>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
@@ -181,8 +174,7 @@ export default function SignUpScreen() {
               </View>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </KeyboardDismiss>
     </EntryBackground>
   );
 }

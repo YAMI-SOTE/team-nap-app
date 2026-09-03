@@ -2,10 +2,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
   ScrollView,
   StyleSheet,
 } from "react-native";
@@ -15,6 +11,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useLogin } from "@/hooks/useLogin";
 import EntryBackground from "@/components/EntryBackground";
+import KeyboardDismiss from "@/components/KeyboardDismiss";
 import LabeledInput from "@/components/LabeledInput";
 import OrDivider from "@/components/OrDivider";
 import PillButton from "@/components/PillButton";
@@ -61,11 +58,7 @@ export default function LoginScreen() {
   return (
     <EntryBackground>
       <StatusBar style="dark" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.flex}
-        >
+      <KeyboardDismiss>
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
@@ -156,8 +149,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </KeyboardDismiss>
     </EntryBackground>
   );
 }

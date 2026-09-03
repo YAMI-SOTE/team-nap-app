@@ -1,16 +1,12 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +20,7 @@ import {
   requestPasswordReset,
 } from "@/services/authService";
 import EntryBackground from "@/components/EntryBackground";
+import KeyboardDismiss from "@/components/KeyboardDismiss";
 import Logo from "@/components/Logo";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PasswordInput from "@/components/PasswordInput";
@@ -103,12 +100,8 @@ export default function ForgotPasswordScreen() {
   return (
     <EntryBackground>
       <StatusBar barStyle="dark-content" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <SafeAreaView style={styles.container}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.flex}
-          >
+      <SafeAreaView style={styles.container}>
+        <KeyboardDismiss>
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
@@ -203,9 +196,8 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.backLinkText}>ログインに戻る</Text>
               </TouchableOpacity>
             </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </TouchableWithoutFeedback>
+        </KeyboardDismiss>
+      </SafeAreaView>
 
       <ConfirmDialog
         visible={phase === "done"}
