@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -73,11 +72,8 @@ export default function HomeScreen() {
       source={require("../../../assets/backgrounds/home-day.png")}
     >
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+        {/* Fixed, non-scrolling — the layout is sized to fit one screen. */}
+        <View style={styles.content}>
           <View style={styles.top}>
             {/* Header */}
             <View style={styles.header}>
@@ -206,7 +202,7 @@ export default function HomeScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
 
       {/* チーム画面と同じ提案シート（OV-01 → OV-02） */}
@@ -236,11 +232,8 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
-    flexGrow: 1,
+    flex: 1,
     alignItems: "center",
     paddingTop: 4,
     paddingHorizontal: SCREEN_PADDING,

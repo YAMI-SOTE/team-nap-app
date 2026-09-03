@@ -44,6 +44,8 @@ export interface HomeMember {
   id: string;
   label: string;
   status: HomeMemberStatus;
+  /** Chosen avatar id ("cat" | "man" | "woman"), or null → default icon. */
+  avatar: string | null;
 }
 
 export interface HomeSummaryResponse {
@@ -146,6 +148,8 @@ export interface TeamRankingEntry {
   label: string;
   status: HomeMemberStatus;
   score: number;
+  /** Chosen avatar id, or null → default icon. */
+  avatar: string | null;
 }
 
 export interface TeamRankingResponse {
@@ -167,6 +171,8 @@ export interface MemberDetailResponse {
   name: string;
   label: string;
   status: HomeMemberStatus;
+  /** Chosen avatar id, or null → default icon. */
+  avatar: string | null;
   /** "仮眠の状況" card — present while the member is resting. */
   nap: {
     /** Scheduled wake time, e.g. "14:47". */

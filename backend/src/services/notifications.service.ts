@@ -33,7 +33,7 @@ function initialFeed(): NotificationItem[] {
     {
       id: "welcome",
       kind: "welcome",
-      title: "TEAM NAPにようこそ、仮眠を撮りませんか?",
+      title: "TEAM NAPにようこそ、仮眠をとりませんか?",
       body: "15分の仮眠から始めてみましょう。チームからの提案やお知らせもここに届きます。",
       timestamp: "たった今",
       read: false,

@@ -51,6 +51,7 @@ export async function teamMemberStatus(
     id: m.userId,
     label: m.user.name?.trim().slice(0, 1).toUpperCase() || "M",
     status: toStatus(m.activity),
+    avatar: m.user.avatar ?? null,
   }));
 
   const memberStatusCounts = members.reduce<Record<MemberStatus, number>>(

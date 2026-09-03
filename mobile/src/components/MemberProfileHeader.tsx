@@ -1,15 +1,18 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/theme/colors";
-import { radius } from "@/theme/spacing";
+import Avatar from "@/components/Avatar";
+import { defaultAvatarFor } from "@/utils/defaultAvatar";
 import StatusChip from "@/components/StatusChip";
 import type { MemberStatus } from "@/components/MemberAvatar";
 
 type MemberProfileHeaderProps = {
   name: string;
   status: MemberStatus;
-  /** Optional avatar photo. Falls back to a dashed placeholder circle. */
-  imageUri?: string;
+  /** The member's chosen avatar id, or null → default icon seeded by `seed`. */
+  avatarId?: string | null;
+  /** Seed for the default icon when `avatarId` is null (usually the member id). */
+  seed?: string;
 };
 
 const AVATAR_SIZE = 104;
@@ -29,16 +32,17 @@ const DOT_COLOR: Record<MemberStatus, string> = {
 export default function MemberProfileHeader({
   name,
   status,
-  imageUri,
+  avatarId,
+  seed,
 }: MemberProfileHeaderProps) {
   return (
     <View style={styles.container}>
       <View style={styles.avatarWrap}>
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]} />
-        )}
+        <Avatar
+          avatarId={avatarId ?? defaultAvatarFor(seed ?? name)}
+          name={name}
+          size={AVATAR_SIZE}
+        />
         <View
           style={[styles.dot, { backgroundColor: DOT_COLOR[status] }]}
         />
@@ -62,16 +66,6 @@ const styles = StyleSheet.create({
   avatarWrap: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: radius.pill,
-  },
-  avatarPlaceholder: {
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.borderBrand,
   },
   dot: {
     position: "absolute",

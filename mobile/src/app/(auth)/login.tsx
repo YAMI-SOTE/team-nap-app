@@ -149,7 +149,7 @@ export default function LoginScreen() {
             <View style={styles.signUpRow}>
               <Text style={styles.signUpText}>アカウントをお持ちでない方は</Text>
               <TouchableOpacity
-                onPress={() => router.push("/onboarding")}
+                onPress={() => router.replace("/signup")}
                 disabled={isBusy}
               >
                 <Text style={styles.signUpLink}>新規登録</Text>

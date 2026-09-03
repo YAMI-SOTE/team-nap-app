@@ -83,6 +83,8 @@ export default function MemberScreen() {
               <MemberProfileHeader
                 name={data.name}
                 status={data.status as MemberStatus}
+                avatarId={data.avatar}
+                seed={data.id}
               />
 
               {data.nap ? (

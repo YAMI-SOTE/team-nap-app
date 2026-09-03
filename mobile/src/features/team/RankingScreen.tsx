@@ -72,6 +72,8 @@ export default function RankingScreen() {
                       name={entry.name}
                       status={entry.status}
                       score={entry.score}
+                      avatarId={entry.avatar}
+                      seed={entry.id}
                       rank={(index + 1) as Rank}
                     />
                     {index < top3.length - 1 ? <Hairline /> : null}
@@ -98,6 +100,8 @@ export default function RankingScreen() {
                       name={entry.name}
                       status={entry.status}
                       score={entry.score}
+                      avatarId={entry.avatar}
+                      seed={entry.id}
                     />
                     {index < entries.length - 1 ? <Hairline /> : null}
                   </Fragment>

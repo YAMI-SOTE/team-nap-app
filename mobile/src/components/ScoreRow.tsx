@@ -10,6 +10,10 @@ type ScoreRowProps = {
   name: string;
   status: HomeMemberStatus;
   score: number;
+  /** The member's chosen avatar id, or null → default icon seeded by `seed`. */
+  avatarId?: string | null;
+  /** Seed for the default icon when `avatarId` is null (usually the member id). */
+  seed?: string;
   /** 1–3 shows a podium crown badge before the avatar. */
   rank?: Rank;
   onPress?: () => void;
@@ -23,6 +27,8 @@ export default function ScoreRow({
   name,
   status,
   score,
+  avatarId,
+  seed,
   rank,
   onPress,
 }: ScoreRowProps) {
@@ -36,7 +42,13 @@ export default function ScoreRow({
       accessibilityLabel={onPress ? `${name} 仮眠スコア ${score}` : undefined}
     >
       {rank ? <RankBadge rank={rank} /> : null}
-      <MemberAvatar label={name} status={status} showLabel={false} />
+      <MemberAvatar
+        label={name}
+        status={status}
+        avatarId={avatarId}
+        avatarSeed={seed}
+        showLabel={false}
+      />
       <Text style={styles.name} numberOfLines={1}>
         {name}
       </Text>

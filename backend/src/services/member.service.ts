@@ -7,6 +7,8 @@ export type MemberDetailResponse = {
   name: string;
   label: string;
   status: MemberStatus;
+  /** Chosen avatar id, or null → client falls back to a default icon. */
+  avatar: string | null;
   /** "仮眠の状況" card — present while the member is resting. */
   nap: {
     wakeAt: string;
@@ -45,6 +47,7 @@ export async function getMemberDetail(
     name: target.user.name ?? "メンバー",
     label: initial(target.user.name),
     status: mapActivity(target.activity),
+    avatar: target.user.avatar ?? null,
     nap: null,
     wakeSupport: { wakeAssistEnabled: target.wakeAssistEnabled },
   };
