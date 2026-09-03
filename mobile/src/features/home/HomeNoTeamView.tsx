@@ -2,7 +2,6 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -59,11 +58,8 @@ export default function HomeNoTeamView({
       source={require("../../../assets/backgrounds/home-day.png")}
     >
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+        {/* Fixed, non-scrolling — sized to one screen. */}
+        <View style={styles.content}>
           <View style={styles.top}>
             <View style={styles.header}>
               <Logo width={72} color={colors.primary} />
@@ -152,7 +148,7 @@ export default function HomeNoTeamView({
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </SceneBackground>
   );
@@ -162,11 +158,8 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
-    flexGrow: 1,
+    flex: 1,
     alignItems: "center",
     paddingTop: 4,
     paddingHorizontal: SCREEN_PADDING,

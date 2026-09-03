@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
@@ -45,13 +39,13 @@ export default function StatsScreen() {
     <View style={styles.root}>
       <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={[
+        {/* Fixed, non-scrolling. */}
+        <View
+          style={[
             styles.content,
             // Figma: S05-01 の Content は gap 10、S05-02 は gap 8。
             activeTab === "team" && styles.contentTeam,
           ]}
-          showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
@@ -101,7 +95,7 @@ export default function StatsScreen() {
               onMorePress={() => router.push("/team")}
             />
           ) : null}
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -116,6 +110,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
     paddingTop: 8,
     paddingHorizontal: 24,
     paddingBottom: 24,
