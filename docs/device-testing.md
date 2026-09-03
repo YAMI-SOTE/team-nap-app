@@ -61,12 +61,34 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
 | 反復の速さ | 速い（ホットリロード） | やや遅い（初回はモデル pull。既定 `gemma3:1b` は ~815MB で数分以内。`gemma3n:e2b` に上げると ~5.6GB／~8GB RAM） |
 | seed | `npm run db:seed` を自分で実行 | `docker compose exec backend npm run db:seed` を自分で実行（自動では走らない） |
 
-どちらのモードでも **端末からの向き先は `http://<開発マシンの LAN IP>:3000/api/v1`**
-（compose は `3000:3000` をホストに公開するので同じ）。§3 以降は共通。
-
 > 迷ったら **モード A**。チーム機能・スワイプ・ふりかえり画面の導線はすべて
 > モード A で確認できる（AI 文はルールベースになる）。**AI の生成文そのもの**を
 > レビューするときだけモード B。
+
+### 2‑1.5. 接続の全体像（ここでよく詰まる）
+
+**モード B（root から `docker compose up`）でも、端末が繋ぐ先は 2 つある**。
+両方が **同じ開発マシンの LAN IP** で届く必要がある。
+
+```text
+iPhone / Android
+   │
+   ├─ exp://<開発マシンの LAN IP>:8081   … Metro（JS を配信）
+   │      ↑ `cd mobile && npx expo start` で起動。docker compose では立たない
+   │
+   └─ http://<開発マシンの LAN IP>:3000/api/v1   … Backend API
+          ↑ モード B ではこれが docker のコンテナ（`3000:3000` を公開）
+```
+
+- **`docker compose up` は Backend だけ**。Mobile アプリは別プロセス
+  （`cd mobile && npx expo start`）。root で compose しても Metro は起動しない。
+- **アプリの画面は出るのに `boot notification failed: サーバーに接続できません`**
+  → Metro は届いている＝`8081` は OK。**`3000`（API）に届いていない**。
+  原因はほぼ次のどれか：
+  1. `mobile/.env` の IP が古い（Wi‑Fi / テザリングで再割り当てされた）→ §2‑3
+  2. `mobile/.env` を書き換えた後 **Metro を再起動していない**（`.env` は起動時のみ）→ §3
+  3. macOS のファイアウォールが受信をブロック → §7
+  4. 端末が Wi‑Fi ではなくモバイル回線、または Mac と別ネットワーク → §7
 
 ### 2‑2A. モード A（ローカル Backend）
 
@@ -112,42 +134,65 @@ docker compose exec backend npm run db:seed
   [ai-development.md](./ai-development.md)）。
 - `backend/.env` はモード B では使われない（compose が環境変数を直接渡す）。
 
-### 2‑3. 開発マシンの LAN IP を調べる
+### 2‑3. 開発マシンの LAN IP を調べる（毎回。IP は変わる）
 
-| OS | コマンド |
-| --- | --- |
-| macOS（Wi‑Fi） | `ipconfig getifaddr en0`（有線なら `en1` など） |
-| Windows | `ipconfig` →「IPv4 アドレス」 |
-| どれでも | `cd mobile && npx expo start` が表示する `exp://192.168.x.y:8081` の IP 部分 |
+Wi‑Fi / テザリングの IP は **接続のたびに変わりうる**。テスト開始時に必ず取り直し、
+`mobile/.env` に反映する。
 
-以降このガイドでは `192.168.1.23` を例に使う。
+```bash
+# macOS（Wi‑Fi）
+ipconfig getifaddr en0                 # 例: 10.232.120.14
+# Windows
+ipconfig                               # 「IPv4 アドレス」
+```
+
+`npx expo start` を起動済みなら、ターミナルの
+`Metro waiting on exp://10.232.120.14:8081` の IP 部分がそれ。**この IP と
+Backend の IP は同じでなければならない。**
+
+以降このガイドでは `10.232.120.14` を例に使う（あなたの値に読み替える）。
+
+> IP が頻繁に変わる／社内ネットワークで届かない場合は §7 の
+> **Tailscale / tunnel** を使うと固定できる。
 
 ### 2‑4. 端末から到達できるか確認（ここで詰まりやすい）
 
-**端末のブラウザ**で以下を開く：
+`mobile/.env` を直す前に、**端末のブラウザ**で叩いて切り分ける：
 
 ```text
-http://192.168.1.23:3000/api/v1/health
+http://10.232.120.14:3000/api/v1/health
 ```
 
-`{"status":"ok","service":"team-nap-api",...}` が表示されれば疎通 OK。
-表示されない場合は §7 のトラブルシュートへ。
+- `{"status":"ok","service":"team-nap-api",...}` が出る → 疎通 OK。あとは §3。
+- **タイムアウト／接続できない** → §7（ファイアウォール／別ネットワーク／IP 違い）。
+  `mobile/.env` をいくら直しても、このブラウザテストが通らないうちは繋がらない。
 
 ---
 
 ## 3. Mobile を実機向けに設定
 
-`mobile/.env`：
+1. **`mobile/.env` を §2‑3 で取った IP に書き換える**（`.gitignore` 済みのローカルファイル）：
 
-```env
-EXPO_PUBLIC_API_URL=http://192.168.1.23:3000/api/v1
-```
+   ```env
+   EXPO_PUBLIC_API_URL=http://10.232.120.14:3000/api/v1
+   ```
 
-- 実機では `http://localhost:...`（iOS シミュレータ用）や `http://10.0.2.2:...`
-  （Android エミュレータ用）は**使えない**。必ず開発マシンの LAN IP。
-- この 1 行で REST も WebSocket も切り替わる
-  （`ws://192.168.1.23:3000/api/v1/realtime`。`https` にすれば `wss` に自動変換）。
-- **`.env` は Expo 起動時にしか読まれない。** 変更したら Metro を再起動する。
+   - 実機では `http://localhost:...`（iOS シミュレータ用）や `http://10.0.2.2:...`
+     （Android エミュレータ用）は**使えない**。必ず開発マシンの LAN IP。
+   - この 1 行で REST も WebSocket も切り替わる
+     （`ws://…:3000/api/v1/realtime`。`https` にすれば `wss` に自動変換）。
+
+2. **Metro を完全に再起動する**（`.env` は Expo 起動時にしか読まれない）：
+
+   ```bash
+   # 動いている npx expo start を Ctrl-C で止めてから
+   cd mobile && npx expo start -c
+   ```
+
+   アプリ内リロード（`r` や端末を振る）だけでは `.env` は読み直されない。
+
+3. 端末で Expo Go を開き直す（§4）。まだ古い挙動なら、Expo Go の
+   最近使ったプロジェクト履歴から開かず、**新しい QR を撮り直す**。
 
 ---
 
@@ -276,12 +321,14 @@ npx expo start -c             # Metro キャッシュをクリア
 | 症状 | 対処 |
 | --- | --- |
 | **Project is incompatible with this version of Expo Go**（QR は読めている） | 端末の Expo Go が古い。**App Store / Google Play で Expo Go を更新** → 再スキャン。更新しても直らない＝プロジェクトの SDK が公開版 Expo Go より新しい → §7‑bis の development build |
-| 端末ブラウザで `.../api/v1/health` が開かない | 同一 Wi‑Fi か／VPN オフか／ルーターの client(AP) isolation を無効化。5GHz と 2.4GHz で SSID が分かれている場合は同じ帯域に揃える |
-| macOS のファイアウォールがブロック | システム設定 › ネットワーク › ファイアウォール で `node` の**受信接続を許可**、または一時的にオフ |
+| **アプリの画面は出るが `boot notification failed: サーバーに接続できません`** | Metro（`8081`）は届いている。届いていないのは API（`3000`）。↓ の行を順にチェック |
+| ↳ `mobile/.env` の IP が古い | Wi‑Fi / テザリングで IP が変わった。`ipconfig getifaddr en0` で取り直し、`mobile/.env` を更新（§2‑3）。**端末ブラウザで `http://<新IP>:3000/api/v1/health` が 200 を返すことをまず確認**（§2‑4） |
+| ↳ `.env` を直したのに変わらない | Metro を **完全再起動**していない。`npx expo start` を Ctrl‑C → `npx expo start -c`。`r` や振り直しでは `.env` は読み直されない |
+| ↳ 端末ブラウザでも `.../health` が開かない | ①端末が Wi‑Fi ではなくモバイル回線／②Mac と別 SSID・別ネットワーク／③ルーターの client(AP) isolation／④VPN。Mac と端末が同じ LAN にいることを最優先で確認 |
+| macOS のファイアウォールがブロック | システム設定 › ネットワーク › ファイアウォール で `node` と **Docker（`com.docker.backend`）の受信接続を許可**、または一時的にオフ。`docker compose` の公開ポートでも受信は macOS FW を通る |
 | iOS で全く通信しない | 設定 › Expo Go › **ローカルネットワーク** を ON（初回プロンプトで拒否した場合ここで直す） |
-| QR は読めるがアプリが真っ白／タイムアウト | `mobile/.env` の `EXPO_PUBLIC_API_URL` が LAN IP になっているか、変更後に **Metro を再起動**したか |
 | `EXPO_PUBLIC_API_URL is not configured` | `mobile/.env` 未作成、または Metro 未再起動 |
-| どうしても LAN 不可（社内 NW 等） | Metro は `npx expo start --tunnel`（`@expo/ngrok` の導入を促される）。**ただし tunnel が張るのは Metro だけ**。Backend は別途 `ngrok http 3000` か Tailscale で公開し、その URL を `EXPO_PUBLIC_API_URL=https://xxxx.ngrok.app/api/v1` に設定（WebSocket も `wss://` に自動変換） |
+| **IP が頻繁に変わる／社内・キャリア NW で LAN が届かない** | **Tailscale**（推奨）：Mac と端末の両方に Tailscale を入れ、`tailscale ip -4` の `100.x` を使う → `EXPO_PUBLIC_API_URL=http://100.x.x.x:3000/api/v1`、Metro も `exp://100.x.x.x:8081` で届く。ネットワークが変わっても固定。<br>または **tunnel**：Metro は `npx expo start --tunnel`（`@expo/ngrok` 導入を促される）。tunnel が張るのは Metro だけなので Backend は別途 `ngrok http 3000` し、その `https://xxxx.ngrok.app/api/v1` を `EXPO_PUBLIC_API_URL` に（`wss://` に自動変換） |
 | 認証必須ルートで 401 ばかり | ログインしていない。`/api/v1/{teams,notifications,onboarding,settings,...}` は Bearer 必須 |
 | チーム画面が空／`NAP-2001` で参加できない | seed 未実行。モード A: `cd backend && npm run db:seed`／モード B: `docker compose exec backend npm run db:seed` |
 | ふりかえりの AI 文がいつもルールベース（モード B のはず） | `docker compose exec ollama ollama list` にモデルが無い＝pull 未完了／失敗。`docker compose logs ollama-pull` を確認。重すぎる場合は `gemma3:1b` に切替 |
