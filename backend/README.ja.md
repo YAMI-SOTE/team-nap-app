@@ -160,7 +160,7 @@ Compose / 本番ではマイグレーションが自動適用されます（`npm
 `prisma migrate deploy` を実行）。詳細は [../docs/db.md](../docs/db.md)。
 
 チーム機能のバックエンド設計は
-[../docs/team-feature.ja.md](../docs/team-feature.ja.md) にまとめています。
+[../docs/team-feature.md](../docs/team-feature.md) にまとめています。
 
 ## ヘルスチェック
 
