@@ -15,6 +15,7 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 | [settings-architecture.md](./settings-architecture.md) | 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応 |
 | [ai-development.md](./ai-development.md) | AI コメント生成（Ollama / Gemma）の構成と編集ポイント |
 | [notifications.md](./notifications.md) | 通知フィード（Postgres 永続化）と Expo プッシュ通知 |
+| [google-integration.md](./google-integration.md) | **設計アウトライン（未実装）** — Google ログイン ＋ Google カレンダー連携 |
 
 ## セットアップ・テスト
 
