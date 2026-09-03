@@ -4,6 +4,7 @@ import { getMemberDetailController } from "../controllers/member.controller.js";
 import {
   createTeamController,
   getMyStatusController,
+  getTeamFreeSlotsController,
   getTeamRankingController,
   getTeamSummaryController,
   joinTeamController,
@@ -21,6 +22,7 @@ import {
   joinTeamBody,
   napSuggestionBody,
   statusBody,
+  teamFreeSlotsQuery,
   updateTeamBody,
 } from "../schemas/team.schema.js";
 
@@ -28,6 +30,11 @@ const router = Router();
 
 router.get("/summary", getTeamSummaryController);
 router.get("/ranking", getTeamRankingController);
+router.get(
+  "/free-slots",
+  validate({ query: teamFreeSlotsQuery }),
+  getTeamFreeSlotsController,
+);
 
 router.post("/", validate({ body: createTeamBody }), createTeamController);
 router.put("/", validate({ body: updateTeamBody }), renameTeamController);

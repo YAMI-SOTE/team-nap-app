@@ -16,13 +16,10 @@ import {
   todayISO,
 } from "../lib/datetime.js";
 import { restScore } from "../lib/rest-score.js";
+import { deriveStatus } from "./team-presence.service.js";
 import type { MemberStatus } from "../types/domain.js";
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
-
-function statusOf(activity: "online" | "resting"): MemberStatus {
-  return activity === "resting" ? "resting" : "working";
-}
 
 function initial(name: string | null): string {
   return name?.trim().slice(0, 1).toUpperCase() || "M";
@@ -211,7 +208,7 @@ export async function teamWeek(
       userId: m.userId,
       name: m.user.name?.trim() || null,
       avatar: m.user.avatar ?? null,
-      status: statusOf(m.activity),
+      status: deriveStatus(m.activity, m.lastSeenAt),
     })),
     naps,
     weekDays: week.days,

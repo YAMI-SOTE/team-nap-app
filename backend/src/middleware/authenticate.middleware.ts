@@ -4,6 +4,7 @@ import { HttpError } from "../lib/http-error.js";
 import { bearerToken } from "../lib/tokens.js";
 import { step } from "../lib/api-flow.js";
 import { resolveSession, touchSession } from "../services/session.service.js";
+import { touchLastSeen } from "../services/team-presence.service.js";
 
 /**
  * Require a valid session. Reads `Authorization: Bearer <token>`,
@@ -29,8 +30,9 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
   req.auth = { userId: session.userId, sessionId: session.sessionId };
   step("auth", "session ok", { userId: session.userId });
 
-  // Best-effort recency bump; never blocks or fails the request.
+  // Best-effort recency bumps; never block or fail the request.
   void touchSession(session.sessionId).catch(() => {});
+  void touchLastSeen(session.userId).catch(() => {});
 
   next();
 };
