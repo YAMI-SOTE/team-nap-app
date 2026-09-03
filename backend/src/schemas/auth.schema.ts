@@ -30,13 +30,20 @@ export const changePasswordBody = z.object({
   newPassword: password,
 });
 
+/** Avatar id — a small placeholder set for now (see mobile constants/avatars). */
+const avatar = z
+  .enum(["cat", "man", "woman"], { error: "アイコンの選択が正しくありません" })
+  .nullable();
+
 export const updateProfileBody = z
   .object({
     name: z.string().trim().min(1, "名前を入力してください").max(50),
     email,
+    avatar,
   })
   .partial()
   .refine(
-    (v) => v.name !== undefined || v.email !== undefined,
-    "名前またはメールアドレスを入力してください",
+    (v) =>
+      v.name !== undefined || v.email !== undefined || v.avatar !== undefined,
+    "更新する項目を入力してください",
   );

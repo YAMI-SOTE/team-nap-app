@@ -6,6 +6,9 @@ import {
 } from "../lib/sleep-window.js";
 
 const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "時刻は HH:MM 形式で入力してください");
+const avatar = z
+  .enum(["cat", "man", "woman"], { error: "アイコンの選択が正しくありません" })
+  .nullable();
 
 const fields = {
   bedtime: clockTime,
@@ -34,6 +37,7 @@ export const completeOnboardingBody = z
     wakeTime: clockTime,
     calendarConnected: z.boolean().optional(),
     notificationsEnabled: z.boolean().optional(),
+    avatar: avatar.optional(),
   })
   .refine((v) => isValidSleepWindow(v.bedtime, v.wakeTime), {
     message: SLEEP_WINDOW_MESSAGE,
