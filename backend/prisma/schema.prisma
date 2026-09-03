@@ -29,6 +29,23 @@ model User {
   naps         NapRecord[]
   calendarEvents CalendarEvent[]
   notifications Notification[]
+  napSession   NapSession?
+}
+
+/// A nap the user has started but not yet finished — backs the
+/// "仮眠の状況 / あと◯分" card on a teammate's detail screen. At most one
+/// per user (`userId @unique`): starting the Rest timer upserts a row,
+/// finishing / cancelling / recording the nap deletes it. A row left
+/// dangling (app killed mid-nap) is treated as ended once `wakeAt` is
+/// more than 30 min in the past (src/services/nap-session.service.ts).
+model NapSession {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  startedAt DateTime @default(now())
+  /// Planned wake time = startedAt + the timer's minutes.
+  wakeAt    DateTime
+  createdAt DateTime @default(now())
 }
 
 /// One entry in a user's notification feed (the お知らせ screen). Persisted
