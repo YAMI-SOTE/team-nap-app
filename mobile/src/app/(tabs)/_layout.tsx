@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/theme/colors";
 import {
@@ -18,7 +19,13 @@ import {
  * 遷移する、タブバー非表示のフルスクリーン画面として実装している。
  * そのため、このグループ内には rest 用の screen 登録を置かない。
  */
+const BAR_CONTENT_HEIGHT = 58;
+
 export default function TabsLayout() {
+  // Add the device's bottom inset ourselves (0 on web / most Android) so
+  // react-navigation doesn't also add it and push the labels off-screen.
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -26,18 +33,20 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.textBrand,
         tabBarInactiveTintColor: "#000000",
         tabBarShowLabel: true,
-        // Web defaults to "beside-icon" once the bar is "wide enough",
-        // which then has no room for the 5 JP labels and drops them.
+        // Web flips to "beside-icon" when the bar is "wide enough", which
+        // then has no room for the 5 JP labels and drops them.
         tabBarLabelPosition: "below-icon",
-        tabBarLabelStyle: { fontSize: 11, marginTop: 2 },
-        tabBarIconStyle: { marginTop: 4 },
+        tabBarLabelStyle: { fontSize: 10, marginTop: 1 },
+        tabBarIconStyle: { marginTop: 2 },
+        tabBarItemStyle: { paddingVertical: 0 },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderStrong,
           borderTopWidth: 1,
-          height: 68,
+          height: BAR_CONTENT_HEIGHT + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: insets.bottom + 6,
+          paddingHorizontal: 4,
         },
         sceneStyle: { backgroundColor: colors.background },
       }}
