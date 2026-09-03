@@ -448,6 +448,70 @@ Backend のルートは `/api/v1` プレフィックス（`docs/backend.md`）�
 
 ---
 
+## 7‑quater. リンクで配る（ハッカソン審査 / デモ）
+
+「審査員がリンクを開くだけ」を優先度順に。**どの方法でも Backend は公開
+HTTPS が前提**（Tailscale URL は審査員側にも Tailscale が要るので不可。
+`docs/setup.md`「本番デプロイ（VPS）」）。
+
+| 方法 | 審査員の操作 | 対応 OS | 費用 / 前提 |
+| --- | --- | --- | --- |
+| **① Web デプロイ** | ブラウザで URL を開くだけ | すべて（PC / iPhone / Android） | 無料。Expo アカウント |
+| **② Appetize.io** | ブラウザ内でエミュレータ操作（インストール不要） | すべて（画面内で iOS / Android を動かす） | 無料枠（月 ~100 分）。ビルド成果物が要る |
+| **③ Android APK リンク** | リンク → APK を入れる（提供元不明を一度許可） | Android のみ | 無料。EAS ビルド |
+| **④ TestFlight** | TestFlight を入れ、公開リンクから参加 | iOS のみ | Apple Developer（$99/年）＋初回 Apple 審査（数時間〜1 日） |
+
+### ① Web デプロイ ← まずこれ
+
+アプリは web で動く（レスポンシブ対応済み）。静的サイトとして出すだけ。
+
+```bash
+cd mobile
+# API URL を埋め込んでエクスポート
+EXPO_PUBLIC_API_URL=https://<公開APIホスト>/api/v1 npx expo export -p web
+# dist/ を配信（いずれか）
+npx eas deploy                    # EAS Hosting → https://team-nap--xxxx.expo.app
+#   or: Vercel / Netlify / Cloudflare Pages に dist/ を上げる
+```
+
+- 審査員はどの端末でも URL を開くだけ。インストール不要。
+- web ではプッシュ通知は動かない（フィードは動く）。それ以外の主要導線は動く。
+
+### ② Appetize.io（ブラウザ内エミュレータ）
+
+ネイティブアプリを **審査員のブラウザ内**で動かす。インストールも端末登録も不要。
+iOS も対象（Appetize がクラウドで iOS シミュレータを動かす。Apple Developer 不要）。
+
+```bash
+cd mobile
+eas build --profile preview --platform android    # → .apk
+eas build --profile "preview:sim" --platform ios  # → iOS シミュレータ用（.tar.gz）
+```
+
+`preview:sim` は `eas.json` にある（`preview` を継承して `ios.simulator: true`）。
+できた成果物を <https://appetize.io> にアップロードすると、共有 URL または
+埋め込みが得られる。無料枠の分数に注意（審査時間中の同時利用が多いと尽きる）。
+
+### ③ Android APK リンク
+
+`eas build --profile preview --platform android` の完了ページ（`https://expo.dev/...`）
+の QR / リンクを審査員に渡す。Android 端末ならリンクから直接インストールできる
+（「提供元不明のアプリ」を一度許可）。**iOS の internal ビルドはリンクだけでは
+入らない**（`eas device:create` で登録済みの端末のみ）。
+
+### ④ TestFlight（iOS で本当にリンク配布したい場合）
+
+```bash
+eas build --profile production --platform ios
+eas submit --platform ios
+```
+
+App Store Connect で TestFlight の「公開リンク」を有効化 → そのリンクを配る。
+最大 10,000 人の外部テスターが参加可能。Apple Developer 登録と初回ビルドの
+Apple 審査が要るので、締め切りに対して前倒しで。
+
+---
+
 ## 8. テスト間のリセット
 
 - **サーバ側データ**（冪等）：
