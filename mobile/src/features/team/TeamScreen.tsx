@@ -2,9 +2,12 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -55,6 +58,10 @@ export default function TeamScreen() {
 
   const [proposalOpen, setProposalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  // Keep the mobile hero proportions on short browser windows. The page can
+  // still scroll when needed, without allowing the sheet to cover the score.
+  const compactWebLayout = Platform.OS === "web" && windowHeight < 820;
 
   if (connectionError) {
     return <ConnectionErrorView onRetry={reload} />;
@@ -85,8 +92,13 @@ export default function TeamScreen() {
       source={require("../../../assets/backgrounds/team-day.png")}
     >
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        {/* Hero — イラストの上に達成率だけを見せる */}
-        <View style={styles.hero}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Hero — イラストの上に達成率だけを見せる */}
+          <View style={[styles.hero, compactWebLayout && styles.heroCompact]}>
           <View style={styles.heroCol}>
             <View style={styles.header}>
               <Logo width={72} color={colors.primary} />
@@ -139,9 +151,11 @@ export default function TeamScreen() {
           </View>
         </View>
 
-        {/* Sheet — メンバー・達成・CTA */}
-        <View style={styles.sheet}>
-          <View style={styles.sheetCol}>
+          {/* Sheet — メンバー・達成・CTA */}
+          <View style={[styles.sheet, compactWebLayout && styles.sheetCompact]}>
+            <View
+              style={[styles.sheetCol, compactWebLayout && styles.sheetColCompact]}
+            >
             <View style={styles.members}>
               <Text style={styles.membersHeading}>
                 いまのメンバー（{memberCount}人）
@@ -196,12 +210,15 @@ export default function TeamScreen() {
               textStyle={styles.suggestButtonLabel}
             />
 
-            <View style={styles.footer}>
-              {loading ? <ActivityIndicator color={colors.primary} /> : null}
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {loading || error ? (
+                <View style={styles.footer}>
+                  {loading ? <ActivityIndicator color={colors.primary} /> : null}
+                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                </View>
+              ) : null}
             </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
 
       <NapProposalSheet
@@ -231,11 +248,21 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
+  },
   hero: {
     flex: 1,
     alignItems: "center",
     paddingTop: 4,
     paddingHorizontal: SCREEN_PADDING,
+  },
+  heroCompact: {
+    flex: 0,
+    minHeight: 360,
   },
   heroCol: {
     width: "100%",
@@ -365,10 +392,20 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 12,
   },
+  sheetCompact: {
+    flexGrow: 1,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
   sheetCol: {
     width: "100%",
     maxWidth: 402,
     gap: 20,
+  },
+  sheetColCompact: {
+    flex: 1,
+    gap: 14,
+    justifyContent: "space-between",
   },
   members: {
     gap: 17,
