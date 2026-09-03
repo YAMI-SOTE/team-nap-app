@@ -356,26 +356,95 @@ Expo Go を最新にしても「incompatible」が消えない場合は、プロ
 cd mobile
 npm i -g eas-cli            # or: npx eas-cli@latest ...
 eas login                   # Expo アカウントが要る
-eas device:create           # iPhone を登録（プロビジョニングプロファイルを入れる）
-eas build --profile development --platform ios
+eas init                    # 初回のみ。app.json に extra.eas.projectId を書き込む
+eas device:create           # iOS のみ。iPhone を登録（プロビジョニングプロファイル）
+eas build --profile development --platform ios      # iOS
+eas build --profile development --platform android  # Android（.apk / dev client）
 ```
 
-- リポジトリに `eas.json` は無いので、初回に生成を促される（`development` プロファイル）。
-- ビルド完了後のリンク／QR から `.ipa`（dev client）を端末にインストール。
+- `eas.json` はリポジトリに含まれている（`development` / `preview` / `production`）。
+- ビルド完了後のリンク／QR から dev client（iOS `.ipa` / Android `.apk`）を端末へ。
 - 以後は `npx expo start --dev-client` で起動し、その dev client アプリで開く。
+  → **Metro（＝Mac）が必要。**
 
-### B. ローカルでビルド（Mac + Xcode + 有線接続）
+### B. ローカルでビルド（Mac + Xcode / Android SDK + 有線接続）
 
 ```bash
 cd mobile
-npx expo run:ios --device   # 一覧から接続中の iPhone を選ぶ。Apple ID で署名
+npx expo run:ios --device       # 一覧から接続中の iPhone を選ぶ。Apple ID で署名
+npx expo run:android --device   # 接続中の Android 端末へ
 ```
 
-Android の development build は `eas build --profile development --platform android`
-（`.apk`）または `npx expo run:android --device`。
-
 > どのモデルでも Expo Go 更新だけで直ることが多い（本プロジェクトの SDK は
-> `~57.0.17`、通常のリリース版）。まず §7 の「Expo Go を更新」を試す。
+> `~57.0.19`、通常のリリース版）。まず §7 の「Expo Go を更新」を試す。
+
+---
+
+## 7‑ter. スタンドアロン配布（EAS preview ビルド）
+
+Metro も Expo Go も Mac も **要らない**。端末に普通のアプリとして入り、以後は
+サーバーへ直接つなぐだけ。デモや、開発機を持ち歩けないときに向く。
+
+```text
+iPhone / Android の Team Nap アプリ
+        │  HTTPS
+        ▼
+   公開された Backend（例: https://<host>/api/v1）
+        ▼
+   PostgreSQL
+```
+
+### 前提
+
+- **公開 HTTPS で到達できる Backend が要る。** `localhost` や LAN IP、
+  Tailscale の URL（端末側にも Tailscale が要る）では、配布後にネット環境が
+  変わると繋がらなくなる。preview ビルドはネットワーク到達性を変えない。
+- `app.json` の `ios.bundleIdentifier` / `android.package` は設定済み
+  （`app.teamnap.mobile`）。配布を始めたら変更しない。
+- Expo アカウント。iOS は Apple Developer の署名アクセス（内部配布は ad-hoc
+  プロビジョニング）。Android は不要。
+
+### 手順
+
+```bash
+cd mobile
+npm install
+npx expo-doctor                 # 問題があれば先に解消
+npm i -g eas-cli
+eas login
+eas init                        # 初回のみ。extra.eas.projectId を書き込む
+
+# 配布ビルドが指す API URL を EAS 側に登録（.env ではなく EAS の環境変数）
+eas env:set --environment preview \
+  --name EXPO_PUBLIC_API_URL --value https://<公開APIホスト>/api/v1
+eas env:list --environment preview        # 確認
+
+# iOS のみ: 端末を登録（Website を選び、URL を iPhone で開く）
+eas device:create
+eas device:list
+
+# ビルド
+eas build --profile preview --platform android   # → 直接入る .apk
+eas build --profile preview --platform ios       # → 登録済み iPhone に入る .ipa
+eas build --profile preview --platform all        # 両方
+```
+
+- `eas.json` の `preview` プロファイルは `distribution: "internal"`、Android は
+  `buildType: "apk"`（AAB ではなく、そのまま入れられる APK）。`autoIncrement` で
+  ビルド番号は EAS が管理する（`cli.appVersionSource: "remote"`）。
+- ビルド完了ページの QR / リンクを **端末側で** 開いてインストール。
+  - Android: 「提供元不明のアプリ」を一度許可。
+  - iOS 16+: 設定 → プライバシーとセキュリティ → デベロッパモード を ON。
+- インストール後は `npx expo start` 不要。アプリはホーム画面に常駐し、
+  `EXPO_PUBLIC_API_URL` のサーバーへ直接つなぐ。
+
+### `EXPO_PUBLIC_API_URL` に何を入れるか
+
+Backend のルートは `/api/v1` プレフィックス（`docs/backend.md`）。リバース
+プロキシで `https://<host>` → `:3000` に流しているなら
+`https://<host>/api/v1`。WebSocket 在席は `http`→`ws` 置換で自動導出されるので
+別途設定は不要（`wss://<host>/api/v1/realtime`）。プロキシ設定は
+`docs/setup.md` の「本番デプロイ（VPS）」。
 
 ---
 
@@ -392,9 +461,9 @@ Android の development build は `eas build --profile development --platform an
 
 ## 9. いまの制約（実機でも変わらない）
 
-- **プッシュ通知**：実装済みだが、実機配信には `eas init` のプロジェクト id ＋
-  開発ビルドが要る（Expo Go は SDK 53+ でプッシュ受信不可）。フィード自体は
-  常に動く。[notifications.md](./notifications.md)。
+- **プッシュ通知**：実装済みだが、実機配信には EAS ビルド（§7‑bis / §7‑ter）が
+  要る（Expo Go は SDK 53+ でプッシュ受信不可）。preview ビルドでも受け取れる。
+  フィード自体は常に動く。[notifications.md](./notifications.md)。
 - **Google ログインなし**：「Google で〜」系ボタンは未対応。
 - **AI**：統合済みで実機テスト可能。ただし
   - 休息後アドバイス と HOME コメントは製品 UI に出る。個人／チーム RESTコメント
