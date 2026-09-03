@@ -112,7 +112,8 @@ Read and validated once in `src/config/env.ts` (zod). Copy
 | `PORT`         |          | `3000`                   |                                |
 | `HOST`         |          | `0.0.0.0`                |                                |
 | `OLLAMA_URL`   |          | `http://localhost:11434` | AI comment generation          |
-| `OLLAMA_MODEL` |          | `gemma4:e2b`             | ⚠️ verify this tag             |
+| `OLLAMA_MODEL` |          | `gemma3n:e2b`            | any `ollama pull`-able tag      |
+| `OLLAMA_TIMEOUT_MS` |     | `8000`                  | per-generation abort → canned copy on timeout |
 | `DEBUG_API_FLOW` |        | `false`                 | `1`/`true` → per-request API-flow trace (see below) |
 | `DEBUG_API_FLOW_SCOPE` |  | –                       | substring filter, e.g. `/teams` |
 

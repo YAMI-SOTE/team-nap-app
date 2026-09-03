@@ -226,7 +226,8 @@ PORT=3000
 HOST=0.0.0.0
 
 OLLAMA_URL=http://localhost:11434   # Compose 内では http://ollama:11434
-OLLAMA_MODEL=gemma4:e2b             # ※タグ要確認（AI が canned にフォールバックする場合はここ）
+OLLAMA_MODEL=gemma3n:e2b            # ollama pull 可能なタグなら何でも可
+OLLAMA_TIMEOUT_MS=8000             # 1 生成のタイムアウト。超えたら定型文にフォールバック
 ```
 
 ## Mobile（`mobile/.env`）
@@ -454,10 +455,12 @@ Backend API
 
 AIによる休息提案・コメント生成には以下を使用します。
 
-- Ollama（`ollama/ollama` イメージ）
-- Gemma（モデルは `OLLAMA_MODEL` で指定。`compose.yaml` の既定は `gemma4:e2b` ※タグ要確認）
+- Ollama（`ollama/ollama` イメージ。`ollama-pull` サービスが起動時にモデルを取得）
+- Gemma（`OLLAMA_MODEL` で指定。既定は `gemma3n:e2b` = Gemma 3n E2B。`ollama pull` 可能なタグなら差し替え可）
 
 LLMはDocker上で動作させ、Backendから `OLLAMA_URL`（既定 `http://localhost:11434`）経由で呼び出します。
+Ollama が落ちている / 遅い / 応答が不正なときは、各エンドポイントが定型文に
+フォールバックします（`OLLAMA_TIMEOUT_MS`、既定 8 秒でアボート）。
 
 ```text
 Mobile

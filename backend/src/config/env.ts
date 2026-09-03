@@ -14,10 +14,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().min(1).default("0.0.0.0"),
 
-  // AI comment generation (Ollama).
-  // NOTE: verify the model tag — "gemma4:e2b" looks like a typo.
+  // AI comment generation (Ollama). `gemma3n:e2b` = Gemma 3n E2B, an
+  // edge-sized model (~effective 2B params) — a real `ollama pull` tag.
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
-  OLLAMA_MODEL: z.string().min(1).default("gemma4:e2b"),
+  OLLAMA_MODEL: z.string().min(1).default("gemma3n:e2b"),
+  // Abort a single generation after this long so a slow / cold / absent
+  // Ollama falls back to canned copy instead of wedging the request.
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
 
   // Postgres connection string for Prisma.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

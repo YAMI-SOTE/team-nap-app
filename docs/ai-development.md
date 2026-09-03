@@ -13,15 +13,23 @@ Team Nap のAI機能を、Home・Rest・Teamなどの他機能から独立して
 
 | 機能 | 実装 | 呼び出し元 |
 | --- | --- | --- |
-| 個人RESTコメント | `generatePersonalRestComment`（Ollama） | `POST /api/v1/ai/personal-comment` |
-| TEAMコメント | `generateTeamRestComment`（Ollama） | `POST /api/v1/ai/team-comment` |
-| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース） | `home.service.getHomeSummary`（チーム所属時のみ） |
+| 個人RESTコメント | `generatePersonalRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/personal-comment` |
+| TEAMコメント | `generateTeamRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/team-comment` |
+| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース + フォールバック） | `home.service.getHomeSummary`（チーム所属時のみ） |
 | ふりかえり画面の仮眠アドバイス | `buildAdvice`（**ルールベース**、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存 |
 
-`callGemma` は 8 秒でアボート（`OLLAMA_TIMEOUT_MS`）。`generateHomeComments`
-はモデルが落ちている/遅い/壊れた JSON のとき定型文にフォールバックする
-（500 を返さない）。`buildAdvice` は将来 Ollama 呼び出しに差し替えても
-`NapRecord.aiAdvice` 列とシグネチャは変えずに済む構造。
+`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 8 秒、env で調整可）でアボート。
+モデルが落ちている / 遅い / 壊れた出力のとき、**4 機能すべてが定型文に
+フォールバック**する（500 / 502 を返さない）:
+
+- `generatePersonalRestComment` / `generateTeamRestComment` → 評価コードから
+  組み立てた日本語 1〜2 文（`personalFallbackComment` / `teamFallbackComment`）
+- `generateHomeComments` → `teamEvaluation` ごとの定型 headline / aiAdvice
+- `buildAdvice` はそもそもルールベース
+
+既定モデルは `gemma3n:e2b`（Gemma 3n E2B）。`OLLAMA_MODEL` で差し替え可。
+`buildAdvice` は将来 Ollama 呼び出しに差し替えても `NapRecord.aiAdvice` 列と
+シグネチャは変えずに済む構造。
 
 ### 個人RESTコメント
 

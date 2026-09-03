@@ -3,6 +3,63 @@ import { env } from "../config/env.js";
 const OLLAMA_URL = env.OLLAMA_URL;
 const OLLAMA_MODEL = env.OLLAMA_MODEL;
 
+/**
+ * The LLM only rephrases evaluation codes the backend already computed, so
+ * whenever Ollama is unreachable / slow / gives junk we can compose a
+ * faithful Japanese sentence from the same codes. These are the fallbacks
+ * for the personal / team comment endpoints (Home / nap advice have their
+ * own inline fallbacks further down).
+ */
+const PERSONAL_DURATION_JA: Record<
+  PersonalRestData["restDurationEvaluation"],
+  string
+> = {
+  short: "少し短めの休息でした",
+  appropriate: "ちょうどよい長さの休息でした",
+  long: "やや長めの休息でした",
+};
+
+const PERSONAL_WAKE_JA: Record<PersonalRestData["wakeEvaluation"], string> = {
+  good: "目覚めもすっきりしていたようです",
+  normal: "目覚めはいつもどおりでした",
+  sleepy: "起きたあとも少し眠気が残っていたようです",
+};
+
+const PERSONAL_SELF_JA: Record<
+  PersonalRestData["selfInitiatedEvaluation"],
+  string
+> = {
+  self: "自分のタイミングで休めていました",
+  notification: "通知をきっかけに休めていました",
+};
+
+export function personalFallbackComment(data: PersonalRestData): string {
+  return `${PERSONAL_DURATION_JA[data.restDurationEvaluation]}。${
+    PERSONAL_WAKE_JA[data.wakeEvaluation]
+  }。${PERSONAL_SELF_JA[data.selfInitiatedEvaluation]}。`;
+}
+
+const TEAM_REST_JA: Record<TeamRestData["teamRestEvaluation"], string> = {
+  good: "チーム全体の休息状態は良好です",
+  normal: "チーム全体の休息状態は標準的です",
+  needs_improvement: "チーム全体の休息状態には改善の余地があります",
+};
+
+const TEAM_ENCOURAGEMENT_JA: Record<
+  TeamRestData["encouragementEvaluation"],
+  string
+> = {
+  active: "メンバー同士の声かけも活発です",
+  normal: "メンバー同士の声かけは標準的です",
+  low: "メンバー同士の声かけは少なめです",
+};
+
+export function teamFallbackComment(data: TeamRestData): string {
+  return `${TEAM_REST_JA[data.teamRestEvaluation]}。${
+    TEAM_ENCOURAGEMENT_JA[data.encouragementEvaluation]
+  }。`;
+}
+
 // ---------------------------------------------------------------------------
 // Personal rest comment
 // ---------------------------------------------------------------------------
@@ -77,7 +134,12 @@ notification = 通知をきっかけに休息を開始した
 ${JSON.stringify(data, null, 2)}
 `;
 
-  return callGemma(prompt);
+  try {
+    return await callGemma(prompt);
+  } catch (error) {
+    console.error("Personal AI comment fell back to canned copy:", error);
+    return personalFallbackComment(data);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +197,12 @@ low = メンバー同士の声かけが少ない
 ${JSON.stringify(data, null, 2)}
 `;
 
-  return callGemma(prompt);
+  try {
+    return await callGemma(prompt);
+  } catch (error) {
+    console.error("Team AI comment fell back to canned copy:", error);
+    return teamFallbackComment(data);
+  }
 }
 
 
@@ -357,12 +424,12 @@ ${JSON.stringify(data, null, 2)}
 // Ollama / Gemma
 // ---------------------------------------------------------------------------
 
-/** Give up on the model after this long so a slow/absent Ollama never wedges a request. */
-const OLLAMA_TIMEOUT_MS = 30000;
-
 async function callGemma(prompt: string): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => controller.abort(),
+    env.OLLAMA_TIMEOUT_MS,
+  );
 
   let response: Response;
   try {

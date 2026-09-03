@@ -14,7 +14,7 @@ services:
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://teamnap:teamnap_dev@db:5432/teamnap
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e2b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3n:e2b}
 
     ports:
       - "3000:3000"
@@ -53,7 +53,7 @@ services:
 
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e2b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3n:e2b}
 
     volumes:
       - ollama_data:/root/.ollama
