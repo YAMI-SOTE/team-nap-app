@@ -100,6 +100,11 @@ EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
 ローカルと同じ `compose.yaml` をそのまま使います。VPS 側の実装ガイドラインを
 以下にまとめます。
 
+> **Web フロントを Vercel に分離し、審査員がブラウザから触れるようにする**
+> 構成（Tailscale を管理専用に残したまま API を公開する 3 案 / Vercel 設定 /
+> 8GB RAM 試算 / 審査当日ランブック）は
+> [split-deployment.md](./split-deployment.md) を参照。
+
 ### 前提（マシン要件）
 
 | 項目 | 目安 |

@@ -22,6 +22,7 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 | ドキュメント | 内容 |
 | --- | --- |
 | [setup.md](./setup.md) | 環境構築・起動（ローカル / Docker）、環境変数、トラブルシュート、VPS デプロイ |
+| [split-deployment.md](./split-deployment.md) | フロント（Vercel）と API（VPS）を分離した公開構成 — 審査員がブラウザから触れるようにする |
 | [testing-guide.md](./testing-guide.md) | 機能ごとの手動確認手順 |
 | [test-account.md](./test-account.md) | シード投入されるテストアカウントとパスワード |
 | [device-testing.md](./device-testing.md) | iPhone / Android 実機・複数アカウントでのテスト手順 |
