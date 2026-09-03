@@ -6,6 +6,9 @@ import { notifyFrontendBoot } from "@/services/appBoot";
 import { AuthProvider } from "@/features/auth/AuthContext";
 import { NotificationsProvider } from "@/features/notifications/NotificationsProvider";
 import { RealtimeProvider } from "@/features/realtime/RealtimeProvider";
+import WebFrame from "@/components/WebFrame";
+// Side-effect: injects global CSS on web (focus-ring reset etc.).
+import "@/styles/webGlobalStyles";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -31,18 +34,21 @@ export default function RootLayout() {
     <AuthProvider>
       <RealtimeProvider>
         <NotificationsProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          >
-            {/*
-              Inside the tab area the iOS edge-swipe must not pop the root
-              Stack back to the auth screens underneath — horizontal swipes
-              here switch tabs instead (see components/TabSwipe).
-            */}
-            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-          </Stack>
+          {/* Centres the phone-width column in a desktop browser; no-op on native. */}
+          <WebFrame>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+              }}
+            >
+              {/*
+                Inside the tab area the iOS edge-swipe must not pop the root
+                Stack back to the auth screens underneath — horizontal swipes
+                here switch tabs instead (see components/TabSwipe).
+              */}
+              <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+            </Stack>
+          </WebFrame>
         </NotificationsProvider>
       </RealtimeProvider>
     </AuthProvider>
