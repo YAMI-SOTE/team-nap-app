@@ -213,7 +213,9 @@ dist が表示されない
 * [x] `npm install` が成功する
 * [x] `npx expo-doctor` → **21/21 pass**（PR #43 / #46 で 3 失敗を解消）
 * [x] Expo package の version mismatch なし（SDK 57 のパッチ版に整合）
-* [~] `npm audit`：moderate 14 件（transitive）。`--force` は実行しない前提
+* [x] `npm audit`：backend **0 件** / mobile **3 件**（`decode-uri-component`→
+  `query-string`→`expo-router`, 受容）。`overrides` + `.npmrc audit-level=high` で
+  対応。方針は [dependency-security.md](dependency-security.md)。`--force` は不可
 
 確認:
 

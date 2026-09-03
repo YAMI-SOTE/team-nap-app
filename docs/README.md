@@ -26,6 +26,7 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 | [test-account.md](./test-account.md) | シード投入されるテストアカウントとパスワード |
 | [device-testing.md](./device-testing.md) | iPhone / Android 実機・複数アカウントでのテスト手順 |
 | [implementation-checklist.md](./implementation-checklist.md) | リポジトリ全体の実装点検チェックリストと残タスク |
+| [dependency-security.md](./dependency-security.md) | `npm audit` の対応方針・`overrides`・残存脆弱性の受容理由 |
 
 ## 前提（共通の約束事）
 
