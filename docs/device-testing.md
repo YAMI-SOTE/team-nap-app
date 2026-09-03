@@ -28,10 +28,11 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
 - 開発マシン（Mac / PC）と**すべての端末が同じ Wi‑Fi** に接続。
   ゲスト Wi‑Fi / 社内 Wi‑Fi の *client isolation（AP isolation）* があると繋がらない。
 - 開発マシン・端末とも **VPN はオフ**。
-- 各端末に **Expo Go** をインストール（iOS: App Store / Android: Google Play）。
-  SDK 57 に対応した新しめのバージョンであること。
-- カスタムネイティブモジュールは無いので **Expo Go で全機能動く**。
-  `eas build` / development build は不要。
+- 各端末に **Expo Go** をインストール（iOS: App Store / Android: Google Play）し、
+  **必ず最新へアップデート**する。本プロジェクトは Expo **SDK 57**。古い Expo Go だと
+  「Project is incompatible with this version of Expo Go」で起動できない（→ §7 / §7‑bis）。
+- カスタムネイティブモジュールは無いので、Expo Go さえ新しければ **全機能動く**。
+  それでも合わない場合だけ development build（§7‑bis）。
 - AI コメントを実際に見たい場合のみ Ollama が要る。無くてもルールベース／定型文に
   フォールバックするので機能テストは可能（[ai-development.md](./ai-development.md)）。
 
@@ -222,6 +223,7 @@ npx expo start -c             # Metro キャッシュをクリア
 
 | 症状 | 対処 |
 | --- | --- |
+| **Project is incompatible with this version of Expo Go**（QR は読めている） | 端末の Expo Go が古い。**App Store / Google Play で Expo Go を更新** → 再スキャン。更新しても直らない＝プロジェクトの SDK が公開版 Expo Go より新しい → §7‑bis の development build |
 | 端末ブラウザで `.../api/v1/health` が開かない | 同一 Wi‑Fi か／VPN オフか／ルーターの client(AP) isolation を無効化。5GHz と 2.4GHz で SSID が分かれている場合は同じ帯域に揃える |
 | macOS のファイアウォールがブロック | システム設定 › ネットワーク › ファイアウォール で `node` の**受信接続を許可**、または一時的にオフ |
 | iOS で全く通信しない | 設定 › Expo Go › **ローカルネットワーク** を ON（初回プロンプトで拒否した場合ここで直す） |
@@ -230,6 +232,49 @@ npx expo start -c             # Metro キャッシュをクリア
 | どうしても LAN 不可（社内 NW 等） | Metro は `npx expo start --tunnel`（`@expo/ngrok` の導入を促される）。**ただし tunnel が張るのは Metro だけ**。Backend は別途 `ngrok http 3000` か Tailscale で公開し、その URL を `EXPO_PUBLIC_API_URL=https://xxxx.ngrok.app/api/v1` に設定（WebSocket も `wss://` に自動変換） |
 | 認証必須ルートで 401 ばかり | ログインしていない。`/api/v1/{teams,notifications,onboarding,settings,...}` は Bearer 必須 |
 | チーム画面が空／`NAP-2001` で参加できない | `cd backend && npm run db:seed` を実行 |
+
+---
+
+## 7‑bis. Expo Go が使えないとき（Development Build）
+
+Expo Go を最新にしても「incompatible」が消えない場合は、プロジェクトの Expo SDK が
+公開版 Expo Go より新しい。その場合は **development build**（SDK を同梱したカスタム
+クライアント）を作る。Expo Go の制約を受けない。
+
+### 確認（どちらのケースか切り分け）
+
+- 端末の Expo Go を開く → バージョン表示。<https://expo.dev/go> が Expo Go の
+  バージョン ↔ 対応 SDK の対応表。更新済み Expo Go でも SDK 57 非対応なら
+  development build が必要。
+- **iOS シミュレータ**は Expo が SDK 一致の Expo Go を自動で入れるため常に動く。
+  実機の Expo Go だけがストア版に固定される。
+
+### A. EAS でビルド（Mac の Xcode 不要）
+
+```bash
+cd mobile
+npm i -g eas-cli            # or: npx eas-cli@latest ...
+eas login                   # Expo アカウントが要る
+eas device:create           # iPhone を登録（プロビジョニングプロファイルを入れる）
+eas build --profile development --platform ios
+```
+
+- リポジトリに `eas.json` は無いので、初回に生成を促される（`development` プロファイル）。
+- ビルド完了後のリンク／QR から `.ipa`（dev client）を端末にインストール。
+- 以後は `npx expo start --dev-client` で起動し、その dev client アプリで開く。
+
+### B. ローカルでビルド（Mac + Xcode + 有線接続）
+
+```bash
+cd mobile
+npx expo run:ios --device   # 一覧から接続中の iPhone を選ぶ。Apple ID で署名
+```
+
+Android の development build は `eas build --profile development --platform android`
+（`.apk`）または `npx expo run:android --device`。
+
+> どのモデルでも Expo Go 更新だけで直ることが多い（本プロジェクトの SDK は
+> `~57.0.17`、通常のリリース版）。まず §7 の「Expo Go を更新」を試す。
 
 ---
 
