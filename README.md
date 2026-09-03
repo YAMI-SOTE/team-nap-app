@@ -226,8 +226,8 @@ PORT=3000
 HOST=0.0.0.0
 
 OLLAMA_URL=http://localhost:11434   # Compose 内では http://ollama:11434
-OLLAMA_MODEL=gemma3:1b             # 軽量な既定。日本語重視なら gemma3n:e2b（~8GB/2CPU）
-OLLAMA_TIMEOUT_MS=30000             # 1 生成のタイムアウト。超えたら定型文にフォールバック
+OLLAMA_MODEL=gemma4:e2b            # 既定。日本語が最も自然（~8GB/2CPU）。軽量にするなら gemma3:1b
+OLLAMA_TIMEOUT_MS=60000             # 1 生成のタイムアウト。超えたら定型文にフォールバック
 ```
 
 ## Mobile（`mobile/.env`）
@@ -457,14 +457,15 @@ Backend API
 AIによる休息提案・コメント生成には以下を使用します。
 
 - Ollama（`ollama/ollama` イメージ。`ollama-pull` サービスが起動時にモデルを取得）
-- Gemma（`OLLAMA_MODEL` で env ごとに指定。**既定 `gemma3:1b`**（~815MB）は pull が速く
-  生成も ~5〜16 秒でタイムアウトに収まる／VPS でも動く。日本語をより自然にしたい場合は
-  `gemma3n:e2b`（~8GB/2CPU）。詳細は [docs/ai-development.md](docs/ai-development.md)）
+- Gemma（`OLLAMA_MODEL` で env ごとに指定。**既定 `gemma4:e2b`**（~7.2GB）は日本語が
+  最も自然。ollama サービスに ~8GB RAM / 2CPU 必要で、生成はウォーム ~24 秒。RAM が
+  少ないホストでは `gemma3:1b`（~815MB, ~5〜16 秒, 4GB/1CPU）に。
+  詳細は [docs/ai-development.md](docs/ai-development.md)）
 
 LLMはDocker上で動作させ、Backendから `OLLAMA_URL`（既定 `http://localhost:11434`）経由で呼び出します。
 Ollama が落ちている / 遅い / 応答が不正なときは、休息後の AI アドバイスは
 **ルールベース（`buildAdvice`）**へ、その他のコメントは定型文へフォールバック
-します（`OLLAMA_TIMEOUT_MS`、既定 30 秒でアボート）。
+します（`OLLAMA_TIMEOUT_MS`、既定 60 秒でアボート）。
 
 ```text
 Mobile

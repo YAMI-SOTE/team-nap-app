@@ -18,7 +18,7 @@ Team Nap のAI機能を、Home・Rest・Teamなどの他機能から独立して
 | HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース + フォールバック） | `home.service.getHomeSummary`（チーム所属時のみ） |
 | ふりかえり画面の仮眠アドバイス | `generateNapAdvice`（Ollama） → 失敗時 `buildAdvice`（ルールベース、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存。`GET /naps/:id` で ふりかえり画面が読む |
 
-`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 30 秒、env で調整可）でアボート。
+`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 60 秒、env で調整可）でアボート。
 モデルが落ちている / 遅い / 壊れた出力のとき、**4 機能すべてがフォールバック**
 する（500 / 502 を返さない）:
 
@@ -33,13 +33,13 @@ env ごとに指定する。フォールバックがあるので「未指定 = �
 
 | モデル | 状況 |
 | --- | --- |
-| **`gemma3:1b`（既定・~815MB）** | pull が速い。生成はコールド ~16 秒 / ウォーム ~5〜7 秒 → `OLLAMA_TIMEOUT_MS`（30 秒）に収まる。4GB/1CPU の VPS でも動く。**日本語がやや不自然**（例：「良い眠りだったですね！…」） |
-| `gemma3n:e2b`（~5.6GB） | 日本語は自然。ただし **~8GB / 2CPU 必要**、生成が遅く（この開発機では 90 秒でもタイムアウト）現行 VPS（4GB/1CPU）では起動できない。`OLLAMA_MODEL=gemma3n:e2b docker compose up` で切替 |
-| `gemma4:e2b`（~7.2GB） | 実在タグだが `gemma3n:e2b` と同様に重い |
+| **`gemma4:e2b`（既定・~7.2GB）** | 日本語が最も自然。**ollama サービスに ~8GB RAM / 2CPU 必要**。生成はウォーム ~24 秒 / コールド（モデルロード込み）~45〜60 秒 → `OLLAMA_TIMEOUT_MS` を 60 秒に設定。RAM が足りないと `llama-server` が OOM kill（`signal: killed`）され、全機能がフォールバックする |
+| `gemma3n:e2b`（~5.6GB） | 日本語は自然。所要リソースは `gemma4:e2b` とほぼ同じ（~8GB）。`OLLAMA_MODEL=gemma3n:e2b docker compose up` で切替 |
+| `gemma3:1b`（~815MB） | 軽量フォールバック用。pull が速く、生成はコールド ~16 秒 / ウォーム ~5〜7 秒。4GB/1CPU でも動く。**日本語がやや不自然**（例：「良い眠りだったですね！…」）。RAM の少ないホストでは `OLLAMA_MODEL=gemma3:1b docker compose up` |
 | （未指定 / Ollama なし） | 生成しない。全機能がルールベース／定型文にフォールバック |
 
-VPS を 8GB/2CPU に上げられれば `gemma3n:e2b` に切り替えるのが望ましい（検討中）。
-それまでは既定の `gemma3:1b` で「pull → 生成」が通る状態を優先する。
+既定は `gemma4:e2b`。ホスト（または Docker VM）の RAM が ~8GB に満たない場合は
+`OLLAMA_MODEL=gemma3:1b` に落として「pull → 生成」が通る状態を優先する。
 
 ### 個人RESTコメント
 
