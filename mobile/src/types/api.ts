@@ -9,6 +9,8 @@ export interface AuthUser {
   id: string;
   name: string | null;
   email: string;
+  /** Chosen avatar id ("cat" | "man" | "woman"), or null → initials fallback. */
+  avatar: string | null;
   /** false until onboarding is finished — the client gates routing on this. */
   onboardingCompleted: boolean;
 }

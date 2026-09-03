@@ -17,6 +17,8 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
+import { type AvatarId } from "@/constants/avatars";
+import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
 
@@ -63,6 +65,15 @@ const SLIDES: Slide[] = [
     illustration: require("../../../assets/onboarding/teamnap-01.png"),
   },
   {
+    key: "avatar",
+    bubble: "きみのアイコン、\nどれにする？",
+    title: "アイコンを選ぼう",
+    body: "チームのみんなに表示されるよ。\nあとで設定から変えられます。",
+    primaryLabel: "つぎへ",
+    showSkip: false,
+    illustration: require("../../../assets/onboarding/teamnap-01.png"),
+  },
+  {
     key: "sleep-rhythm",
     bubble: "いつも何時に\n寝てるにゃ？",
     title: "あなたの睡眠リズムを\n教えてください",
@@ -103,6 +114,7 @@ export default function OnboardingScreen() {
   const { status, refresh } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
   const [calendarConnected, setCalendarConnected] = useState(false);
@@ -132,6 +144,7 @@ export default function OnboardingScreen() {
         wakeTime: toClock(wakeTime),
         calendarConnected,
         notificationsEnabled,
+        avatar: avatarId,
       });
       await refresh();
       router.replace("/home");
@@ -240,6 +253,16 @@ export default function OnboardingScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>{slide.title}</Text>
           <Text style={styles.body}>{slide.body}</Text>
+
+          {slide.key === "avatar" ? (
+            <View style={styles.avatarPickerRow}>
+              <AvatarPicker
+                selected={avatarId}
+                onSelect={setAvatarId}
+                disabled={finishing}
+              />
+            </View>
+          ) : null}
 
           {slide.key === "sleep-rhythm" ? (
             <View style={styles.timeRow}>
@@ -478,6 +501,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 21,
+  },
+  avatarPickerRow: {
+    marginTop: 8,
+    alignSelf: "stretch",
   },
   timeRow: {
     flexDirection: "row",
