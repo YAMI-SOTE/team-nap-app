@@ -14,16 +14,17 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().min(1).default("0.0.0.0"),
 
-  // AI comment generation (Ollama). `gemma3n:e2b` = Gemma 3n E2B — a real
-  // `ollama pull` tag. Set `OLLAMA_MODEL` per environment: it needs
-  // ~8GB / 2CPU to run; on a smaller box use `gemma3:1b` (weaker JP) or
-  // just let everything fall back to the rule-based copy.
+  // AI comment generation (Ollama). Default `gemma3:1b` (~815MB) — pulls
+  // fast and generates in ~5-16s, so it fits under OLLAMA_TIMEOUT_MS on a
+  // normal box and on the 4GB/1CPU VPS. JP is a bit rough. For better
+  // wording (and ~8GB / 2CPU) set OLLAMA_MODEL=gemma3n:e2b. Any pullable
+  // tag works; if generation can't keep up everything falls back to the
+  // rule-based / canned copy.
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
-  OLLAMA_MODEL: z.string().min(1).default("gemma3n:e2b"),
+  OLLAMA_MODEL: z.string().min(1).default("gemma3:1b"),
   // Abort a single generation after this long, then fall back to
-  // rule-based / canned copy. Gemma nap-advice generation has been seen to
-  // take ~24s locally, so keep this generous; lower it only where the
-  // model is known to be warm/fast.
+  // rule-based / canned copy. Heavier models (gemma3n:e2b) can take 20s+,
+  // so keep this generous.
   OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 
   // Postgres connection string for Prisma.

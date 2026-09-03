@@ -58,7 +58,7 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
 | --- | --- | --- |
 | コマンド | `docker compose up -d db` ＋ `cd backend && npm run dev` | リポジトリ root で `docker compose up -d --build` |
 | Ollama | 含まれない（AI は常にフォールバック） | `ollama` ＋ `ollama-pull` も起動し、`OLLAMA_MODEL` を pull → **LLM 生成文が出る** |
-| 反復の速さ | 速い（ホットリロード） | 遅い（初回はモデル pull で数分〜。gemma3n:e2b は ~5GB／~8GB RAM 必要） |
+| 反復の速さ | 速い（ホットリロード） | やや遅い（初回はモデル pull。既定 `gemma3:1b` は ~815MB で数分以内。`gemma3n:e2b` に上げると ~5.6GB／~8GB RAM） |
 | seed | `npm run db:seed` を自分で実行 | `docker compose exec backend npm run db:seed` を自分で実行（自動では走らない） |
 
 どちらのモードでも **端末からの向き先は `http://<開発マシンの LAN IP>:3000/api/v1`**
@@ -107,8 +107,8 @@ docker compose exec backend npm run db:seed
 
 - `backend` コンテナは `db` が healthy になれば起動する（`ollama-pull` は待たない）。
   pull が終わるまで AI はフォールバック、終われば LLM 生成に切り替わる。
-- モデルが重くて起動しない環境では `OLLAMA_MODEL=gemma3:1b docker compose up -d`
-  のように軽いタグへ（日本語はやや不自然。詳細は
+- 既定モデルは `gemma3:1b`（軽量・日本語やや不自然）。日本語を良くしたい／~8GB
+  以上あるなら `OLLAMA_MODEL=gemma3n:e2b docker compose up -d`（詳細は
   [ai-development.md](./ai-development.md)）。
 - `backend/.env` はモード B では使われない（compose が環境変数を直接渡す）。
 
