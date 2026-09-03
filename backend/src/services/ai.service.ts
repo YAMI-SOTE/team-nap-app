@@ -442,6 +442,10 @@ async function callGemma(prompt: string): Promise<string> {
         model: OLLAMA_MODEL,
         prompt,
         stream: false,
+        // Keep the model resident for 30 min so only the very first call
+        // after an idle period pays the load cost (which can exceed the
+        // timeout and fall back).
+        keep_alive: "30m",
         options: {
           temperature: 0.2,
         },
