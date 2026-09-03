@@ -36,7 +36,8 @@ export async function getRestRecommendation(
 
   const lastRestTime = latestNapToday?.end ?? null;
 
-  const freeTimes = getFreeTimesForDate(
+  const freeTimes = await getFreeTimesForDate(
+    userId,
     now.date,
     now.time,
   );
