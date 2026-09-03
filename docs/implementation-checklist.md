@@ -59,9 +59,10 @@ Next Action:
 | `docs/use-case.md` | 相当は `docs/testing-guide.md`（手動検証手順） |
 | llama.cpp + Gemma 3 1B | **Ollama**。既定モデル `gemma4:e2b`（日本語重視。~8GB/2CPU 必要。軽量にするなら `gemma3:1b`）。`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`（既定 60s）、`callGemma` は `keep_alive:"30m"`。`backend/src/services/ai.service.ts` に集約。`llm/` は `llm.md` ＋ `prompts/{personal,team}.txt` のみ |
 
-現行モデル一覧: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
-`NapRecord` / `CalendarEvent` / `Notification` / `Team` / `TeamMembership`
-+ enum `MemberActivity`。（`Notification` は PR #52 で追加。マイグレーション 11 本）
+現行モデル一覧（11）: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
+`NapRecord` / `NapSession` / `CalendarEvent` / `Notification` / `PushToken` /
+`Team` / `TeamMembership` + enum `MemberActivity`。マイグレーション 13 本
+（#52 `notifications_feed` / #54 `nap_sessions` / #55 `push_tokens` を含む）。
 
 ---
 
@@ -90,7 +91,19 @@ Next Action:
   - `Notification` モデル + migration `20260903093642_notifications_feed`
   - `notifications.service` は Prisma 化。`createdAt` から相対ラベル / today・earlier を都度導出
   - welcome は初回読み込み時に lazy seed。ナッジ→再起動→`GET /notifications` に残ることを確認
-- **ドキュメント**：`docs/architecture.md` 追加（PR #42）、README のリンク切れ・環境変数節を修正（PR #42）、`docs/device-testing.md` 追加（PR #45）、`docs/setup.md` に「root で詰まる系」トラブルシュート + VPS デプロイ節を追記、root `.env.example` を per-package へのポインタに（PR #42）
+- **ライブ仮眠セッション → メンバー詳細の「あと◯分」**（PR #54）
+  - `NapSession` モデル（`userId @unique`）+ migration `20260903135854_nap_sessions`
+  - `PUT/DELETE /rest/session`、`member.service` が `nap` を実データ化、`createNap` で掃除
+- **Expo プッシュ通知**（PR #55）
+  - `PushToken` モデル + migration `20260903141120_push_tokens`
+  - `POST/DELETE /notifications/token`、`addNotification` から Expo Push API へ送信
+    （`Onboarding.notificationsEnabled` でオプトイン、`DeviceNotRegistered` は掃除）
+  - mobile: `expo-notifications` + `expo-device`、`AuthContext` で登録/解除
+- **ドキュメント**：`docs/architecture.md` 追加（#42）、`docs/device-testing.md` 追加（#45）、
+  `docs/setup.md` にトラブルシュート + VPS デプロイ節（#53）、
+  **docs 全体を整理** — `docs/README.md`（索引）新設、`backend/README*.md` を
+  `docs/backend.md` へ移動、`docs/notifications.md` 新設、各ドキュメントの重複削除と
+  実装状況の反映
 
 ### 残タスク（優先度つき）
 
@@ -98,8 +111,7 @@ Next Action:
 | --- | --- | --- |
 | P2 | **CI が無い** — PR ごとに backend `tsc`/`test`、mobile `tsc` を回す GitHub Actions | §22 |
 | P2 | **Backend セキュリティ** — `cors()` 全開放・`helmet` なし・`/auth/login` に rate-limit なし | §22 |
-| P2 | **Push 通知なし** — `expo-notifications` 未導入。アプリ起動中のみ通知が届く（フィード永続化は #52 で完了、次は push トークン登録 + サーバ送信） | §20 |
-| P2 | メンバー詳細の「仮眠の状況 / あと◯分」カードが常に `null` — ライブ仮眠セッションのモデルが無い（`member.service.getMemberDetail`） | 追加分 |
+| P2 | プッシュ通知の実機配信 — 実装済み（#55）だが `eas init` のプロジェクト id ＋ 開発ビルドが要る | [notifications.md](./notifications.md) |
 | P2 | 在席に本当の "offline" が無い — `MemberActivity` は `online`/`resting` のみ。`lastSeenAt` を足して N 分無応答→offline | 追加分 |
 | P2 | チーム共通の空きスロット交差計算が無い — `getNextFreeSlot` は呼び出しユーザー基準まで。自動チーム提案の前提 | 追加分 |
 | P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル。`decideRestTiming` は動くが履歴なし） | §21 |
@@ -123,9 +135,9 @@ Next Action:
    （許可 origin を env 化）、`/auth/signup` `/auth/login`
    `/auth/password-reset/request` に `express-rate-limit`。`backend/src/app.ts`。
    検証: `curl` で許可外 origin が弾かれる / 連打で 429。
-3. **[P2] Expo Push 通知** — `PushToken` モデル + `POST /notifications/token`、
-   `addNotification` から Expo Push API へ送信、mobile は `expo-notifications` で
-   トークン登録 + 受信ハンドラ。検証: アプリ非起動でナッジ→端末に通知。
+3. **[P2] チーム共通の空きスロット交差** — 全員の空き時間の積集合を出し、
+   自動でチーム仮眠を提案する。`schedule.service` / `home.service`。
+   検証: サンプルチームで「みんなの空き時間」が出る。
 
 ---
 
@@ -138,7 +150,7 @@ Next Action:
 * [x] `.gitignore` が存在する
 * [x] `.env.example` が存在する（root は per-package へのポインタ、実体は `backend/` `mobile/`）
 * [x] `compose.yaml` が存在する
-* [x] `docs/` が存在する（11 ファイル）
+* [x] `docs/` が存在する（`docs/README.md` が索引。15 ファイル）
 * [x] `mobile/` が存在する
 * [x] `backend/` が存在する
 * [x] `llm/` が存在する（`llm.md` + `prompts/`）
@@ -162,7 +174,7 @@ Next Action:
 * [x] 不要な大量変更がGit Statusに表示されていない
 * [x] `.gitignore` がRootから各Projectに正しく適用されている（root + `backend/` + `mobile/`）
 * [x] `package-lock.json` がMobile / BackendともにGit管理されている
-* [x] `backend/prisma/migrations/` がGit管理されている（10 migrations + `migration_lock.toml`）
+* [x] `backend/prisma/migrations/` がGit管理されている（13 migrations + `migration_lock.toml`）
 * [x] Issueベース／PR ベースで作業できる状態（本セッションで #41〜#49）
 * [x] Feature branchを使用できる状態になっている
 * [ ] **GitHub Actions CI が無い**（PR ごとの backend `tsc`/`test`・mobile `tsc`。P2）
@@ -575,17 +587,21 @@ Gemma は判定文の言い換えのみ。以下を Remaining Task として棚�
 
 `docs/` を確認する（実ファイル名）。
 
-* [x] `docs/architecture.md`（PR #42 で追加。入口）
-* [x] `docs/setup.md`
+* [x] `docs/README.md`（索引。docs/ の入口）
+* [x] `docs/architecture.md`（全体構成）
+* [x] `docs/setup.md`（環境構築・トラブルシュート・VPS）
+* [x] `docs/backend.md`（旧 `backend/README.md` を移設）
 * [x] `docs/db.md`
 * [x] `docs/auth.md`
 * [x] `docs/team-feature.md`
 * [x] `docs/settings-architecture.md`
-* [x] `docs/testing-guide.md`
-* [x] `docs/device-testing.md`（PR #45 で追加。実機・複数アカウント）
-* [x] `docs/test-account.md`
 * [x] `docs/ai-development.md`
+* [x] `docs/notifications.md`（フィード永続化 + Expo プッシュ）
+* [x] `docs/testing-guide.md`
+* [x] `docs/device-testing.md`（実機・複数アカウント）
+* [x] `docs/test-account.md`
 * [x] `docs/implementation-checklist.md`（本ファイル）
+* [x] `backend/` 直下に `.md` は無い（`docs/` に集約）
 
 README確認:
 
@@ -796,11 +812,10 @@ Verification:
 ```text
 [Infra] GitHub Actions CI（backend tsc/test + mobile tsc、PR 必須化）
 [Backend/Sec] helmet + CORS allowlist + /auth/login rate-limit
-[Mobile+Backend] Expo Push 通知（PushToken モデル + トークン登録 + サーバ送信）
 [Backend] 在席に lastSeenAt を足して "offline" を導出（現状は全部「作業中」）
-[Backend] ライブ仮眠セッションのモデル → メンバー詳細の「あと◯分」カード
 [Backend] チームの空きスロット交差 → 自動チーム仮眠提案
 [Backend] RestRecommendation 永続化（提案履歴 + 受諾フラグ）
+[Infra] eas init + 開発ビルド → プッシュ通知の実機配信（実装は #55 済み）
 [Mobile] (dev)/ai-test を __DEV__ ガード。mobile 側の test runner を導入
 [Mobile] 実機でスワイプ / ナビゲーション挙動を検証（expo-router パッチ更新後）
 ```

@@ -2,12 +2,9 @@
 
 ## 1. 概要
 
-Team Napでは、ユーザー・チーム・オンボーディング・仮眠記録（`NapRecord`）
-などを保存するために **PostgreSQL** を使用します（スケジュール・睡眠設定
-などは未永続化。後述）。
-
-ORMには **Prisma 7** を使用し、Backend API からのみデータベースへアクセスします。
-Prisma 7 では接続にドライバアダプタ（`@prisma/adapter-pg`）を用います。
+Team Nap は **PostgreSQL** にすべての永続データを保存します。ORM は
+**Prisma 7**、接続はドライバアダプタ `@prisma/adapter-pg` 経由。Backend API
+からのみアクセスし、Mobile から DB へは直接触れません。
 
 ```text
 Mobile App
@@ -17,25 +14,14 @@ Mobile App
 Backend API  ──(Prisma 7 + @prisma/adapter-pg)──▶  PostgreSQL
 ```
 
-Mobile App から PostgreSQL へ直接アクセスすることはありません。
-
-> **実装状況（2026-09時点）**
-> 実際にDBへ永続化しているのは
-> **User / Team / TeamMembership / Session / PasswordResetToken /
-> Onboarding / NapRecord** の7モデルです（マイグレーション
-> `20260830091652_team_feature` / `20260831095742_auth_sessions` /
-> `20260901163406_password_reset_tokens` / `20260901163741_onboarding_profile`
-> / `20260901195734_nap_records` /
-> `20260901210222_nap_records_allow_multiple_per_day` /
-> `20260901222623_onboarding_settings_fields` /
-> `20260901224358_team_roles_and_invite_index`）。
-> `Session` は認証トークン、`PasswordResetToken` はパスワード再設定用の
-> 単回・短命トークン、`Onboarding` は初期設定＋設定画面（睡眠 / 通知 / カレンダー）の保存先、
-> `NapRecord` は仮眠の記録＋その時に生成した `aiAdvice`、`CalendarEvent` は
-> ユーザーごとの予定（`schedule.service` の CRUD ＋ Google カレンダー取り込み、
-> `20260903024003_calendar_events`）。通知フィード（`notifications.service`）・
-> 休息提案などは、まだ各 `src/services/*` のインメモリ状態で、
-> サーバ再起動で消えます。本ドキュメントの後半では「今後の予定」として扱います。
+> **現行モデル（11）**: `User` / `Session` / `PasswordResetToken` /
+> `Onboarding` / `NapRecord` / `NapSession` / `CalendarEvent` /
+> `Notification` / `PushToken` / `Team` / `TeamMembership` ＋ enum
+> `MemberActivity`。マイグレーションは **13 本**（§10）。
+>
+> 唯一まだ永続化していないのは realtime 在席ハブ（`src/realtime/hub.ts`、
+> プロセス内の WebSocket 接続集合）と、休息提案の履歴テーブル
+> （`RestRecommendation`、§5.2）です。
 
 ---
 
@@ -83,10 +69,11 @@ Prisma Migrateによって生成されたMigrationを保存します。**Gitで�
 
 ### `backend/prisma/seed.ts`
 
-開発用のユーザー・チームに加え、`sample@teamnap.app`（サンプル 太郎）へ
-**今週＋先週の `NapRecord`**（`aiAdvice` 込み、日付は実行時の週に合わせて生成、
-再実行可）を投入します（`npm run db:seed`）。統計・仮眠履歴・コンディション
-グラフをすぐ確認するための唯一のシード済みアカウントです。
+開発用のユーザー・チーム（詳細は [test-account.md](./test-account.md)）に加え、
+`sample@teamnap.app`（サンプル 太郎）へ **今週＋先週の `NapRecord`**（`aiAdvice`
+込み、日付は実行時の週に合わせて生成）と当週の `CalendarEvent` を投入します
+（`npm run db:seed`、再実行可）。統計・仮眠履歴・コンディショングラフ・
+スケジュールをすぐ確認するための唯一のシード済みアカウントです。
 `prisma.config.ts` の `migrations.seed` にも登録されているため
 `prisma migrate reset` 時にも実行されます。
 
@@ -114,7 +101,10 @@ erDiagram
     USER ||--o{ TEAM_MEMBERSHIP : has
     TEAM ||--o{ TEAM_MEMBERSHIP : has
     USER ||--o{ NAP_RECORD : records
+    USER ||--o| NAP_SESSION : "has (in progress)"
     USER ||--o{ CALENDAR_EVENT : schedules
+    USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ PUSH_TOKEN : "registers"
     USER ||--|| ONBOARDING : has
     USER ||--o{ SESSION : has
 
@@ -186,6 +176,33 @@ erDiagram
         int focusDeltaPt
         string aiAdvice "nullable"
         datetime createdAt
+    }
+
+    NAP_SESSION {
+        string id PK
+        string userId FK "unique (1 ユーザー最大 1)"
+        datetime startedAt
+        datetime wakeAt "起床予定 = startedAt + 分数"
+        datetime createdAt
+    }
+
+    NOTIFICATION {
+        string id PK
+        string userId FK "index (userId, createdAt)"
+        string kind "welcome | wake_request | rest_request | ..."
+        string title
+        string body
+        datetime readAt "nullable = 未読"
+        datetime createdAt
+    }
+
+    PUSH_TOKEN {
+        string id PK
+        string userId FK "index (userId)"
+        string token UK "ExponentPushToken[...]"
+        string platform "nullable (ios | android | web)"
+        datetime createdAt
+        datetime updatedAt
     }
 
     SESSION {
@@ -337,12 +354,32 @@ SHA-256 ハッシュのみ保存します（`src/services/session.service.ts`）
 （1 日に何度でも記録可）。
 
 記録フロー: 休憩タイマー終了 → 評価画面で `POST /api/v1/naps`
-（`wakeStars` + `focusDeltaPt` を含む）→ サービス層が
-`nap-advice.service.ts` の `buildAdvice()` で `aiAdvice` を生成して保存
-→ ふりかえり画面が `GET /api/v1/naps/:id` で本文を読み出す。履歴・統計の
-各行の矢印も同じ `GET /naps/:id` を開きます。`buildAdvice()` は現状
-ルールベースで、後で Ollama 等の実 AI 呼び出しに差し替えても
-列・シグネチャは変えずに済む構造です。
+（`wakeStars` + `focusDeltaPt` を含む）→ サービス層が `generateNapAdvice()`
+（Ollama、失敗時 `nap-advice.service.ts` の `buildAdvice()` ルールベース）で
+`aiAdvice` を生成して保存 → ふりかえり画面が `GET /api/v1/naps/:id` で本文を
+読み出す。履歴・統計の各行の矢印も同じ `GET /naps/:id` を開きます。
+`POST /naps` は同時に `NapSession` を削除します（仮眠終了）。
+
+#### NapSession
+
+進行中の仮眠。**1 ユーザー最大 1 行**（`userId` が `@unique`）。teammate の
+メンバー詳細画面の「仮眠の状況 / あと◯分」カードのソース
+（`src/services/nap-session.service.ts`）。
+
+| 列        | 型         | 備考 |
+| --------- | ---------- | ---- |
+| id        | String PK  | `uuid()` |
+| userId    | String FK  | `@unique`。`onDelete: Cascade` |
+| startedAt | DateTime   | 開始時刻（`now()`） |
+| wakeAt    | DateTime   | 起床予定 = `startedAt` + タイマーの分数 |
+| createdAt | DateTime   | `now()` |
+
+- 休憩タイマーの開始 / 再開で `PUT /api/v1/rest/session { plannedMinutes }`
+  が upsert、終了 / キャンセル / 画面離脱 / `POST /naps` で `DELETE` が削除。
+- `wakeAt` を 30 分以上過ぎた行は「アプリが落ちて終了できなかった」とみなし、
+  次回読み出し時に無視 + 掃除する（`activeNapSession()`）。
+- `getMemberDetail` は対象の active セッションから `wakeAt`（JST `HH:MM`）と
+  `minutesRemaining` を返す。
 
 #### CalendarEvent
 
@@ -372,6 +409,42 @@ Google カレンダー連携は OAuth を持たず、`POST /settings/calendar/go
 一致で洗い替え（手入力の行は保持）、`POST /settings/calendar/google/disconnect`
 は `source: "google"` の行を全削除します。`sample@teamnap.app` はシードで
 このサンプル＋手入力 2 件が入り、Google 連携済みの状態になっています。
+
+#### Notification
+
+通知フィード 1 通 = 1 行（`src/services/notifications.service.ts`）。ナッジ・
+チーム参加・チーム仮眠提案などが宛先ユーザーの行として積まれ、
+`GET /api/v1/notifications` が新しい順に返します。詳細は
+[notifications.md](./notifications.md)。
+
+| 列        | 型         | 備考 |
+| --------- | ---------- | ---- |
+| id        | String PK  | `uuid()` |
+| userId    | String FK  | `onDelete: Cascade`。`@@index([userId, createdAt])` |
+| kind      | String     | `welcome` / `wake_request` / `rest_request` / `nap_ended` / `weekly_review` / `member_joined` / `team_nap_suggestion` |
+| title     | String     | |
+| body      | String     | |
+| readAt    | DateTime?  | `null` = 未読。`/read` `/read-all` で設定 |
+| createdAt | DateTime   | `now()`。相対時刻ラベル（「2分前」）と today / earlier 区分は**読み出し時に導出**（値を凍結しない） |
+
+welcome 通知は初回読み出し時に遅延 seed（冪等）。`addNotification()` は行を
+作った後、非同期で Expo プッシュ（`push.service.sendPushToUser`）も投げる。
+
+#### PushToken
+
+ユーザーの各デバイスの Expo プッシュトークン（`src/services/push.service.ts`）。
+サインイン後にアプリが `POST /api/v1/notifications/token` で登録し、
+`addNotification()` がこのトークンへプッシュを送る。
+
+| 列        | 型         | 備考 |
+| --------- | ---------- | ---- |
+| id        | String PK  | `uuid()` |
+| userId    | String FK  | `onDelete: Cascade`。`@@index([userId])` |
+| token     | String     | `@unique`。`ExponentPushToken[...]`。別アカウントで再登録されたら付け替え |
+| platform  | String?    | `ios` / `android` / `web` |
+| createdAt / updatedAt | DateTime | |
+
+Expo が `DeviceNotRegistered` を返したトークンは次回送信時に削除されます。
 
 #### Team
 
@@ -428,168 +501,25 @@ RestRecommendation（休息提案の履歴・受諾フラグ）は未実装で�
 
 ---
 
-## 6. Prisma Schema（現状）
+## 6. Prisma Schema
 
-`backend/prisma/schema.prisma` の実物です。
-
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  // 接続URL(DATABASE_URL)は prisma.config.ts の datasource.url で渡す
-}
-
-model User {
-  id                  String               @id @default(uuid())
-  email               String               @unique
-  name                String?
-  avatar              String?
-  passwordHash        String?
-  createdAt           DateTime             @default(now())
-  memberships         TeamMembership[]
-  sessions            Session[]
-  passwordResetTokens PasswordResetToken[]
-  onboarding          Onboarding?
-  naps                NapRecord[]
-  calendarEvents      CalendarEvent[]
-}
-
-model CalendarEvent {
-  id         String   @id @default(uuid())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String
-  title      String   @default("")
-  date       String   // "YYYY-MM-DD"
-  start      String   // "HH:MM"
-  end        String   // "HH:MM"
-  allDay     Boolean  @default(false)
-  source     String   @default("manual") // "manual" | "google"
-  externalId String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([userId, externalId])
-  @@index([userId, date])
-}
-
-model NapRecord {
-  id           String   @id @default(uuid())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  date         String   // "YYYY-MM-DD"
-  start        String   // "HH:MM"
-  end          String   // "HH:MM"
-  minutes      Int
-  wakeStars    Int      @default(0)
-  focusDeltaPt Int      @default(0)
-  aiAdvice     String?
-  createdAt    DateTime @default(now())
-
-  @@index([userId, date])
-}
-
-model Onboarding {
-  userId                  String    @id
-  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bedtime                 String    @default("23:30")
-  wakeTime                String    @default("07:30")
-  napCutoffHour           Int       @default(15)
-  calendarConnected       Boolean   @default(false)
-  calendarDeviceConnected Boolean   @default(false)
-  calendarLastSyncedAt    DateTime?
-  notificationsEnabled    Boolean   @default(false)
-  notifyNapSuggestion     Boolean   @default(true)
-  notifyNapEnd            Boolean   @default(true)
-  notifyTeamNapSuggestion Boolean   @default(true)
-  notifyWakeSupport       Boolean   @default(true)
-  completedAt             DateTime?
-  updatedAt               DateTime  @updatedAt
-}
-
-model PasswordResetToken {
-  id        String    @id @default(uuid())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([userId])
-}
-
-model Session {
-  id         String    @id @default(uuid())
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String
-  tokenHash  String    @unique
-  userAgent  String?
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime  @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
-
-  @@index([userId])
-}
-
-model Team {
-  id                   String           @id @default(uuid())
-  name                 String
-  inviteCode           String           @unique
-  inviteCodeNormalized String           @unique @default("")
-  createdAt            DateTime         @default(now())
-  members              TeamMembership[]
-}
-
-enum MemberActivity {
-  online
-  resting
-}
-
-model TeamMembership {
-  id                String         @id @default(uuid())
-  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  teamId            String
-  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId            String
-  activity          MemberActivity @default(online)
-  wakeAssistEnabled Boolean        @default(true)
-  role              String         @default("member")
-  joinedAt          DateTime       @default(now())
-
-  @@unique([teamId, userId])
-  @@unique([userId])
-}
-```
+スキーマの実体は `backend/prisma/schema.prisma`（11 モデル + enum
+`MemberActivity`）。**このドキュメントに全文コピーは置かない**（drift を避ける）。
+各モデルの列と意味は §5、リレーション全体は §4 の ER 図を参照。
 
 ### 今後追加する場合の例
 
-`User` にリレーションを足しつつ、以下のようなモデルを段階的に追加します。
+`User` にリレーションを足しつつ、休息提案の履歴だけを段階的に追加する想定。
+スケジュールは `CalendarEvent`、睡眠設定は `Onboarding` の列、仮眠セッションは
+`NapSession` として実装済みなので専用モデルは作らない。
 
 ```prisma
-// スケジュールは CalendarEvent（実装済み・§6）、睡眠設定は Onboarding の
-// bedtime / wakeTime / napCutoffHour 列で実装済みのため、専用モデルは
-// 追加しない。残りは休息セッション／提案履歴の例。
-
-model RestSession {
-  id        String    @id @default(uuid())
-  userId    String
-  type      String
-  startTime DateTime
-  endTime   DateTime?
-  completed Boolean   @default(false)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
 model RestRecommendation {
   id              String   @id @default(uuid())
   userId          String
   type            String
   durationMinutes Int
-  reasonCode      String
+  reasonCode      String   // rest-decision.service の RestReasonCode
   accepted        Boolean?
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -699,7 +629,7 @@ git add backend/prisma && git commit
 - 開発環境: `npm run db:migrate`（= `prisma migrate dev`）
 - 本番 / Compose: `prisma migrate deploy`（`npm start` が内部で実行）
 
-現在のマイグレーション:
+現在のマイグレーション（13）:
 
 ```text
 20260830091652_team_feature           User / Team / TeamMembership / MemberActivity を作成
@@ -712,6 +642,9 @@ git add backend/prisma && git commit
 20260901224358_team_roles_and_invite_index  TeamMembership.role + Team.inviteCodeNormalized（一意）
 20260902110246_user_avatar            User.avatar 追加（選択アイコン ID、null 可）
 20260903024003_calendar_events        CalendarEvent テーブル + Onboarding.calendarLastSyncedAt
+20260903093642_notifications_feed     Notification テーブル（通知フィードの永続化）
+20260903135854_nap_sessions           NapSession テーブル（進行中の仮眠）
+20260903141120_push_tokens            PushToken テーブル（Expo プッシュ）
 ```
 
 ---
@@ -746,32 +679,29 @@ backend/src/generated/prisma
 実装済み:
 
 ```text
-User               （email + passwordHash）
-Session            （サインアップ / ログイン / セッション管理 / logout）
-PasswordResetToken （パスワード再設定 / 変更）
-Onboarding         （初期設定・完了フラグ ＋ 設定画面の保存先: 睡眠 / 通知 / カレンダー連携状態）
-NapRecord          （仮眠の記録 + 生成した AI アドバイス）
-CalendarEvent      （ユーザーごとの予定 CRUD ＋ Google カレンダー取り込み / 空き時間計算）
-Team               （招待コード + 正規化列でインデックス検索）
-TeamMembership     （作成 / 参加 / 離脱 / 改名 / 在席ステータス / role（owner・member）/ メンバー削除 / WS ライブ更新）
+User               email + passwordHash（scrypt）
+Session            サインアップ / ログイン / セッション管理 / logout
+PasswordResetToken パスワード再設定 / 変更
+Onboarding         初期設定・完了フラグ ＋ 設定画面の保存先（睡眠 / 通知 / カレンダー連携状態）
+NapRecord          仮眠の記録 + 生成した AI アドバイス
+NapSession         進行中の仮眠（teammate の「あと◯分」カード）
+CalendarEvent      ユーザーごとの予定 CRUD ＋ Google カレンダー取り込み / 空き時間計算
+Notification       通知フィード（相対時刻ラベルは読み出し時に導出）
+PushToken          Expo プッシュトークン（デバイスごと）
+Team               招待コード + 正規化列でインデックス検索
+TeamMembership     作成 / 参加 / 離脱 / 改名 / 在席ステータス / role（owner・member）/ メンバー削除 / WS ライブ更新
 ```
 
-`/health` と `/auth`（signup / login / password-reset）以外の
-**全 `/api/v1` ルートが `authenticate` 必須**（`routes/index.ts` で一括）。
-呼び出しユーザーは常にセッションの `userId`。
+チームサマリー / ランキング / チームスコア / チーム統計は `NapRecord` 由来の
+実データ（`services/team-nap-stats.service.ts`）。
 
 次に追加を検討:
 
 ```text
-RestRecommendation （休息提案の履歴・受諾フラグ）
+RestRecommendation （休息提案の履歴・受諾フラグ。判定ロジック自体は rest-decision.service に存在）
 ```
 
-現在インメモリで動いていて、DB化の候補になっている機能:
-
-```text
-notifications.service  通知フィード（userId ごとの Map。ナッジ・参加通知の宛先）
-team.service       今週の Team Nap サマリー / ランキング（静的スナップショット）
-```
+まだインメモリなのは realtime 在席ハブ（`src/realtime/hub.ts`）だけ。
 
 ---
 
@@ -789,8 +719,9 @@ team.service       今週の Team Nap サマリー / ランキング（静的ス
 ## 14. 今後追加を検討するデータ
 
 ```text
-UserPreference / Notification（永続化）/ RestFeedback
-DeviceUsage / CalendarConnection / TeamNotification / RestScoreHistory
+RestRecommendation（休息提案の履歴・受諾フラグ）
+RestScoreHistory  （休息スコアの推移）
+RestFeedback      （AI アドバイスへのフィードバック）
 ```
 
-Hackathonの初期MVPでは必要なデータだけを実装し、過度に複雑なSchemaは作らない方針です。
+初期 MVP では必要なデータだけを実装し、過度に複雑な Schema は作らない方針です。

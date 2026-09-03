@@ -143,6 +143,7 @@
 - [x] チーム設定: メンバー管理（`ManageMembersScreen` + `DELETE /teams/members/:id`）/ 招待リンク共有（ディープリンク）/ コードのコピー
 - [x] 睡眠ウィンドウのサーバー検証（`lib/sleep-window.ts`）
 - [x] カレンダー: ユーザーごとの `CalendarEvent` 永続化 + `google/sync` でサンプル 1 週間分を取り込み / `google/disconnect` で削除
+- [x] 通知トグルの `notificationsEnabled` が Expo プッシュ送信のオプトインを兼ねる（[notifications.md](./notifications.md)）
 
 **未対応**
 

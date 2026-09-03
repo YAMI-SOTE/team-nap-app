@@ -384,17 +384,18 @@ Android の development build は `eas build --profile development --platform an
 - **サーバ側データ**（冪等）：
   - モード A → `cd backend && npm run db:seed`（完全初期化は `npm run db:reset`）
   - モード B → `docker compose exec backend npm run db:seed`
-- **通知フィードはサーバのインメモリ**。Backend を再起動すると
-  ナッジ／仮眠提案／参加通知の結果が消える。通知を確認するテスト中は再起動しない。
+- 通知フィード・仮眠記録・スケジュール・チーム・設定はすべて Postgres 永続化。
+  Backend を再起動しても消えない（`npm run db:reset` で初期化）。
 - **端末側**：各端末でログアウト。アイコン／アセットが古いときは `npx expo start -c`。
 
 ---
 
 ## 9. いまの制約（実機でも変わらない）
 
-- **プッシュ通知なし**：通知はアプリを開いている間だけ表示される（バックグラウンド配信なし）。
+- **プッシュ通知**：実装済みだが、実機配信には `eas init` のプロジェクト id ＋
+  開発ビルドが要る（Expo Go は SDK 53+ でプッシュ受信不可）。フィード自体は
+  常に動く。[notifications.md](./notifications.md)。
 - **Google ログインなし**：「Google で〜」系ボタンは未対応。
-- **チームのサマリー／ランキングは固定ダミー**（実データではない）。
 - **AI**：統合済みで実機テスト可能。ただし
   - 休息後アドバイス と HOME コメントは製品 UI に出る。個人／チーム RESTコメント
     （`/ai/*-comment`）は `/ai-test` 画面からしか呼ばれない。

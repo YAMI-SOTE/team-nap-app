@@ -123,6 +123,8 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.md](./team-
 - 起動時 `GET /auth/me` → `onboardingCompleted` で `home` か `onboarding` へ
 - 画面順は「**サインアップ → オンボーディング → ホーム**」。オンボーディングは
   `useAuth().status` で未ログインなら `/signup` に戻す
+- サインイン時に Expo プッシュトークンを登録、サインアウト時に解除
+  （[notifications.md](./notifications.md)）
 
 未対応: Google OAuth（対象外）、`logout-others` / セッション一覧の UI。
 

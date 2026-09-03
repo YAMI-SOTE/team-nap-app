@@ -1,160 +1,99 @@
 # セットアップ
 
-> 機能を手で確認する手順は [testing-guide.md](./testing-guide.md)、
-> テスト用アカウント / スケジュールは [test-account.md](./test-account.md)、
-> 実機（iPhone / Android）で複数アカウントを試す手順は
-> [device-testing.md](./device-testing.md)。
->
-> つまずいたら先に「[その他よくある原因](#その他よくある原因)」を見てください
-> （root で `npm` を叩いて失敗 / `Drift detected` / `EADDRINUSE :3000` /
-> 実機から繋がらない / Expo Go incompatible）。VPS へのデプロイは
-> 「[本番デプロイ（VPS）](#本番デプロイvps)」。
+環境構築と起動手順。前提の共通ルールは [README.md](./README.md)、トラブルは
+このページ末尾の「[その他よくある原因](#その他よくある原因)」、VPS への配置は
+「[本番デプロイ（VPS）](#本番デプロイvps)」。
 
-## 最短セットアップ
+## クイックスタート（Docker Compose）
 
-いちばん簡単な起動手順はこれです。
-
-### 1. Repository root で Backend / DB / Ollama を起動
+Repository root で:
 
 ```bash
-docker compose up --build
+docker compose up --build          # backend / db / ollama / ollama-pull
 ```
 
-初回はイメージ build と Ollama モデル取得があるため少し時間がかかります。
-
-### 2. 別ターミナルで Frontend を起動
+- `backend` コンテナは起動時に `prisma migrate deploy` を自動実行する
+  （マイグレーションの手動適用は不要）。
+- **シードは自動投入されない。** 必要なら:
+  `docker compose exec backend npm run db:seed`
+  （テストアカウント + チーム。一覧は [test-account.md](./test-account.md)）。
+- Frontend の Expo は Compose では起動しない。別プロセスで:
 
 ```bash
-cd mobile
-npm install
-npx expo start
+cd mobile && npm install && npx expo start
 ```
 
-`mobile/.env` は以下を使います。
+動作確認: `curl http://localhost:3000/api/v1/health` → `{"status":"ok",...}`。
+アプリ起動後、Expo 側に `[frontend] Frontend boot confirmed ...`、Backend 側に
+`[frontend-boot] ...` が出れば疎通できている（`POST /api/v1/health/frontend-boot`）。
 
-```env
-EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
-```
+## ローカルで Backend を動かす
 
-### 3. 必要なら開発データを投入
+DB（と AI を使うなら Ollama）だけ Compose で立て、Backend は `tsx` で直接動かす。
 
-別ターミナルで Repository root に戻って実行します。
+> **`npm` 系コマンドは必ず `backend/` の中で実行する。** ルートに
+> `package.json` は無いので、root で `npm install && npm run db:migrate` すると
+> `ENOENT ... package.json` / `Missing script` で失敗する（`mobile/` も別途）。
 
 ```bash
-docker compose exec backend npm run db:seed
-```
-
-これで開発ユーザーとチーム `TEAM NAP 開発チーム`（招待コード `NAP-4821`）が入ります。
-
-### 4. 動作確認
-
-Backend:
-
-```bash
-curl http://localhost:3000/api/v1/health
-```
-
-Frontend:
-
-- Expo ターミナルが起動し、QR code / iOS / Android / web の選択肢が表示されればOKです。
-- アプリ起動後、Expo 側に `[frontend] Frontend boot confirmed ...` が出て、Backend 側に `[frontend-boot] ...` が出れば疎通できています。
-
-## 前提
-
-- Repository root で `docker compose up --build` を実行すると、Backend / PostgreSQL / Ollama が起動します。
-- Backend コンテナは起動時に `prisma migrate deploy` を自動実行します（`npm start`）。マイグレーションの手動適用は不要です。
-- **シードデータ（開発ユーザー + チーム）は自動投入されません。** 必要なら `docker compose exec backend npm run db:seed` を実行します。
-- Frontend の Expo は Docker Compose では起動しません。`mobile/` で別プロセスとして起動します。
-
-## Frontend 環境変数
-
-`mobile/.env` に以下を設定します。
-
-```env
-EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
-```
-
-Expo は起動時に `.env` を読むため、変更後は Expo を再起動してください。
-
-## Backend 環境変数
-
-`backend/.env.example` をコピーして `backend/.env` を作成します（`backend/src/config/env.ts` が zod で検証。`DATABASE_URL` は必須）。
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-```env
-DATABASE_URL=postgresql://teamnap:teamnap_dev@localhost:5432/teamnap
-PORT=3000
-HOST=0.0.0.0
-DEV_USER_ID=00000000-0000-0000-0000-000000000001
-```
-
-- Docker Compose 経由で動かす場合、`compose.yaml` が `backend` サービスへ環境変数を渡すため `backend/.env` は主にローカル実行（`npm run dev`）で使います。Compose 内の DB ホストは `db`、ローカルからは `localhost` です。
-- `DEV_USER_ID`（既定 `00000000-0000-0000-0000-000000000001`）は旧 `X-User-Id` フォールバック用です。現在は `/health` `/auth` 以外の全ルートが `authenticate`（Bearer トークン）必須なので実質未使用ですが、`npm run db:seed` が作る開発ユーザー id と一致させてあります。
-
-## 起動手順（Docker Compose）
-
-### 1. Backend / DB / Ollama を起動
-
-Repository root で実行します。
-
-```bash
-docker compose up --build
-```
-
-Backend の確認:
-
-```bash
-curl http://localhost:3000/api/v1/health
-```
-
-### 2. 開発データを投入（任意）
-
-```bash
-docker compose exec backend npm run db:seed
-```
-
-開発ユーザー（`あなた` / `佐藤` ほか）とチーム `TEAM NAP 開発チーム`（招待コード `NAP-4821`）が作成されます。
-
-### 3. Frontend を起動
-
-`mobile/` で実行します。
-
-```bash
-npm install
-npx expo start
-```
-
-依存関係インストール済みなら `npx expo start` だけで構いません。
-
-## 起動手順（Backend をローカルで動かす場合）
-
-DB だけ Compose で立て、Backend は `tsx` で直接動かす構成です。
-
-> **`npm` 系コマンドは必ず `backend/` の中で実行します。** この Repository には
-> root の `package.json` がありません（monorepo だが npm workspaces 未使用）。
-> root で `npm install && npm run db:migrate && ...` を実行すると
-> `ENOENT: no such file or directory, open '.../package.json'` /
-> `Missing script: "db:migrate"` で失敗します。`mobile/` も同様に別途 `npm install`。
-
-```bash
-docker compose up -d db ollama   # DB（と AI を使うなら Ollama）のみ起動。backend コンテナは起動しない
-cd backend                       # ← 以降は必ず backend/ の中
+docker compose up -d db ollama    # backend コンテナは起動しない（ポート 3000 の取り合いを避ける）
+cd backend
 npm install
 npm run db:generate              # Prisma Client 生成
 npm run db:migrate               # マイグレーション適用（prisma migrate dev）
 npm run db:seed                  # 開発データ投入
-npm run dev                      # tsx watch でサーバー起動（PORT=3000 / HOST=0.0.0.0）
+npm run dev                      # tsx watch（PORT=3000 / HOST=0.0.0.0）
 ```
 
-- `docker compose up -d db` ではなく `docker compose up -d db ollama` を使うのがポイントです。
-  `docker compose up`（引数なし）は `backend` コンテナも起動し、ローカルの `npm run dev` と
-  ポート 3000 を取り合って `EADDRINUSE` になります（下の「よくある原因」参照）。
-- DB をまっさらに戻したいときは `npm run db:reset`（マイグレーション再適用 + シード）。
-- ブランチを切り替えて `npm run db:migrate` が「Drift detected」で止まるときは
-  「よくある原因」の該当項目を参照してください。
+- `docker compose up`（引数なし）は `backend` コンテナも起動し、ローカルの
+  `npm run dev` とポート 3000 を取り合って `EADDRINUSE` になる。サービスを
+  指定して起動すること。
+- DB を作り直すなら `npm run db:reset`（マイグレーション再適用 + シード）。
+- ブランチ切り替えで `npm run db:migrate` が「Drift detected」で止まるときは
+  「その他よくある原因」を参照。
+
+## 環境変数
+
+`backend/.env` と `mobile/.env` を、それぞれの `.env.example` から作る
+（**ルートに `.env` は置かない**。VPS 運用時のみ compose 変数展開用の
+`./.env` を使う → 「本番デプロイ（VPS）」）。
+
+### Backend（`backend/.env`）
+
+`backend/src/config/env.ts` が zod で検証する（`DATABASE_URL` 必須。不正なら
+起動時に終了）。全変数は `backend/.env.example` を参照。要点:
+
+```env
+DATABASE_URL=postgresql://teamnap:teamnap_dev@localhost:5432/teamnap
+# Compose 内では host が db:
+#   postgresql://teamnap:teamnap_dev@db:5432/teamnap
+PORT=3000
+HOST=0.0.0.0
+OLLAMA_URL=http://localhost:11434      # Compose 内では http://ollama:11434
+OLLAMA_MODEL=gemma4:e2b               # 既定。日本語重視（~8GB/2CPU）。軽量なら gemma3:1b
+OLLAMA_TIMEOUT_MS=60000               # 1 生成のタイムアウト。超えたら定型文へフォールバック
+```
+
+Compose 経由では `compose.yaml` が `backend` サービスへ env を渡すため、
+`backend/.env` は主にローカル `npm run dev` 用。
+
+### Frontend（`mobile/.env`）
+
+```env
+EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
+```
+
+| 実行環境 | 値 |
+| --- | --- |
+| iOS シミュレータ / Web | `http://localhost:3000/api/v1` |
+| Android エミュレータ | `http://10.0.2.2:3000/api/v1` |
+| 実機（同じ Wi-Fi） | `http://<PCのLAN IP>:3000/api/v1` |
+| 実機（Tailscale） | `http://<PCのTailscale IP>:3000/api/v1` |
+
+`EXPO_PUBLIC_*` はビルド時にバンドルへ埋め込まれる。`.env` を変えたら
+**`npx expo start -c`（キャッシュクリア再起動）**。アプリのリロード（`r`）だけ
+では反映されない。WebSocket 在席（`/api/v1/realtime`）は `http`→`ws` 置換で
+自動導出されるので追加設定は不要。
 
 ## 本番デプロイ（VPS）
 
@@ -268,77 +207,23 @@ docker compose up -d --build backend db
 
 ## 起動成功時のログ
 
-Frontend が正常に起動してアプリがマウントされると、Expo 側のターミナルに以下の形式で表示されます。
-
-```text
-[frontend] Frontend boot confirmed on ios at 2026-08-29T...
-```
-
-同時に Backend 側の Docker ログにも以下の形式で表示されます。
-
-```text
-[frontend-boot] Frontend booted successfully on ios at 2026-08-29T...
-```
-
-このログは Frontend から `POST /api/v1/health/frontend-boot` が成功したことを意味します。
-
-## リアルタイム在席（WebSocket）
-
-Backend は同じポートで WebSocket も待ち受けます:
-`ws://localhost:3000/api/v1/realtime?token=<セッショントークン>`。
-`EXPO_PUBLIC_API_URL` の `http`→`ws` 置換で自動的に導出されるので、
-モバイル側の追加設定は不要です。チームのメンバーが在席ステータスを
-変えると、接続中の全メンバーへ `member-status` が push されます。
-実機で試す場合は `EXPO_PUBLIC_API_URL` が PC の LAN IP を指していれば
-そのまま WS も通ります（同一ポート）。
+アプリがマウントされると `POST /api/v1/health/frontend-boot` が飛び、Expo 側に
+`[frontend] Frontend boot confirmed on ios ...`、Backend 側に
+`[frontend-boot] Frontend booted successfully on ios ...` が出る。これが出れば
+Mobile → Backend が疎通している。
 
 ## API リクエストが必ず失敗する（最優先チェック）
 
-1. **Backend が起動しているか**
-
-   ```bash
-   curl http://localhost:3000/api/v1/health      # {"status":"ok",...} が返るはず
-   docker compose ps                              # backend の STATUS が Up か
-   docker compose logs -f backend                 # 起動失敗の理由を確認
-   ```
-
-   - `docker compose ps` に `backend` が無い/落ちている場合、以前は
-     `ollama-pull` の完了待ちで起動しないことがありました。現在は
-     `backend` は **`db` の healthy だけ**を待ちます（`compose.yaml`）。
-     古い挙動なら `docker compose up -d --build backend` で単体起動できます。
-   - ローカルで `npm start` する場合は先に `npm run build` が必要です
-     （`dist/` が無いと `node dist/server.js` が失敗）。`npm run dev` なら不要。
-
-2. **モバイルの向き先（`EXPO_PUBLIC_API_URL`）が実機/エミュレータで合っているか**
-
-   | 実行環境 | `mobile/.env` の値 |
-   | --- | --- |
-   | iOS シミュレータ / Web | `http://localhost:3000/api/v1` |
-   | Android エミュレータ | `http://10.0.2.2:3000/api/v1` |
-   | 実機（同じ Wi-Fi） | `http://<PCのLAN IP>:3000/api/v1`（例 `http://192.168.1.23:3000/api/v1`） |
-   | 実機（Tailscale） | `http://<PCのTailscale IP>:3000/api/v1`（例 `http://100.96.10.125:3000/api/v1`） |
-
-   - PC の LAN IP は `ipconfig getifaddr en0`（macOS）で確認します。**DHCP で
-     頻繁に変わります。**「昨日は繋がったのに」の大半はこれです。
-   - `EXPO_PUBLIC_*` はビルド時にバンドルへ埋め込まれます。`.env` を変えたら
-     **Metro をキャッシュクリアして再起動**しないと反映されません。アプリのリロード
-     （`r`）だけでは足りません。
-
-     ```bash
-     cd mobile
-     npx expo start -c
-     ```
-
-   - IP が変わるたびに直すのが面倒なら Tailscale の IP（ネットワークをまたいでも
-     不変）を使います。PC と実機の両方に Tailscale を入れておきます。
-   - Backend が LAN からも見えている必要があります（`HOST=0.0.0.0`。既定で設定済み）。
-     PC 上で `curl http://<PCのLAN IP>:3000/api/v1/health` が返るか確認します。
-     返らなければファイアウォール、または Backend が `127.0.0.1` だけに bind しています。
-
-3. **認証が要るエンドポイントで 401 が返る**
-   - `/api/v1/{teams,notifications,onboarding}/*` と `/settings/team*` は
-     `Authorization: Bearer <token>` 必須。モバイルはログイン後
-     `AuthContext` がトークンを付与します（未ログインだと 401）。
+1. **Backend が起動しているか** — `curl .../health`、`docker compose ps`
+   （`backend` が Up か）、`docker compose logs -f backend`（起動失敗の理由）。
+   `backend` は `db` の healthy だけを待つ（`compose.yaml`）。ローカルで
+   `npm start` するなら先に `npm run build`（`npm run dev` なら不要）。
+2. **`EXPO_PUBLIC_API_URL` が実行環境に合っているか** — 値の表は
+   「[環境変数 › Frontend](#frontendmobileenv)」。実機で急に繋がらなくなったら
+   まず PC の LAN IP を疑う（下の「実機からいきなり Backend に繋がらなくなった」）。
+3. **401 が返る** — `/health` と `/auth/{signup,login,password-reset/*}` 以外は
+   すべて `Authorization: Bearer <token>` 必須。モバイルはログイン後
+   `AuthContext` がトークンを付与する（未ログインだと 401）。
 
 ## その他よくある原因
 
