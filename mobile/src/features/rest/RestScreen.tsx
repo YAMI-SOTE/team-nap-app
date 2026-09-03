@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Image,
   LayoutChangeEvent,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,11 @@ import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
+import SpriteLoop from "@/components/SpriteLoop";
+import {
+  CAT_SLEEPING_FRAMES,
+  CAT_SLEEPING_FRAME_MS,
+} from "@/constants/characters";
 import { toClockTime, toISODate } from "@/utils/date";
 import { setMyStatus } from "@/services/team";
 
@@ -183,10 +187,11 @@ export default function RestScreen() {
           >
             {/* Illustration — 眠る猫 ＋ 起床時刻の吹き出し（しっぽ付き） */}
             <View style={styles.illustration}>
-              <Image
-                source={require("../../../assets/characters/sleeping-cat.png")}
-                style={styles.illustrationImage}
-                resizeMode="contain"
+              {/* Figma の猫は 5 コマループのインスタンス（node 813:1763） */}
+              <SpriteLoop
+                frames={CAT_SLEEPING_FRAMES}
+                size={192}
+                frameDurationMs={CAT_SLEEPING_FRAME_MS}
               />
               <View style={styles.bubble}>
                 <Text style={styles.bubbleText}>
@@ -313,10 +318,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: "center",
     justifyContent: "center",
-  },
-  illustrationImage: {
-    width: 224,
-    height: 192,
   },
   bubble: {
     position: "absolute",

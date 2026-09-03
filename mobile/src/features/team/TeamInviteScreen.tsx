@@ -1,17 +1,12 @@
-import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useTeamSettings } from "@/hooks/useTeamSettings";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import CharacterSlot from "@/components/CharacterSlot";
 import InviteCodeCard from "@/components/InviteCodeCard";
-import PillButton from "@/components/PillButton";
-
-/** The "ホームに戻る" button appears this long after the screen mounts. */
-const HOME_BUTTON_DELAY_MS = 5000;
 
 /**
  * "チームができました！" — shown right after a team is created
@@ -21,23 +16,14 @@ const HOME_BUTTON_DELAY_MS = 5000;
 export default function TeamInviteScreen() {
   const router = useRouter();
   const { data, loading } = useTeamSettings();
-  const [showHomeButton, setShowHomeButton] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(
-      () => setShowHomeButton(true),
-      HOME_BUTTON_DELAY_MS,
-    );
-    return () => clearTimeout(timer);
-  }, []);
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.content}>
           <CharacterSlot
-            size={130}
+            size={180}
             source={require("../../../assets/characters/celebration.png")}
           />
 
@@ -57,17 +43,6 @@ export default function TeamInviteScreen() {
           >
             <Text style={styles.later}>あとで招待する</Text>
           </Pressable>
-
-          {showHomeButton ? (
-            <View style={styles.homeButton}>
-              <PillButton
-                variant="outline"
-                label="ホームに戻る"
-                elevated={false}
-                onPress={() => router.replace("/home")}
-              />
-            </View>
-          ) : null}
         </View>
       </SafeAreaView>
     </View>
@@ -88,6 +63,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 16,
     paddingHorizontal: 24,
+    // Figma: Content pt63 − ステータスバー 47 ＝ セーフエリア下 16px
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   head: {
     alignItems: "center",
@@ -112,9 +90,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     color: colors.textTertiary,
-  },
-  homeButton: {
-    alignSelf: "stretch",
-    marginTop: 8,
   },
 });

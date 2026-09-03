@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,12 +11,17 @@ import { useRouter } from "expo-router";
 
 import { useCalendarSettings } from "@/hooks/useCalendarSettings";
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import Card from "@/components/Card";
 import Hairline from "@/components/Hairline";
 import PillButton from "@/components/PillButton";
-import { CalendarIcon, CheckCircleIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  CheckCircleIcon,
+  GoogleIcon,
+  WarningCircleIcon,
+} from "@/components/icons";
 
 export default function CalendarSettingsScreen() {
   const router = useRouter();
@@ -26,7 +30,7 @@ export default function CalendarSettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -44,18 +48,22 @@ export default function CalendarSettingsScreen() {
           {/* Google カレンダー */}
           <Card>
             <View style={styles.row}>
-              <Image
-                source={require("../../../assets/google-icon.png")}
-                style={styles.googleIcon}
-                resizeMode="contain"
-              />
+              <GoogleIcon size={28} />
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Google カレンダー</Text>
                 <Text style={styles.rowSub}>
                   {data?.google.email ?? "未連携"}
                 </Text>
               </View>
-              {data?.google.connected ? (
+              {/* Figma: 連携済み(S06-04) / 連携エラー(S06-05) の2状態 */}
+              {error ? (
+                <View style={styles.badge}>
+                  <WarningCircleIcon size={14} />
+                  <Text style={[styles.badgeText, styles.badgeTextError]}>
+                    連携エラー
+                  </Text>
+                </View>
+              ) : data?.google.connected ? (
                 <View style={styles.badge}>
                   <CheckCircleIcon size={14} color={colors.textBrand} />
                   <Text style={styles.badgeText}>連携済み</Text>
@@ -74,7 +82,9 @@ export default function CalendarSettingsScreen() {
                 accessibilityRole="button"
                 hitSlop={6}
               >
-                <Text style={styles.syncAction}>今すぐ同期</Text>
+                <Text style={styles.syncAction}>
+                  {error ? "再試行" : "今すぐ同期"}
+                </Text>
               </Pressable>
             </View>
 
@@ -86,6 +96,13 @@ export default function CalendarSettingsScreen() {
               <Text style={styles.disconnect}>連携を解除</Text>
             </Pressable>
           </Card>
+
+          {error ? (
+            <View style={styles.errorBanner}>
+              <WarningCircleIcon size={20} />
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
 
           {/* 端末のカレンダー */}
           <Card>
@@ -111,7 +128,6 @@ export default function CalendarSettingsScreen() {
 
           <View style={styles.footer}>
             {loading ? <ActivityIndicator color={colors.primary} /> : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -144,10 +160,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  googleIcon: {
-    width: 28,
-    height: 28,
-  },
   rowText: {
     flex: 1,
     gap: 2,
@@ -164,13 +176,32 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   badge: {
+    // Figma（node 733:5310）は塗り無し。px10 py4 の余白だけ持つ。
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: colors.brandSubtle,
+  },
+  badgeTextError: {
+    color: colors.textDanger,
+  },
+  errorBanner: {
+    // Figma（node 733:5331）は塗り無し。px14 py12 / r16 / gap10。
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textDanger,
   },
   badgeText: {
     fontSize: 11,

@@ -84,7 +84,7 @@ export default function PersonalStatsView({
       <Card style={styles.chartCard}>
         <View style={styles.rowBetween}>
           <Text style={styles.chartTitle}>今週のコンディション</Text>
-          <Text style={styles.chartSub}>1日ごとの仮眠スコア</Text>
+          <Text style={styles.chartSub}>仮眠後の集中度</Text>
         </View>
         <LineChart
           values={data.condition.values}
@@ -114,7 +114,6 @@ export default function PersonalStatsView({
             icon={<AlarmBadgeIcon size={41} />}
             time={nap.time}
             subtitle={nap.detail}
-            showCaret
             onPress={() => onNapPress(nap.id)}
           />
         ))}
@@ -166,7 +165,7 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   deltaPill: {
-    backgroundColor: colors.brandSubtle,
+    // Figma（node 733:5044）は塗り無し。px10 py4 の余白だけ持つ。
     borderRadius: radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,

@@ -113,6 +113,7 @@ export default function TeamStatsView({
           icon={<TrophyIcon size={22} />}
           backgroundColor={colors.brandSubtle}
           gap={10}
+          style={styles.banner}
         >
           <Text style={styles.bannerText}>{data.achievementBanner}</Text>
         </IconPill>
@@ -226,6 +227,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: "500",
     color: colors.textTertiary,
+  },
+  banner: {
+    // Figma（node 733:5180）は px14 py12。IconPill の既定は py10。
+    paddingVertical: 12,
   },
   bannerText: {
     flex: 1,

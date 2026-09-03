@@ -1,4 +1,6 @@
+import { useState } from "react";
 import {
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -8,10 +10,16 @@ import {
 } from "react-native";
 
 import { colors } from "@/theme/colors";
+import { EyeIcon, EyeSlashIcon } from "@/components/icons";
 
 type LabeledInputProps = TextInputProps & {
   label: string;
   containerStyle?: ViewStyle;
+  /**
+   * パスワード欄で目のアイコンによる表示/非表示切替を出す。
+   * `secureTextEntry` はこちらで管理するので指定不要。
+   */
+  revealToggle?: boolean;
 };
 
 /**
@@ -22,9 +30,11 @@ export default function LabeledInput({
   label,
   containerStyle,
   style,
+  revealToggle = false,
   ...inputProps
 }: LabeledInputProps) {
   const multiline = inputProps.multiline ?? false;
+  const [visible, setVisible] = useState(false);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -36,7 +46,31 @@ export default function LabeledInput({
           // Keep a single line from pushing the caret/text out of the box.
           numberOfLines={multiline ? undefined : 1}
           {...inputProps}
+          {...(revealToggle
+            ? {
+                secureTextEntry: !visible,
+                autoCapitalize: "none" as const,
+                autoCorrect: false,
+              }
+            : null)}
         />
+        {revealToggle ? (
+          <Pressable
+            onPress={() => setVisible((v) => !v)}
+            hitSlop={10}
+            style={styles.toggle}
+            accessibilityRole="button"
+            accessibilityLabel={
+              visible ? "パスワードを隠す" : "パスワードを表示"
+            }
+          >
+            {visible ? (
+              <EyeSlashIcon size={20} color={colors.textTertiary} />
+            ) : (
+              <EyeIcon size={20} color={colors.textTertiary} />
+            )}
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -81,6 +115,12 @@ const styles = StyleSheet.create({
     // extra font padding / force centre alignment.
     includeFontPadding: false,
     textAlignVertical: "center",
+  },
+  toggle: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
   },
   inputMultiline: {
     textAlignVertical: "top",

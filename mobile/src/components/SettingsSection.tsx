@@ -27,7 +27,8 @@ export default function SettingsSection({
 const styles = StyleSheet.create({
   section: {
     width: "100%",
-    gap: 12,
+    // 見出しと1行目の間隔（Figma node 733:5251 の gap-16）。
+    gap: 16,
   },
   heading: {
     fontSize: 16,

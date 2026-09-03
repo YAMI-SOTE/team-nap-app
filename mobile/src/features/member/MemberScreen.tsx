@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useMemberDetail } from "@/hooks/useMemberDetail";
 import { sendRestNudge, sendWakeNudge } from "@/services/team";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import MenuBar from "@/components/MenuBar";
 import ScreenHeader from "@/components/ScreenHeader";
 import MemberProfileHeader from "@/components/MemberProfileHeader";
@@ -56,10 +56,16 @@ export default function MemberScreen() {
   const handleWake = () => nudge("wake");
 
   const wakeAssistEnabled = data?.wakeSupport.wakeAssistEnabled ?? false;
+  const isResting = data?.status === "resting";
+  const supportCaption = !isResting
+    ? "集中を邪魔しない軽い通知が届きます"
+    : wakeAssistEnabled
+      ? "タップすると軽い通知が届きます"
+      : "起こしてもらう設定はOFFです。そっと見守りましょう。";
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -88,48 +94,64 @@ export default function MemberScreen() {
                 />
               ) : null}
 
+              {/*
+                起床サポート。Figma は状態ごとに出すものが違う:
+                - 仮眠中 + 起こしてもらうON（S04-03）… 注意書き + 2ボタン
+                - 仮眠中 + 起こしてもらうOFF（S04-05）… キャプションのみ
+                - 作業中/オフライン（S04-04）…「休んでね」だけを全幅で
+              */}
               <View style={styles.supportCard}>
-                <View style={styles.noteRow}>
-                  <InfoIcon size={18} color={colors.borderBrand} />
-                  <Text style={styles.noteText}>
-                    {wakeAssistEnabled
-                      ? "本人が「起こしてもらう」をONにしています"
-                      : "本人が「起こしてもらう」をOFFにしています"}
-                  </Text>
-                </View>
+                {isResting && wakeAssistEnabled ? (
+                  <>
+                    <View style={styles.noteRow}>
+                      <InfoIcon size={18} color={colors.borderBrand} />
+                      <Text style={styles.noteText}>
+                        本人が「起こしてもらう」をONにしています
+                      </Text>
+                    </View>
 
-                <View style={styles.actionsRow}>
+                    <View style={styles.actionsRow}>
+                      <PillButton
+                        variant="outline"
+                        label="休んでね"
+                        onPress={handleRest}
+                        disabled={nudging}
+                        icon={<HeartIcon size={20} color={colors.textBrand} />}
+                        textStyle={styles.outlineActionText}
+                        style={styles.actionButton}
+                      />
+                      <PillButton
+                        variant="primary"
+                        label="起きて〜"
+                        onPress={handleWake}
+                        disabled={nudging}
+                        elevated={false}
+                        icon={<BellIcon size={24} color={colors.white} />}
+                        style={styles.actionButton}
+                      />
+                    </View>
+                  </>
+                ) : isResting ? null : (
                   <PillButton
                     variant="outline"
                     label="休んでね"
                     onPress={handleRest}
                     disabled={nudging}
                     icon={<HeartIcon size={20} color={colors.textBrand} />}
-                    textStyle={styles.outlineActionText}
                     style={styles.actionButton}
                   />
-                  <PillButton
-                    variant="primary"
-                    label="起きて〜"
-                    onPress={handleWake}
-                    disabled={!wakeAssistEnabled || nudging}
-                    elevated={false}
-                    icon={<BellIcon size={24} color={colors.white} />}
-                    style={styles.actionButton}
-                  />
-                </View>
+                )}
 
                 <Text style={styles.supportCaption}>
-                  {nudgeMessage ?? "タップすると軽い通知が届きます"}
+                  {nudgeMessage ?? supportCaption}
                 </Text>
               </View>
             </View>
           )}
         </ScrollView>
       </SafeAreaView>
-      <SafeAreaView edges={["bottom"]} style={styles.menuSafeArea}>
-        <MenuBar activeTab="team" />
-      </SafeAreaView>
+      {/* MenuBar 自身が Figma の pb24（ホームインジケーター分）を持つ */}
+      <MenuBar activeTab="team" />
     </View>
   );
 }
@@ -145,11 +167,10 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    // Figma: Content pt63 − ステータスバー 47 ＝ セーフエリア下 16px
+    paddingTop: 16,
     paddingBottom: 16,
     gap: 20,
-  },
-  menuSafeArea: {
-    backgroundColor: colors.surface,
   },
   stateBlock: {
     flex: 1,
@@ -169,11 +190,11 @@ const styles = StyleSheet.create({
     gap: 20,
   },
 
-  // 起床サポート
+  // 起床サポート（node 733:4917）
+  // Figma では塗りが無く、注意書き・ボタン・キャプションが
+  // そのまま背景の上に載る。余白だけカードと同じ 18/16 を持つ。
   supportCard: {
     width: "100%",
-    backgroundColor: colors.brandSubtle,
-    borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 16,
     gap: 12,
@@ -202,9 +223,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   supportCaption: {
+    // Figma: Micro/Medium — 11px / 1.5
     width: "100%",
     fontSize: 11,
-    lineHeight: 16,
+    lineHeight: 17,
     fontWeight: "500",
     color: colors.textTertiary,
     textAlign: "center",

@@ -1,26 +1,32 @@
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  ActivityIndicator,
+  ScrollView,
   StyleSheet,
-  StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
-import { spacing, radius } from "@/theme/spacing";
 import { useSignUp } from "@/hooks/useSignUp";
 import type { LoginResult } from "@/services/authService";
-import SkyBackground from "@/components/SkyBackground";
-import PasswordInput from "@/components/PasswordInput";
+import EntryBackground from "@/components/EntryBackground";
+import LabeledInput from "@/components/LabeledInput";
+import PillButton from "@/components/PillButton";
+import { GoogleIcon } from "@/components/icons";
 
+/**
+ * アカウント作成画面（Figma "S01-07_SignUp", node 733:4416）。
+ *
+ * 背景イラストの上に、下端から生える角丸 32px の白いカード
+ * （"Group / 準備完了！", node 733:4420）。カードは px24 / py32 で、
+ * 中の要素は 16px 間隔。カード上の余白は Spacer（flex）で押し上げる。
+ */
 export default function SignUpScreen() {
   const router = useRouter();
   const {
@@ -29,243 +35,242 @@ export default function SignUpScreen() {
     password,
     confirmPassword,
     isSubmitting,
+    isGoogleSubmitting,
     errorMessage,
     setName,
     setEmail,
     setPassword,
     setConfirmPassword,
     submit,
+    submitWithGoogle,
   } = useSignUp();
 
-  const isBusy = isSubmitting;
+  const isBusy = isSubmitting || isGoogleSubmitting;
 
-  // A fresh account is never onboarded — always go through onboarding first.
+  // 新規アカウントは未オンボーディングなので、必ずオンボーディングを通す。
   const handleSubmit = async () => {
     const result: LoginResult | null = await submit();
     if (result) {
-      router.replace(
-        result.user.onboardingCompleted ? "/home" : "/onboarding",
-      );
+      router.replace(result.user.onboardingCompleted ? "/home" : "/onboarding");
+    }
+  };
+
+  const handleGoogleSubmit = async () => {
+    const result: LoginResult | null = await submitWithGoogle();
+    if (result) {
+      router.replace(result.user.onboardingCompleted ? "/home" : "/onboarding");
     }
   };
 
   return (
-    <SkyBackground>
-      <StatusBar barStyle="dark-content" />
-      {/* 上部の余白（背景が見える帯） */}
-      <SafeAreaView style={styles.topSpacerSafeArea} edges={["top"]} />
-
-      <View style={styles.card}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.flex}
+    <EntryBackground>
+      <StatusBar style="dark" />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.flex}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.scrollContent}>
+            <View style={styles.card}>
               <Text style={styles.heading}>準備完了！</Text>
               <Text style={styles.subtitle}>
                 アカウントを作成して{"\n"}TEAM NAPをはじめましょう。
               </Text>
 
-              <View style={styles.formArea}>
-                <Text style={styles.label}>名前</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="山田太郎"
-                  placeholderTextColor={colors.placeholder}
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                  editable={!isBusy}
-                  testID="signup-name-input"
-                />
+              <LabeledInput
+                label="名前"
+                placeholder="山田太郎"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                editable={!isBusy}
+                testID="signup-name-input"
+              />
 
-                <Text style={styles.label}>メールアドレス</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="example@gmail.com"
-                  placeholderTextColor={colors.placeholder}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isBusy}
-                  testID="signup-email-input"
-                />
+              <LabeledInput
+                label="メールアドレス"
+                placeholder="example@gmail.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isBusy}
+                testID="signup-email-input"
+              />
 
-                <Text style={styles.label}>パスワード</Text>
-                <PasswordInput
-                  style={styles.input}
-                  placeholder="パスワードを入力"
-                  placeholderTextColor={colors.placeholder}
-                  value={password}
-                  onChangeText={setPassword}
-                  editable={!isBusy}
-                  testID="signup-password-input"
-                />
+              <LabeledInput
+                label="パスワード"
+                placeholder="パスワードを入力"
+                value={password}
+                onChangeText={setPassword}
+                revealToggle
+                editable={!isBusy}
+                testID="signup-password-input"
+              />
 
-                {/*
-                  Figmaのモックアップではこの欄のラベルが「メールアドレス」に
-                  なっているが、内容（パスワードを再入力）と明らかに矛盾するため
-                  元データの誤植と判断し、意味の通る「パスワード（確認用）」を採用。
-                  デザイン側の確認が取れたら要調整。
-                */}
-                <Text style={styles.label}>パスワード（確認用）</Text>
-                <PasswordInput
-                  style={styles.input}
-                  placeholder="パスワードを再入力"
-                  placeholderTextColor={colors.placeholder}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  editable={!isBusy}
-                  testID="signup-confirm-password-input"
-                />
+              {/*
+                Figmaのモックアップではこの欄のラベルが「メールアドレス」に
+                なっているが、内容（パスワードを再入力）と明らかに矛盾するため
+                元データの誤植と判断し、意味の通る「パスワード（確認用）」を採用。
+                デザイン側の確認が取れたら要調整。
+              */}
+              <LabeledInput
+                label="パスワード（確認用）"
+                placeholder="パスワードを再入力"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                revealToggle
+                editable={!isBusy}
+                testID="signup-confirm-password-input"
+              />
 
-                {errorMessage ? (
-                  <Text style={styles.errorText} testID="signup-error-text">
-                    {errorMessage}
-                  </Text>
-                ) : null}
+              {errorMessage ? (
+                <Text style={styles.errorText} testID="signup-error-text">
+                  {errorMessage}
+                </Text>
+              ) : null}
 
+              <PillButton
+                label="アカウントを作成"
+                onPress={handleSubmit}
+                loading={isSubmitting}
+                disabled={isBusy}
+                elevated={false}
+                style={styles.primaryButton}
+                testID="signup-submit-button"
+              />
+
+              {/*
+                この画面の「または」はログイン画面（Or, node 733:4288）とは別物で、
+                140px 固定の罫線を 4px 間隔で中央に置く（node 733:4432）。
+              */}
+              <View style={styles.orRow}>
+                <View style={styles.orLine} />
+                <Text style={styles.orText}>または</Text>
+                <View style={styles.orLine} />
+              </View>
+
+              <PillButton
+                variant="outline"
+                label="Google で続ける"
+                onPress={handleGoogleSubmit}
+                loading={isGoogleSubmitting}
+                disabled={isBusy}
+                icon={
+                  <GoogleIcon size={20} />
+                }
+                style={styles.googleButton}
+                textStyle={styles.googleButtonText}
+                testID="signup-google-button"
+              />
+
+              <View style={styles.loginRow}>
+                <Text style={styles.loginText}>
+                  すでにアカウントをお持ちですか？
+                </Text>
                 <TouchableOpacity
-                  style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleSubmit}
-                  activeOpacity={0.85}
+                  onPress={() => router.push("/login")}
                   disabled={isBusy}
-                  testID="signup-submit-button"
                 >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={colors.white} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>アカウントを作成</Text>
-                  )}
+                  <Text style={styles.loginLink}>ログイン</Text>
                 </TouchableOpacity>
-
-                <View style={styles.bottomRow}>
-                  <Text style={styles.bottomText}>
-                    すでにアカウントをお持ちですか？{" "}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => router.push("/login")}
-                    disabled={isBusy}
-                  >
-                    <Text style={styles.bottomLink}>ログイン</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
-      </View>
-    </SkyBackground>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
+    </EntryBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  // 画面上部の余白。背景（SkyBackground）が見える帯。フォームが1画面に
-  // 収まるよう最小限に抑える。
-  topSpacerSafeArea: {
-    height: "6%",
-  },
-  card: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   flex: {
     flex: 1,
   },
-  // No ScrollView — the form is sized to fit the card without scrolling.
   scrollContent: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    justifyContent: "center",
+    flexGrow: 1,
+    // Spacer（node 733:4419）に相当。カードを下端から生やす。
+    justifyContent: "flex-end",
+  },
+  card: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
   heading: {
-    fontSize: 22,
-    fontWeight: "bold",
+    // Figma: Heading/H2 — 24px / 1.4 / 700
+    fontSize: 24,
+    lineHeight: 34,
+    fontWeight: "700",
     color: colors.textBrand,
     textAlign: "center",
-    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
+    // Figma: Body/M-Medium — 14px / 1.7 / 500
+    fontSize: 14,
+    lineHeight: 24,
+    fontWeight: "500",
+    color: colors.textTertiary,
     textAlign: "center",
-    lineHeight: 18,
-    marginBottom: spacing.lg,
-  },
-  formArea: {
-    width: "100%",
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    minHeight: 46,
-    fontSize: 15,
-    color: colors.textPrimary,
-    includeFontPadding: false,
-    textAlignVertical: "center",
-    marginBottom: spacing.sm,
   },
   errorText: {
-    color: colors.error,
     fontSize: 12,
-    marginBottom: spacing.sm,
+    lineHeight: 19,
+    color: colors.error,
+    textAlign: "center",
   },
   primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingVertical: 14,
+    minHeight: 47,
+  },
+  orRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 50,
-    marginTop: spacing.xs,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    gap: 4,
   },
-  primaryButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "bold",
+  orLine: {
+    width: 140,
+    height: 1,
+    backgroundColor: colors.borderDefault,
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  orText: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.placeholder,
+    textAlign: "center",
   },
-  bottomRow: {
+  googleButton: {
+    borderColor: colors.borderStrong,
+  },
+  googleButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  loginRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: spacing.lg,
+    gap: 8,
   },
-  bottomText: {
-    fontSize: 13,
-    color: colors.textSecondary,
+  loginText: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textTertiary,
   },
-  bottomLink: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: colors.primary,
+  loginLink: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textBrand,
   },
 });

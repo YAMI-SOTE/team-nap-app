@@ -22,6 +22,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
+import SettingsRow from "@/components/SettingsRow";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -188,12 +189,21 @@ export default function AccountScreen() {
             ) : null}
           </View>
 
+          {/* Figma（node 733:5269）にある行。
+              TODO(backend): ログイン中専用の変更画面が無いため、
+              いまは再設定フロー（/forgot-password）へ送っている。 */}
+          <SettingsRow
+            label="パスワードを変更"
+            onPress={() => router.push("/forgot-password")}
+          />
+
           <PillButton
             variant="primary"
             label="保存する"
             elevated={false}
             onPress={handleSave}
             loading={saving}
+            style={styles.saveButton}
           />
 
           <View style={styles.statusBlock}>
@@ -277,6 +287,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: "700",
     color: colors.textBrand,
+  },
+  saveButton: {
+    // Figma: py10 + 16px/1.7 の1行 = 47px
+    minHeight: 47,
   },
   form: {
     width: "100%",

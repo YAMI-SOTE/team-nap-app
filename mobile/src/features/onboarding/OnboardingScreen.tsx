@@ -1,17 +1,19 @@
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   type ImageSourcePropType,
   LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
@@ -21,88 +23,187 @@ import { type AvatarId } from "@/constants/avatars";
 import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PillButton from "@/components/PillButton";
+import { BellIcon, CalendarIcon, CaretDownIcon } from "@/components/icons";
 
 /**
- * Vertical mint→white wash behind the onboarding pages
- * (Figma "Content", from #e5f6f5 via #f9fcfb 62% to white).
+ * オンボーディング（Figma S01-03〜S01-06）。
+ *
+ * Figma のフレームは 402x874。座標をそのまま持ち、描画時に端末幅で
+ * スケール（S = width / 402）して配置する。縦はイラスト領域の高さ比
+ * （スライドごとに違う）でシート上端を決める。
+ *
+ * 重要: シートは画面下端まで伸ばす。SafeArea の下インセットを外側で引くと、
+ * その分だけシートと猫が上にせり上がって Figma とズレる。インセットは
+ * シートの paddingBottom として内側で吸収する。
  */
-function OnboardingBackdrop() {
-  return (
-    <LinearGradient
-      colors={["#E5F6F5", "#F9FCFB", colors.white]}
-      locations={[0, 0.62, 1]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={StyleSheet.absoluteFill}
-    />
-  );
-}
 
-/** "07時30分" -> "07:30" for the API. */
-function toClock(label: string): string {
-  return label.replace("時", ":").replace("分", "");
-}
+/** Figma のフレーム寸法。すべての座標はこの座標系。 */
+const FRAME_W = 402;
+const FRAME_H = 874;
+
+type Bubble = {
+  text: string;
+  /** Figma 上の吹き出し左上と大きさ。 */
+  x: number;
+  y: number;
+  width: number;
+  /** 傾き(deg)。 */
+  rotate: number;
+  /** しっぽの位置（吹き出し左上からの相対）。 */
+  tailLeft: number;
+  tailTop: number;
+};
 
 type Slide = {
   key: string;
-  /** Speech bubble text from the character. */
-  bubble: string;
+  background: ImageSourcePropType;
+  cat: ImageSourcePropType;
+  /** Illustration の高さ（Figma）。シート上端 = この値。 */
+  illustrationHeight: number;
+  /** 猫の Figma 座標。 */
+  catX: number;
+  catY: number;
+  catSize: number;
+  /** 猫をシートより手前に描くか（Figma のレイヤー順）。 */
+  catAboveSheet?: boolean;
+  bubble: Bubble;
   title: string;
   body: string;
+  /** Intro だけ本文の下にブランド色の一文が入る。 */
+  lead?: string;
   primaryLabel: string;
+  primaryIcon?: ReactNode;
   showSkip: boolean;
-  illustration: ImageSourcePropType;
 };
 
 const SLIDES: Slide[] = [
   {
     key: "why-nap",
-    bubble: "ねむい…でも\n言い出しにくい",
+    background: require("../../../assets/onboarding/scenes/bg-intro.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-intro.png"),
+    illustrationHeight: 555,
+    catX: 36,
+    catY: 267,
+    catSize: 330,
+    bubble: {
+      text: "ねむい…でも\n言い出しにくい",
+      x: 242,
+      y: 216,
+      width: 119,
+      rotate: -2,
+      tailLeft: 10,
+      tailTop: 50,
+    },
     title: "仕事中って休みにくいよね",
-    body: "休みたいけど…\n自分だけ寝るのも、ちょっと気まずい。\n\nTEAM NAPは、\nみんなで休みやすい時間を見つけます。",
+    body: "休みたいけど...\n自分だけ寝るのも、ちょっと気まずい。",
+    lead: "TEAM NAPは、\nみんなで休みやすい時間を見つけます。",
     primaryLabel: "つぎへ",
     showSkip: false,
-    illustration: require("../../../assets/onboarding/teamnap-01.png"),
   },
   {
+    // 上流 PR #35 で追加されたアバター選択ステップ。Figma に対応フレームが
+    // 無いため、Intro のシーンと座標をそのまま流用している。
     key: "avatar",
-    bubble: "きみのアイコン、\nどれにする？",
+    background: require("../../../assets/onboarding/scenes/bg-intro.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-intro.png"),
+    illustrationHeight: 470,
+    catX: 36,
+    catY: 267,
+    catSize: 330,
+    catAboveSheet: true,
+    bubble: {
+      text: "きみのアイコン、\nどれにする？",
+      x: 242,
+      y: 216,
+      width: 119,
+      rotate: -2,
+      tailLeft: 10,
+      tailTop: 50,
+    },
     title: "アイコンを選ぼう",
     body: "チームのみんなに表示されるよ。\nあとで設定から変えられます。",
     primaryLabel: "つぎへ",
     showSkip: false,
-    illustration: require("../../../assets/onboarding/teamnap-01.png"),
   },
   {
     key: "sleep-rhythm",
-    bubble: "いつも何時に\n寝てるにゃ？",
+    background: require("../../../assets/onboarding/scenes/bg-sleep.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-sleep.png"),
+    illustrationHeight: 470,
+    catX: 41,
+    catY: 226,
+    catSize: 320,
+    // Figma では猫が Content の最後（＝シートより手前）に置かれている。
+    catAboveSheet: true,
+    bubble: {
+      text: "いつも何時に\n寝てるにゃ？",
+      x: 50,
+      y: 219,
+      width: 106,
+      rotate: 2,
+      tailLeft: 85,
+      tailTop: 52,
+    },
     title: "あなたの睡眠リズムを\n教えてください",
     body: "夜の睡眠を邪魔しないように、\nいつ寝ているか教えてね。",
     primaryLabel: "つぎへ",
-    // Required — the sleep times must be set/confirmed before continuing.
-    showSkip: false,
-    illustration: require("../../../assets/onboarding/teamnap-02.png"),
+    showSkip: true,
   },
   {
     key: "calendar",
-    bubble: "14:30、\nみんな空いてる！",
+    background: require("../../../assets/onboarding/scenes/bg-calendar.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-calendar.png"),
+    illustrationHeight: 551,
+    catX: 36,
+    catY: 261,
+    catSize: 330,
+    bubble: {
+      text: "14:30、\nみんな空いてる！",
+      x: 31,
+      y: 250,
+      width: 132,
+      rotate: 2,
+      tailLeft: 109,
+      tailTop: 53,
+    },
     title: "チームの“休める瞬間”を\n探そう！",
     body: "カレンダーを連携すると、\nみんなが休める時間を見つけられます。",
     primaryLabel: "カレンダーを連携する",
+    primaryIcon: <CalendarIcon size={24} color={colors.white} />,
     showSkip: true,
-    illustration: require("../../../assets/onboarding/teamnap-04.png"),
   },
   {
     key: "notification",
-    bubble: "そろそろ\n休憩の時間だよ",
+    background: require("../../../assets/onboarding/scenes/bg-notification.png"),
+    cat: require("../../../assets/onboarding/scenes/cat-notification.png"),
+    illustrationHeight: 585,
+    catX: 36,
+    catY: 255,
+    catSize: 330,
+    bubble: {
+      text: "そろそろ\n休憩の時間だよ",
+      x: 242,
+      y: 232,
+      width: 119,
+      rotate: -2,
+      tailLeft: 10,
+      tailTop: 52,
+    },
     title: "通知をオンにしよう！",
     body: "仮眠が終わる時間や\nチームからの仮眠提案をお知らせします。",
     primaryLabel: "通知をオンにする",
+    primaryIcon: <BellIcon size={24} color={colors.white} />,
     showSkip: true,
-    illustration: require("../../../assets/onboarding/teamnap-03.png"),
   },
 ];
 
+/** "07時30分" → "07:30"（API へ渡す形式）。 */
+function toClock(label: string): string {
+  return label.replace("時", ":").replace("分", "");
+}
+
+// 起床時間・就寝時間の選択肢。
+// TODO: components に共通のピッカー部品があれば、そちらに差し替える。
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   const hour = String(Math.floor(i / 2)).padStart(2, "0");
   const minute = i % 2 === 0 ? "00" : "30";
@@ -113,26 +214,35 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { status, refresh } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
-  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [wakeTime, setWakeTime] = useState("07時30分");
   const [sleepTime, setSleepTime] = useState("23時30分");
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [calendarPromptOpen, setCalendarPromptOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
+  // 実際に描画された枠を onLayout で測る。Dimensions.get('window') は Web で
+  // 実際の表示サイズとズレることがあるため、必ずこちらを正とする。
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
-  // Onboarding runs *after* sign-up — it needs a session to save.
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (
+      width > 0 &&
+      height > 0 &&
+      (width !== size.width || height !== size.height)
+    ) {
+      setSize({ width, height });
+    }
+  };
+
+  // オンボーディングはサインアップ後に走る。保存にはセッションが必要。
   useEffect(() => {
     if (status === "signedOut") router.replace("/signup");
   }, [status, router]);
-
-  const handleLayout = (e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    if (w > 0 && w !== containerWidth) setContainerWidth(w);
-  };
 
   const finishOnboarding = async () => {
     if (finishing) return;
@@ -159,12 +269,18 @@ export default function OnboardingScreen() {
       void finishOnboarding();
       return;
     }
-    scrollRef.current?.scrollTo({ x: nextIndex * containerWidth, animated: true });
+    scrollRef.current?.scrollTo({ x: nextIndex * size.width, animated: true });
     setIndex(nextIndex);
   };
 
-  const handlePrimaryPress = () => {
-    const slide = SLIDES[index];
+  const handleMomentumScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (size.width === 0) return;
+    setIndex(Math.round(e.nativeEvent.contentOffset.x / size.width));
+  };
+
+  const handlePrimaryPress = (slide: Slide) => {
     if (slide.key === "calendar") {
       setCalendarPromptOpen(true);
       return;
@@ -175,22 +291,21 @@ export default function OnboardingScreen() {
     goToIndex(index + 1);
   };
 
+  // Figma(402x874) → 実寸のスケール。大きさ・余白はすべてこれを掛ける。
+  const s = size.width / FRAME_W;
+  const px = (v: number) => v * s;
+
+  // セッション確定前は待つ（サインアウト時は上の useEffect が /signup へ送る）。
   if (status !== "signedIn") {
     return (
-      <View style={[styles.root, styles.centered]}>
-        <OnboardingBackdrop />
+      <View style={[styles.container, styles.centered]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
-  const slide = SLIDES[index];
-  const isLast = index === SLIDES.length - 1;
-
   return (
-    <View style={styles.root} onLayout={handleLayout}>
-      <OnboardingBackdrop />
-
+    <View style={styles.container} onLayout={handleLayout}>
       <ConfirmDialog
         visible={calendarPromptOpen}
         title="カレンダーを連携しますか？"
@@ -208,112 +323,243 @@ export default function OnboardingScreen() {
         }}
       />
 
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        {/* Illustration area (paged) */}
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={false}
-          style={styles.pager}
-        >
-          {containerWidth === 0
-            ? null
-            : SLIDES.map((s) => (
-                <View
-                  key={s.key}
-                  style={[styles.page, { width: containerWidth }]}
-                >
-                  {/* Central backdrop — soft mint glow + thin ring + a
-                      few scattered dots (Figma "Backdrop / glow|ring"). */}
-                  <View style={styles.centerpiece}>
-                    <View style={styles.glow} />
-                    <View style={styles.ring} />
-                    <View style={[styles.bgDot, styles.bgDotA]} />
-                    <View style={[styles.bgDot, styles.bgDotB]} />
-                    <View style={[styles.bgDot, styles.bgDotC]} />
-                    <Image
-                      source={s.illustration}
-                      style={styles.illustrationImage}
-                      resizeMode="contain"
-                    />
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        style={styles.scroll}
+      >
+        {size.width === 0
+          ? null
+          : SLIDES.map((slide, slideIndex) => {
+              const illustrationHeight =
+                size.height * (slide.illustrationHeight / FRAME_H);
+              const sheetHeight = size.height - illustrationHeight;
+              // 猫がイラスト下端（＝シート上端）からどれだけはみ出すか。
+              const catOverhang =
+                slide.catY + slide.catSize - slide.illustrationHeight;
+              const bubbleBottom =
+                slide.illustrationHeight - (slide.bubble.y + 60);
+
+              const cat = (
+                <Image
+                  source={slide.cat}
+                  style={{
+                    position: "absolute",
+                    left: px(slide.catX),
+                    width: px(slide.catSize),
+                    height: px(slide.catSize),
+                    bottom: slide.catAboveSheet
+                      ? sheetHeight - px(catOverhang)
+                      : -px(catOverhang),
+                  }}
+                  resizeMode="contain"
+                  accessible={false}
+                />
+              );
+
+              return (
+                <View key={slide.key} style={{ width: size.width, flex: 1 }}>
+                  <Image
+                    source={slide.background}
+                    style={styles.background}
+                    resizeMode="cover"
+                    accessible={false}
+                  />
+
+                  {/* イラスト領域 — 高さは Figma の比率で固定 */}
+                  <View
+                    style={[styles.illustration, { height: illustrationHeight }]}
+                    pointerEvents="none"
+                  >
+                    {slide.catAboveSheet ? null : cat}
+
+                    <View
+                      style={{
+                        position: "absolute",
+                        left: px(slide.bubble.x),
+                        bottom: px(bubbleBottom),
+                        width: px(slide.bubble.width),
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.bubbleTail,
+                          {
+                            left: px(slide.bubble.tailLeft),
+                            top: px(slide.bubble.tailTop),
+                            width: px(12),
+                            height: px(12),
+                            borderRadius: px(2),
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.bubble,
+                          {
+                            height: px(60),
+                            borderRadius: px(16),
+                            paddingLeft: px(13),
+                            paddingTop: px(8),
+                            transform: [
+                              { rotate: `${slide.bubble.rotate}deg` },
+                            ],
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.bubbleText,
+                            { fontSize: px(13), lineHeight: px(21) },
+                          ]}
+                        >
+                          {slide.bubble.text}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.bubble}>
-                    <Text style={styles.bubbleText}>{s.bubble}</Text>
-                    <View style={styles.bubbleTail} />
+
+                  {/* ボトムシート */}
+                  <View
+                    style={[
+                      styles.sheet,
+                      {
+                        gap: px(16),
+                        paddingHorizontal: px(24),
+                        paddingTop: px(32),
+                        paddingBottom: px(32) + insets.bottom,
+                        borderTopLeftRadius: px(32),
+                        borderTopRightRadius: px(32),
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.title,
+                        { fontSize: px(24), lineHeight: px(34) },
+                      ]}
+                    >
+                      {slide.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.body,
+                        { fontSize: px(14), lineHeight: px(24) },
+                      ]}
+                    >
+                      {slide.body}
+                    </Text>
+                    {slide.lead ? (
+                      <Text
+                        style={[
+                          styles.lead,
+                          { fontSize: px(16), lineHeight: px(27) },
+                        ]}
+                      >
+                        {slide.lead}
+                      </Text>
+                    ) : null}
+
+                    {slide.key === "avatar" ? (
+                      <View style={styles.avatarPickerRow}>
+                        <AvatarPicker
+                          selected={avatarId}
+                          onSelect={setAvatarId}
+                          disabled={finishing}
+                        />
+                      </View>
+                    ) : null}
+
+                    {slide.key === "sleep-rhythm" ? (
+                      <View style={[styles.timeRow, { gap: px(16) }]}>
+                        <TimeField
+                          label="起床時間"
+                          value={wakeTime}
+                          options={TIME_OPTIONS}
+                          onChange={setWakeTime}
+                          px={px}
+                        />
+                        <TimeField
+                          label="就寝時間"
+                          value={sleepTime}
+                          options={TIME_OPTIONS}
+                          onChange={setSleepTime}
+                          px={px}
+                        />
+                      </View>
+                    ) : null}
+
+                    <View style={[styles.actions, { gap: px(16) }]}>
+                      <View style={[styles.dots, { gap: px(8) }]}>
+                        {SLIDES.map((dotSlide, i) => (
+                          <View
+                            key={dotSlide.key}
+                            style={[
+                              styles.dot,
+                              {
+                                width: px(8),
+                                height: px(8),
+                                borderRadius: px(4),
+                              },
+                              i === slideIndex && styles.dotActive,
+                            ]}
+                          />
+                        ))}
+                      </View>
+
+                      <PillButton
+                        variant="primary"
+                        label={
+                          slideIndex === SLIDES.length - 1
+                            ? "はじめる"
+                            : slide.primaryLabel
+                        }
+                        onPress={() => handlePrimaryPress(slide)}
+                        icon={slide.primaryIcon}
+                        elevated={false}
+                        loading={finishing}
+                        disabled={finishing}
+                        style={{ ...styles.primaryButton, minHeight: px(47) }}
+                        textStyle={{ fontSize: px(16), lineHeight: px(27) }}
+                      />
+                    </View>
+
+                    {finishError ? (
+                      <Text
+                        style={[
+                          styles.skipText,
+                          { color: colors.error, fontSize: px(13) },
+                        ]}
+                      >
+                        {finishError}
+                      </Text>
+                    ) : slide.showSkip ? (
+                      <Pressable
+                        onPress={() => goToIndex(index + 1)}
+                        hitSlop={8}
+                        disabled={finishing}
+                      >
+                        <Text
+                          style={[
+                            styles.skipText,
+                            { fontSize: px(14), lineHeight: px(24) },
+                          ]}
+                        >
+                          あとで設定する
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
+
+                  {slide.catAboveSheet ? cat : null}
                 </View>
-              ))}
-        </ScrollView>
-      </SafeAreaView>
-
-      {/* Bottom card — content follows the current slide */}
-      <SafeAreaView edges={["bottom"]} style={styles.cardSafe}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{slide.title}</Text>
-          <Text style={styles.body}>{slide.body}</Text>
-
-          {slide.key === "avatar" ? (
-            <View style={styles.avatarPickerRow}>
-              <AvatarPicker
-                selected={avatarId}
-                onSelect={setAvatarId}
-                disabled={finishing}
-              />
-            </View>
-          ) : null}
-
-          {slide.key === "sleep-rhythm" ? (
-            <View style={styles.timeRow}>
-              <TimeField
-                label="起床時間"
-                value={wakeTime}
-                options={TIME_OPTIONS}
-                onChange={setWakeTime}
-              />
-              <TimeField
-                label="就寝時間"
-                value={sleepTime}
-                options={TIME_OPTIONS}
-                onChange={setSleepTime}
-              />
-            </View>
-          ) : null}
-
-          <View style={styles.dots}>
-            {SLIDES.map((s, i) => (
-              <View
-                key={s.key}
-                style={[styles.dot, i === index && styles.dotActive]}
-              />
-            ))}
-          </View>
-
-          <PillButton
-            label={isLast ? "はじめる" : slide.primaryLabel}
-            onPress={handlePrimaryPress}
-            variant="primary"
-            elevated={false}
-            loading={finishing}
-            disabled={finishing}
-          />
-
-          {finishError ? (
-            <Text style={styles.errorText}>{finishError}</Text>
-          ) : slide.showSkip ? (
-            <Pressable
-              onPress={() => goToIndex(index + 1)}
-              hitSlop={8}
-              disabled={finishing}
-            >
-              <Text style={styles.skipText}>あとで設定する</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.skipPlaceholder} />
-          )}
-        </View>
-      </SafeAreaView>
+              );
+            })}
+      </ScrollView>
     </View>
   );
 }
@@ -323,19 +569,40 @@ type TimeFieldProps = {
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  px: (v: number) => number;
 };
 
-function TimeField({ label, value, options, onChange }: TimeFieldProps) {
+// 簡易的な時刻選択。選択肢を順送りするだけの自己完結コンポーネント。
+// TODO: チーム共通のピッカー部品が見つかったら差し替える。
+function TimeField({ label, value, options, onChange, px }: TimeFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <View style={styles.timeField}>
-      <Text style={styles.timeLabel}>{label}</Text>
+    <View style={[styles.timeField, { gap: px(4) }]}>
+      <Text
+        style={[styles.timeLabel, { fontSize: px(14), lineHeight: px(24) }]}
+      >
+        {label}
+      </Text>
       <Pressable
-        style={styles.timeInput}
+        style={[
+          styles.timeInput,
+          {
+            borderRadius: px(4),
+            paddingHorizontal: px(8),
+            paddingVertical: px(4),
+          },
+        ]}
         onPress={() => setIsOpen((prev) => !prev)}
       >
-        <Text style={styles.timeValue}>{value}</Text>
+        <Text
+          style={[styles.timeValue, { fontSize: px(16), lineHeight: px(27) }]}
+        >
+          {value}
+        </Text>
+        <CaretDownIcon size={px(24)} />
       </Pressable>
+
       {isOpen ? (
         <View style={styles.timeDropdown}>
           <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
@@ -366,141 +633,73 @@ function TimeField({ label, value, options, onChange }: TimeFieldProps) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
   centered: {
     alignItems: "center",
     justifyContent: "center",
   },
-  safeArea: {
+  container: {
+    flex: 1,
+    backgroundColor: colors.surface,
+  },
+  scroll: {
     flex: 1,
   },
-  pager: {
-    flex: 1,
-  },
-  page: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 24,
-  },
-  centerpiece: {
-    width: 300,
-    height: 300,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  glow: {
+  background: {
     position: "absolute",
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: "#DDF1EF",
-    opacity: 0.7,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
   },
-  ring: {
-    position: "absolute",
-    width: 232,
-    height: 232,
-    borderRadius: 116,
-    borderWidth: 1.5,
-    borderColor: "rgba(0,156,160,0.18)",
-  },
-  bgDot: {
-    position: "absolute",
-    borderRadius: 999,
-    backgroundColor: "rgba(0,156,160,0.22)",
-  },
-  bgDotA: {
-    width: 12,
-    height: 12,
-    top: 8,
-    right: 40,
-  },
-  bgDotB: {
-    width: 7,
-    height: 7,
-    top: 64,
-    left: 22,
-  },
-  bgDotC: {
-    width: 9,
-    height: 9,
-    bottom: 40,
-    right: 24,
-  },
-  illustrationImage: {
-    width: 200,
-    height: 200,
+  illustration: {
+    width: "100%",
   },
   bubble: {
-    position: "absolute",
-    top: 56,
-    right: 24,
-    maxWidth: 150,
-    backgroundColor: colors.white,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#C4EAE9",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    transform: [{ rotate: "-2deg" }],
+    borderColor: "#C4EAE9", // Figma Bubble の枠線
     shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 3,
   },
   bubbleTail: {
     position: "absolute",
-    left: 20,
-    bottom: -6,
-    width: 12,
-    height: 12,
-    backgroundColor: colors.white,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#C4EAE9",
+    backgroundColor: colors.surface,
     transform: [{ rotate: "45deg" }],
   },
   bubbleText: {
-    fontSize: 13,
-    lineHeight: 21,
     fontWeight: "700",
     color: colors.textPrimary,
   },
-  cardSafe: {
-    backgroundColor: colors.surface,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 20,
-    gap: 12,
+  sheet: {
+    width: "100%",
+    // イラストの残りをすべて占める（Figma のシートは画面下端まで伸びる）。
+    flexGrow: 1,
+    flexShrink: 0,
     alignItems: "center",
-    shadowColor: "#12292C",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 12,
+    backgroundColor: colors.surface,
   },
   title: {
-    fontSize: 22,
+    width: "100%",
     fontWeight: "700",
     color: colors.textBrand,
     textAlign: "center",
-    lineHeight: 30,
   },
   body: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    width: "100%",
+    fontWeight: "500",
+    color: colors.textTertiary,
     textAlign: "center",
-    lineHeight: 21,
+  },
+  lead: {
+    width: "100%",
+    fontWeight: "700",
+    color: colors.textBrand,
+    textAlign: "center",
   },
   avatarPickerRow: {
     marginTop: 8,
@@ -508,44 +707,41 @@ const styles = StyleSheet.create({
   },
   timeRow: {
     flexDirection: "row",
-    gap: 16,
-    marginTop: 4,
-    alignSelf: "stretch",
+    alignItems: "flex-start",
+    width: "100%",
   },
   timeField: {
     flex: 1,
   },
   timeLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 6,
+    width: "100%",
+    fontWeight: "700",
+    color: colors.textPrimary,
   },
   timeInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderColor: colors.borderStrong,
     backgroundColor: colors.surface,
   },
   timeValue: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    textAlign: "center",
+    color: colors.textTertiary,
   },
   timeDropdown: {
     position: "absolute",
-    bottom: 52,
+    top: 64,
     left: 0,
     right: 0,
     maxHeight: 180,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: 12,
     backgroundColor: colors.surface,
     zIndex: 10,
     elevation: 6,
-    shadowColor: "#000",
+    shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -566,31 +762,25 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "700",
   },
+  actions: {
+    width: "100%",
+    alignItems: "center",
+  },
   dots: {
     flexDirection: "row",
-    gap: 6,
-    marginTop: 4,
+    alignItems: "center",
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.borderStrong,
+    backgroundColor: colors.borderDefault,
   },
   dotActive: {
     backgroundColor: colors.primary,
-    width: 16,
+  },
+  primaryButton: {
+    width: "100%",
   },
   skipText: {
-    fontSize: 13,
-    color: colors.textTertiary,
-  },
-  skipPlaceholder: {
-    height: 18,
-  },
-  errorText: {
-    fontSize: 12,
-    color: colors.error,
-    textAlign: "center",
+    fontWeight: "700",
+    color: colors.textBrand,
   },
 });
