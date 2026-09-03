@@ -20,6 +20,7 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
 | セーフエリア・スプラッシュ・スクロール境界 | ノッチ／ホームインジケータ実機依存 |
 | 実ネットワーク（LAN 断・機内モード） | `ConnectionErrorView` / `ApiError(0)` の挙動 |
 | ふりかえり画面の画像表示 | Metro キャッシュ問題の再現・切り分け |
+| 休息後の AI アドバイス（ふりかえり画面） | Ollama を上げれば LLM 生成文、無ければルールベース。どちらも表示される（§2 の起動モード次第）|
 
 ---
 
@@ -33,39 +34,83 @@ Team Nap を動かすための手順。チーム機能（ライブ在席・ナ�
   「Project is incompatible with this version of Expo Go」で起動できない（→ §7 / §7‑bis）。
 - カスタムネイティブモジュールは無いので、Expo Go さえ新しければ **全機能動く**。
   それでも合わない場合だけ development build（§7‑bis）。
-- AI コメントを実際に見たい場合のみ Ollama が要る。無くてもルールベース／定型文に
-  フォールバックするので機能テストは可能（[ai-development.md](./ai-development.md)）。
 
 ---
 
 ## 2. Backend を LAN に公開する
 
-### 2‑1. DB（と、必要なら Ollama）を起動
+### 2‑0. AI 機能はテストできるか
+
+| AI 機能 | 状態 | 実機での確認場所 |
+| --- | --- | --- |
+| 休息後のアドバイス | **統合済み**。`naps.service` → Ollama（`generateNapAdvice`）→ 失敗時ルールベース（`buildAdvice`） | 仮眠タイマー → 評価 → **ふりかえり画面**の「AIアドバイス」カード |
+| HOME の見出し／aiAdvice（チーム加入時） | **統合済み**。Ollama → 失敗時 定型文 | チームに入った状態でホーム上部 |
+| 休息提案（`/rest/decision`） | ルールエンジン（LLM ではない） | ホームの「そろそろ休息がおすすめです」カード |
+| 個人／チーム RESTコメント（`/ai/*-comment`） | 実装済みだが **通常 UI からは呼ばれない**（`(dev)/ai-test` 画面専用） | Expo Router で `/ai-test` を開く |
+
+**Ollama が無くても全部動く**（ルールベース／定型文にフォールバック）。
+**LLM が実際に生成した日本語**を見たいときだけ Ollama ＋ モデルが要る。
+どのモードで起動するかを次で選ぶ。
+
+### 2‑1. 起動モードを選ぶ
+
+| | モード A：ローカル Backend | モード B：フル `docker compose`（root） |
+| --- | --- | --- |
+| コマンド | `docker compose up -d db` ＋ `cd backend && npm run dev` | リポジトリ root で `docker compose up -d --build` |
+| Ollama | 含まれない（AI は常にフォールバック） | `ollama` ＋ `ollama-pull` も起動し、`OLLAMA_MODEL` を pull → **LLM 生成文が出る** |
+| 反復の速さ | 速い（ホットリロード） | 遅い（初回はモデル pull で数分〜。gemma3n:e2b は ~5GB／~8GB RAM 必要） |
+| seed | `npm run db:seed` を自分で実行 | `docker compose exec backend npm run db:seed` を自分で実行（自動では走らない） |
+
+どちらのモードでも **端末からの向き先は `http://<開発マシンの LAN IP>:3000/api/v1`**
+（compose は `3000:3000` をホストに公開するので同じ）。§3 以降は共通。
+
+> 迷ったら **モード A**。チーム機能・スワイプ・ふりかえり画面の導線はすべて
+> モード A で確認できる（AI 文はルールベースになる）。**AI の生成文そのもの**を
+> レビューするときだけモード B。
+
+### 2‑2A. モード A（ローカル Backend）
 
 ```bash
 # リポジトリ root
-docker compose up -d db          # AI も見るなら: docker compose up -d
-docker compose ps                # db が healthy であること
-```
+docker compose up -d db
+docker compose ps                          # db が healthy
 
-### 2‑2. Backend を起動（`0.0.0.0` で待ち受け）
-
-```bash
 cd backend
-cp backend/.env.example backend/.env      # まだ無ければ
-#   DATABASE_URL=postgresql://teamnap:teamnap_dev@localhost:5432/teamnap
+cp backend/.env.example backend/.env       # まだ無ければ
+#   DATABASE_URL=...@localhost:5432/teamnap
 #   HOST=0.0.0.0   ← 既定。LAN 公開に必須（localhost 固定にしない）
 npm install
 npm run db:migrate && npm run db:seed
 npm run dev
 ```
 
-起動ログに次が出れば OK：
+起動ログ：
 
 ```text
 Team Nap API running on http://0.0.0.0:3000
 Realtime WebSocket on ws://0.0.0.0:3000/api/v1/realtime
 ```
+
+### 2‑2B. モード B（フル compose、root から）
+
+```bash
+# リポジトリ root
+docker compose up -d --build               # backend / db / ollama / ollama-pull
+
+# モデル pull の完了を待つ（初回は数分〜）
+docker compose logs -f ollama-pull         # "success" が出たら Ctrl-C
+docker compose exec ollama ollama list     # モデルが並ぶこと
+
+# シードは自動では走らない
+docker compose exec backend npm run db:seed
+```
+
+- `backend` コンテナは `db` が healthy になれば起動する（`ollama-pull` は待たない）。
+  pull が終わるまで AI はフォールバック、終われば LLM 生成に切り替わる。
+- モデルが重くて起動しない環境では `OLLAMA_MODEL=gemma3:1b docker compose up -d`
+  のように軽いタグへ（日本語はやや不自然。詳細は
+  [ai-development.md](./ai-development.md)）。
+- `backend/.env` はモード B では使われない（compose が環境変数を直接渡す）。
 
 ### 2‑3. 開発マシンの LAN IP を調べる
 
@@ -207,10 +252,17 @@ npx expo start -c             # Metro キャッシュをクリア
 - スケジュール画面は**「予定」リストだけが縦スクロール**し、画面全体はスクロールしない。
 - ホーム／統計は縦スクロールしない。
 
-### 6‑7. ふりかえり画面
+### 6‑7. ふりかえり画面（休息後の AI アドバイス）
 
-- 仮眠タイマー → 評価 → ふりかえり：**AI アドバイス文＋猫のイラスト**が表示される。
-- 画像が出ない場合は Metro を **`npx expo start -c`** で再起動（キャッシュ）。
+1. ホーム／スケジュールから **仮眠する** → タイマー（15 分。動作確認は「終了」で短縮可）
+2. 評価画面で 目覚め／集中度 を入力 → 保存（`POST /naps`）
+3. **ふりかえり画面**：「AIアドバイス」カード＋猫のイラスト
+   - **モード A（Ollama なし）** → `nap-advice.service.ts` のルールベース文
+     （「適切な長さで、深く眠りすぎずに…」など、決まった組み合わせ）
+   - **モード B（Ollama あり・pull 済み）** → LLM 生成文（毎回少し違う自然な日本語）。
+     生成に時間がかかる（`OLLAMA_TIMEOUT_MS`、既定 30s）。超えたら A と同じ文に落ちる
+   - 履歴（統計 →「すべて見る」）の各行からも同じ画面を開き直せる（保存済みの文）
+- 猫の画像が出ない場合は Metro を **`npx expo start -c`** で再起動（キャッシュ）。
 
 ### 6‑8. オフライン
 
@@ -231,7 +283,8 @@ npx expo start -c             # Metro キャッシュをクリア
 | `EXPO_PUBLIC_API_URL is not configured` | `mobile/.env` 未作成、または Metro 未再起動 |
 | どうしても LAN 不可（社内 NW 等） | Metro は `npx expo start --tunnel`（`@expo/ngrok` の導入を促される）。**ただし tunnel が張るのは Metro だけ**。Backend は別途 `ngrok http 3000` か Tailscale で公開し、その URL を `EXPO_PUBLIC_API_URL=https://xxxx.ngrok.app/api/v1` に設定（WebSocket も `wss://` に自動変換） |
 | 認証必須ルートで 401 ばかり | ログインしていない。`/api/v1/{teams,notifications,onboarding,settings,...}` は Bearer 必須 |
-| チーム画面が空／`NAP-2001` で参加できない | `cd backend && npm run db:seed` を実行 |
+| チーム画面が空／`NAP-2001` で参加できない | seed 未実行。モード A: `cd backend && npm run db:seed`／モード B: `docker compose exec backend npm run db:seed` |
+| ふりかえりの AI 文がいつもルールベース（モード B のはず） | `docker compose exec ollama ollama list` にモデルが無い＝pull 未完了／失敗。`docker compose logs ollama-pull` を確認。重すぎる場合は `gemma3:1b` に切替 |
 
 ---
 
@@ -280,8 +333,9 @@ Android の development build は `eas build --profile development --platform an
 
 ## 8. テスト間のリセット
 
-- **サーバ側データ**：`cd backend && npm run db:seed`（冪等）。
-  完全初期化は `npm run db:reset`（DROP → migrate → seed）。
+- **サーバ側データ**（冪等）：
+  - モード A → `cd backend && npm run db:seed`（完全初期化は `npm run db:reset`）
+  - モード B → `docker compose exec backend npm run db:seed`
 - **通知フィードはサーバのインメモリ**。Backend を再起動すると
   ナッジ／仮眠提案／参加通知の結果が消える。通知を確認するテスト中は再起動しない。
 - **端末側**：各端末でログアウト。アイコン／アセットが古いときは `npx expo start -c`。
@@ -293,5 +347,9 @@ Android の development build は `eas build --profile development --platform an
 - **プッシュ通知なし**：通知はアプリを開いている間だけ表示される（バックグラウンド配信なし）。
 - **Google ログインなし**：「Google で〜」系ボタンは未対応。
 - **チームのサマリー／ランキングは固定ダミー**（実データではない）。
-- AI コメント：Ollama 未起動でも 200 を返す（ルールベース／定型文にフォールバック）。
-  実 AI 文を見るには Ollama ＋ 対応モデルが必要（[ai-development.md](./ai-development.md)）。
+- **AI**：統合済みで実機テスト可能。ただし
+  - 休息後アドバイス と HOME コメントは製品 UI に出る。個人／チーム RESTコメント
+    （`/ai/*-comment`）は `/ai-test` 画面からしか呼ばれない。
+  - Ollama 未起動（モード A）でも 200 を返す（ルールベース／定型文）。実 LLM 文は
+    モード B（フル compose ＋ モデル pull）で。詳細は
+    [ai-development.md](./ai-development.md)。
