@@ -60,7 +60,8 @@ Next Action:
 | llama.cpp + Gemma 3 1B | **Ollama**。既定モデル `gemma4:e2b`（日本語重視。~8GB/2CPU 必要。軽量にするなら `gemma3:1b`）。`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`（既定 60s）、`callGemma` は `keep_alive:"30m"`。`backend/src/services/ai.service.ts` に集約。`llm/` は `llm.md` ＋ `prompts/{personal,team}.txt` のみ |
 
 現行モデル一覧: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
-`NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` + enum `MemberActivity`。
+`NapRecord` / `CalendarEvent` / `Notification` / `Team` / `TeamMembership`
++ enum `MemberActivity`。（`Notification` は PR #52 で追加。マイグレーション 11 本）
 
 ---
 
@@ -74,41 +75,57 @@ Next Action:
   - app.json の `splash` を `expo-splash-screen` プラグインへ移設（PR #43）
   - `expo-font` を直接依存に追加（PR #43）
   - `expo` / `expo-router` / `expo-linking` / `expo-secure-store` / `expo-constants` を SDK 57 パッチ版へ（PR #46）
-- **AI（Ollama）が実際に生成する状態に**（PR #44 / #47、既定モデルは後日 `gemma4:e2b` へ）
-  - 既定モデルを `gemma4:e2b`（日本語重視・~8GB/2CPU）に。RAM が足りないホストは `OLLAMA_MODEL=gemma3:1b`
+- **AI（Ollama）が実際に生成する状態に**（PR #44 / #47 / #51）
+  - 既定モデルを `gemma4:e2b`（日本語重視・~8GB/2CPU、PR #51）に。RAM が足りないホストは `OLLAMA_MODEL=gemma3:1b`
   - `callGemma` に `keep_alive:"30m"`、`OLLAMA_TIMEOUT_MS`（既定 60s）を env 化
   - `/ai/personal-comment` `/ai/team-comment` も失敗時フォールバック（旧: 502）
   - `docker compose up` で end-to-end 検証済み（`ollama list` にモデル / `/ai/personal-comment` が生成文 / Home headline が canned と変わる / `POST /naps` の `aiAdvice` が Gemma 出力）
-- **ドキュメント**：`docs/architecture.md` 追加（PR #42）、README のリンク切れ・環境変数節を修正（PR #42）、`docs/device-testing.md` 追加（PR #45）、root `.env.example` を per-package へのポインタに（PR #42）
+- **チームの数値が実データに**（PR #50）
+  - `lib/rest-score.ts` に休息スコア式を集約。`services/team-nap-stats.service.ts` の
+    `aggregateTeamWeek()` / `teamWeek()` が週次 per-member 集計を提供
+  - `team.service` の `rankingSnapshot` / `teamSummarySnapshot`、`home.service` の
+    固定 `teamScore`、`stats.service.getTeamStats` のゼロ埋めをすべて `NapRecord` 由来に置換
+  - サンプルチームで `/teams/ranking` が実メンバー・実スコアを返すことを確認
+- **通知フィードを Postgres 永続化**（PR #52）
+  - `Notification` モデル + migration `20260903093642_notifications_feed`
+  - `notifications.service` は Prisma 化。`createdAt` から相対ラベル / today・earlier を都度導出
+  - welcome は初回読み込み時に lazy seed。ナッジ→再起動→`GET /notifications` に残ることを確認
+- **ドキュメント**：`docs/architecture.md` 追加（PR #42）、README のリンク切れ・環境変数節を修正（PR #42）、`docs/device-testing.md` 追加（PR #45）、`docs/setup.md` に「root で詰まる系」トラブルシュート + VPS デプロイ節を追記、root `.env.example` を per-package へのポインタに（PR #42）
 
 ### 残タスク（優先度つき）
 
-| 優先 | 項目 |
-| --- | --- |
-| P2 | CI が無い（PR ごとの backend `tsc`/`test`、mobile `tsc` を回す GitHub Actions） |
-| P2 | Backend セキュリティ：`cors()` 全開放・`helmet` なし・`/auth/login` に rate-limit なし |
-| P2 | チームサマリー / ランキング / チームスコアが固定ダミー（`team.service` / `home.service` の snapshot） |
-| P2 | 通知フィードがインメモリ（`notifications.service` の `Map`、再起動で消える） |
-| P2 | Push 通知なし（`expo-notifications` 未導入。アプリ起動中のみ通知が届く） |
-| P2 | チーム統計がゼロ埋め（`stats.service.getTeamStats`、per-member 集計なし） |
-| P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル） |
-| P3 | `napCutoffHour`（設定値）が `decideRestTiming` に未反映 |
-| P3 | root `LICENSE` が空 |
-| P3 | 既定 `gemma4:e2b` は ollama サービスに ~8GB RAM / 2CPU 必要。足りないホストは `OLLAMA_MODEL=gemma3:1b`（日本語はやや粗い）で運用 |
-
-### 追加で洗い出したタスク（本チェックオフで発見）
-
-| 優先 | 項目 | メモ |
+| 優先 | 項目 | 参照 |
 | --- | --- | --- |
-| P2 | メンバー詳細の「仮眠の状況 / あと◯分」カードが常に出ない | `member.service.getMemberDetail` の `nap` が常に `null`。ライブ仮眠セッションのモデルが無い |
-| P2 | 在席に本当の "offline" が無い | `MemberActivity` は `online`/`resting` のみ。`mapActivity` が全部 `working` に潰す。`lastSeenAt` を足して N 分無応答→offline |
-| P2 | チームの空きスロット交差計算が無い | `getNextFreeSlot` は「呼び出しユーザーの次の空き＋その枠に空いているメンバー数」まで。全員共通の空き時間＝自動チーム提案の前提 |
-| P3 | `(dev)/ai-test` 画面が本番バンドルに入る | `__DEV__` ガード、または production ビルドから除外 |
-| P3 | `sanitizeModelOutput` が接頭辞リークを除去しない | モデルが「【コメント】…」を付けることがある。`^【.*?】` を strip |
-| P3 | Home の AI がコールドモデルで最大 30 秒待つ | `GET /home/summary` が初回だけ遅い。呼び出し口ごとにタイムアウトを変える or 起動時ウォームアップ |
-| P3 | mobile 側のテストが無い | `mobile/` に test runner 未設定 |
-| P3 | WebSocket 在席が単一プロセス前提 | `realtime/hub.ts` の状態はメモリ。複数インスタンス／再起動で消える（現状 1 インスタンス運用なら可） |
-| P3 | `helmet` 導入時に CSP / HSTS を検討 | HTTPS 化とセットで |
+| P2 | **CI が無い** — PR ごとに backend `tsc`/`test`、mobile `tsc` を回す GitHub Actions | §22 |
+| P2 | **Backend セキュリティ** — `cors()` 全開放・`helmet` なし・`/auth/login` に rate-limit なし | §22 |
+| P2 | **Push 通知なし** — `expo-notifications` 未導入。アプリ起動中のみ通知が届く（フィード永続化は #52 で完了、次は push トークン登録 + サーバ送信） | §20 |
+| P2 | メンバー詳細の「仮眠の状況 / あと◯分」カードが常に `null` — ライブ仮眠セッションのモデルが無い（`member.service.getMemberDetail`） | 追加分 |
+| P2 | 在席に本当の "offline" が無い — `MemberActivity` は `online`/`resting` のみ。`lastSeenAt` を足して N 分無応答→offline | 追加分 |
+| P2 | チーム共通の空きスロット交差計算が無い — `getNextFreeSlot` は呼び出しユーザー基準まで。自動チーム提案の前提 | 追加分 |
+| P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル。`decideRestTiming` は動くが履歴なし） | §21 |
+| P3 | `napCutoffHour`（設定値）が `decideRestTiming` に未反映 | — |
+| P3 | root `LICENSE` が空（0 バイト） | §1 |
+| P3 | 既定 `gemma4:e2b` は ~8GB RAM / 2CPU 必要。足りないホストは `OLLAMA_MODEL=gemma3:1b`（日本語やや粗い） | 対応表 |
+| P3 | `(dev)/ai-test` 画面が本番バンドルに入る — `__DEV__` ガード or production 除外 | 追加分 |
+| P3 | `sanitizeModelOutput` が接頭辞リーク（「【コメント】…」）を除去しない — `^【.*?】` を strip | 追加分 |
+| P3 | Home の AI が **コールドモデルで最大 60 秒待つ** — `GET /home/summary` の初回のみ。`keep_alive:"30m"` で idle 復帰以外は軽減済み。残るは起動直後 / 再起動直後。呼び出し口ごとにタイムアウトを変える or 起動時ウォームアップ | 追加分 |
+| P3 | mobile 側のテストが無い（`mobile/` に test runner 未設定） | 追加分 |
+| P3 | WebSocket 在席が単一プロセス前提（`realtime/hub.ts` はメモリ。複数インスタンスで消える） | 追加分 |
+| P3 | `helmet` 導入時に CSP / HSTS を検討（HTTPS 化とセット） | 追加分 |
+| P3 | `ensureUser` / `DEV_USER_ID` フォールバックの削除（現行経路では未到達） | §22 |
+
+### 次に着手すべき3項目（優先順）
+
+1. **[P2] CI（GitHub Actions）** — `.github/workflows/ci.yml`。`backend/` で
+   `npm ci && npx tsc --noEmit && npm test`、`mobile/` で `npm ci && npx tsc --noEmit`。
+   PR 必須チェック化。検証: PR を出すと Actions が緑になる。
+2. **[P2] Backend セキュリティ最小セット** — `helmet()`、`cors()` を allowlist 化
+   （許可 origin を env 化）、`/auth/signup` `/auth/login`
+   `/auth/password-reset/request` に `express-rate-limit`。`backend/src/app.ts`。
+   検証: `curl` で許可外 origin が弾かれる / 連打で 429。
+3. **[P2] Expo Push 通知** — `PushToken` モデル + `POST /notifications/token`、
+   `addNotification` から Expo Push API へ送信、mobile は `expo-notifications` で
+   トークン登録 + 受信ハンドラ。検証: アプリ非起動でナッジ→端末に通知。
 
 ---
 
@@ -657,9 +674,9 @@ Component へ整理する（`mobile/src/components/` / `components/ui/`）。
 * [x] Wake / Rest ナッジ（`/teams/members/:id/{wake,rest}`）
 * [x] チーム仮眠提案（`/teams/nap-suggestion`。手動）
 * [x] メンバーの選択アイコン表示（全ロースターに `avatar` を通す。PR #40）
-* [ ] Team平均 / サマリー（**静的スナップショット** = 要 DB 化。P2）
-* [ ] Rest ranking（**静的ダミー**、実メンバーと無関係 = 要 DB 化。P2）
-* [ ] Team notification の永続化（現状インメモリ。P2）
+* [x] Team平均 / サマリー（`NapRecord` 由来。`teamWeek()`。PR #50）
+* [x] Rest ranking（実メンバーを週次休息スコア順。`getTeamRanking`。PR #50）
+* [x] Team notification の永続化（`Notification` モデル + migration。PR #52）
 
 ---
 
@@ -670,7 +687,7 @@ Component へ整理する（`mobile/src/components/` / `components/ui/`）。
 * [x] Weekly summary（今週 = 日曜〜土曜、`calendarWeek`）
 * [x] 今週のコンディション折れ線（未来の日はプロットしない。PR #36）
 * [ ] Recommendation acceptance（未実装 = RestRecommendation。P3）
-* [ ] チーム統計（**ゼロ埋め** = 要 per-member 集計。P2）
+* [x] チーム統計（`getTeamStats` = `teamWeek()` の per-member 集計。達成率 / 集中度 / 平均分 / 週次コンディション。PR #50）
 
 ---
 
@@ -685,7 +702,7 @@ Component へ整理する（`mobile/src/components/` / `components/ui/`）。
 * [ ] **CORS が `cors()` 全開放**（allowlist 未設定。P2）
 * [ ] **`helmet` なし / `/auth/login` に rate-limit なし**（P2）
 * [ ] `ensureUser` / `DEV_USER_ID` フォールバックの削除（現行経路では未到達。P3）
-* [ ] Production 時の HTTPS 対応予定を Document 化
+* [x] Production 時の HTTPS 対応を Document 化（`docs/setup.md` 「本番デプロイ（VPS）」— リバースプロキシ + TLS + WebSocket ヘッダ）
 
 ---
 
@@ -778,19 +795,20 @@ Verification:
 
 ```text
 [Infra] GitHub Actions CI（backend tsc/test + mobile tsc、PR 必須化）
-[Backend] チームサマリー / ランキング / チームスコアを NapRecord 由来の実データに
-[Backend] 通知フィードを Postgres に永続化（Notification モデル + migration）
 [Backend/Sec] helmet + CORS allowlist + /auth/login rate-limit
-[Mobile+Backend] Expo Push 通知（トークン登録 + サーバ送信）
+[Mobile+Backend] Expo Push 通知（PushToken モデル + トークン登録 + サーバ送信）
 [Backend] 在席に lastSeenAt を足して "offline" を導出（現状は全部「作業中」）
 [Backend] ライブ仮眠セッションのモデル → メンバー詳細の「あと◯分」カード
 [Backend] チームの空きスロット交差 → 自動チーム仮眠提案
+[Backend] RestRecommendation 永続化（提案履歴 + 受諾フラグ）
 [Mobile] (dev)/ai-test を __DEV__ ガード。mobile 側の test runner を導入
 [Mobile] 実機でスワイプ / ナビゲーション挙動を検証（expo-router パッチ更新後）
 ```
 
 > 済：expo-doctor 3 失敗（#43/#46）、Ollama モデル実在タグ + 全経路フォールバック
-> + end-to-end 検証（#44/#47）、`docs/architecture.md` / `docs/device-testing.md`（#42/#45）。
+> + end-to-end 検証（#44/#47）、既定モデル `gemma4:e2b`（#51）、チームサマリー /
+> ランキング / 統計 / スコアを `NapRecord` 由来に（#50）、通知フィードを Postgres
+> 永続化（#52）、`docs/architecture.md` / `docs/device-testing.md` / `docs/setup.md`（#42/#45）。
 
 ## E. 次に実施する3項目
 
