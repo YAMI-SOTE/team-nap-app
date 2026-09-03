@@ -30,6 +30,25 @@ model User {
   calendarEvents CalendarEvent[]
   notifications Notification[]
   napSession   NapSession?
+  pushTokens   PushToken[]
+}
+
+/// An Expo push token for one of the user's devices. Registered from the
+/// app after sign-in (`POST /notifications/token`) and used to deliver
+/// every `addNotification` as a push (`src/services/push.service.ts`).
+/// The token is globally unique; if it re-registers under a different
+/// user (device handed over) the row is reassigned. Tokens that Expo
+/// reports as `DeviceNotRegistered` are pruned on the next send.
+model PushToken {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// A nap the user has started but not yet finished — backs the

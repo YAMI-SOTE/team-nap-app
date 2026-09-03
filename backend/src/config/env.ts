@@ -27,6 +27,16 @@ const envSchema = z.object({
   // the first (cold) request, so keep this generous.
   OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
 
+  // Expo push. `EXPO_PUSH_URL` almost never changes. `EXPO_ACCESS_TOKEN`
+  // is optional — set it (from expo.dev → Account → Access tokens) to
+  // send with "Enhanced Security for Push Notifications" turned on;
+  // without it, unauthenticated sends still work.
+  EXPO_PUSH_URL: z
+    .string()
+    .url()
+    .default("https://exp.host/--/api/v2/push/send"),
+  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+
   // Postgres connection string for Prisma.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
