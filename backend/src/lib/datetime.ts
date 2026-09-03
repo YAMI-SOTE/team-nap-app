@@ -123,3 +123,38 @@ export function timeUntil(
     minutes: diffMinutes % 60,
   };
 }
+
+
+export type ZonedDateTime = {
+  date: string;
+  time: string;
+};
+
+/**
+ * Asia/Tokyo の現在日付・現在時刻を返す。
+ *
+ * 例:
+ * {
+ *   date: "2026-09-03",
+ *   time: "14:30"
+ * }
+ */
+export function jstNow(now: Date = new Date()): ZonedDateTime {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
+}
