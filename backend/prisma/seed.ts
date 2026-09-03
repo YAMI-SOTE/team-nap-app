@@ -17,12 +17,12 @@ const DEV_USER_ID =
 const DEV_PASSWORD = "teamnap-dev";
 
 const USERS = [
-  { id: DEV_USER_ID, email: "dev@teamnap.local", name: "あなた" },
-  { id: "10000000-0000-0000-0000-00000000000b", email: "b@teamnap.local", name: "佐藤" },
-  { id: "10000000-0000-0000-0000-00000000000c", email: "c@teamnap.local", name: "鈴木" },
-  { id: "10000000-0000-0000-0000-00000000000d", email: "d@teamnap.local", name: "高橋" },
-  { id: "10000000-0000-0000-0000-00000000000e", email: "e@teamnap.local", name: "田中" },
-  { id: "10000000-0000-0000-0000-00000000000f", email: "f@teamnap.local", name: "渡辺" },
+  { id: DEV_USER_ID, email: "dev@teamnap.local", name: "あなた", avatar: "cat" },
+  { id: "10000000-0000-0000-0000-00000000000b", email: "b@teamnap.local", name: "佐藤", avatar: "man" },
+  { id: "10000000-0000-0000-0000-00000000000c", email: "c@teamnap.local", name: "鈴木", avatar: "woman" },
+  { id: "10000000-0000-0000-0000-00000000000d", email: "d@teamnap.local", name: "高橋", avatar: "man" },
+  { id: "10000000-0000-0000-0000-00000000000e", email: "e@teamnap.local", name: "田中", avatar: "woman" },
+  { id: "10000000-0000-0000-0000-00000000000f", email: "f@teamnap.local", name: "渡辺", avatar: null },
 ];
 
 const MEMBERSHIPS = [
@@ -177,7 +177,7 @@ async function main() {
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { id: u.id },
-      update: { email: u.email, name: u.name, passwordHash },
+      update: { email: u.email, name: u.name, avatar: u.avatar, passwordHash },
       create: { ...u, passwordHash },
     });
   }

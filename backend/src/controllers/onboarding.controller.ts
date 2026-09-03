@@ -27,6 +27,7 @@ export async function completeOnboardingController(
     wakeTime: string;
     calendarConnected?: boolean;
     notificationsEnabled?: boolean;
+    avatar?: string | null;
   };
   res.status(200).json(await completeOnboarding(requireUserId(req), data));
 }

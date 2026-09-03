@@ -15,6 +15,9 @@ model User {
   id           String           @id @default(uuid())
   email        String           @unique
   name         String?
+  // Chosen avatar id ("cat" | "man" | "woman" — a placeholder set, see
+  // mobile/src/constants/avatars.ts). Null → initials fallback.
+  avatar       String?
   // scrypt hash ("scrypt$<saltHex>$<hashHex>"). Null for users created by
   // the seed / legacy `ensureUser` path or a future OAuth-only sign-in.
   passwordHash String?
