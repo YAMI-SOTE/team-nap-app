@@ -147,7 +147,7 @@
 
 **未対応**
 
-- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状は OAuth なしのサンプル取り込み）
+- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状は OAuth なしのサンプル取り込み。設計は [google-integration.md](./google-integration.md)）
 - [ ] 睡眠スケジュール: `napCutoffHour` はサーバー所有で編集 UI なし
 - [ ] アカウント: プロフィール写真
 - [ ] チーム名変更をオーナー限定にするか未決
