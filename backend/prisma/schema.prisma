@@ -27,6 +27,30 @@ model User {
   passwordResetTokens PasswordResetToken[]
   onboarding   Onboarding?
   naps         NapRecord[]
+  calendarEvents CalendarEvent[]
+}
+
+/// One entry in a user's schedule. Backs the スケジュール screen CRUD and
+/// feeds the free-time / nap-timing logic (src/services/schedule.service.ts).
+/// `source` distinguishes hand-added events ("manual") from ones pulled in
+/// by the Google Calendar sync ("google"); the latter carry a stable
+/// `externalId` and are replaced wholesale on every re-sync.
+model CalendarEvent {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  title      String   @default("")
+  date       String   // "YYYY-MM-DD" (local calendar day)
+  start      String   // "HH:MM"
+  end        String   // "HH:MM"
+  allDay     Boolean  @default(false)
+  source     String   @default("manual") // "manual" | "google"
+  externalId String?  // id from the source system; null for manual events
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, externalId])
+  @@index([userId, date])
 }
 
 /// A recorded nap. A user may record several on the same calendar date.
@@ -64,6 +88,8 @@ model Onboarding {
   napCutoffHour        Int       @default(15)
   calendarConnected    Boolean   @default(false)
   calendarDeviceConnected Boolean @default(false)
+  // When the Google Calendar events were last pulled in. Null = never / disconnected.
+  calendarLastSyncedAt DateTime?
   notificationsEnabled Boolean   @default(false)
   notifyNapSuggestion     Boolean @default(true)
   notifyNapEnd            Boolean @default(true)

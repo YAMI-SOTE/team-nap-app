@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 
 import { hashPassword } from "../src/lib/password.js";
 import { buildAdvice } from "../src/services/nap-advice.service.js";
+import { googleSampleEvents } from "../src/services/google-calendar-sample.js";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -172,6 +173,66 @@ async function seedSampleNaps() {
   return rows.length;
 }
 
+// ---------------------------------------------------------------------------
+// Sample schedule for サンプル 太郎 (sample@teamnap.app)
+//
+// A week of "imported from Google Calendar" events plus two hand-added
+// ones, so the スケジュール screen has data and the CRUD (edit / delete a
+// manual event, re-sync to refresh the Google ones) can be exercised.
+// The account is marked as having Google Calendar connected.
+// ---------------------------------------------------------------------------
+async function seedSampleSchedule() {
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+
+  const manual = [
+    {
+      title: "歯医者",
+      date: isoAddDays(monday, 1), // Tue
+      start: "18:30",
+      end: "19:15",
+      allDay: false,
+      source: "manual",
+      externalId: null,
+    },
+    {
+      title: "ジム",
+      date: isoAddDays(monday, 3), // Thu
+      start: "07:00",
+      end: "08:00",
+      allDay: false,
+      source: "manual",
+      externalId: null,
+    },
+  ];
+
+  const google = googleSampleEvents(monday).map((e) => ({
+    title: e.title,
+    date: e.date,
+    start: e.start,
+    end: e.end,
+    allDay: e.allDay,
+    source: "google",
+    externalId: e.externalId,
+  }));
+
+  await prisma.calendarEvent.deleteMany({
+    where: { userId: SAMPLE_NAP_USER_ID },
+  });
+  await prisma.calendarEvent.createMany({
+    data: [...google, ...manual].map((e) => ({
+      userId: SAMPLE_NAP_USER_ID,
+      ...e,
+    })),
+  });
+  await prisma.onboarding.update({
+    where: { userId: SAMPLE_NAP_USER_ID },
+    data: { calendarConnected: true, calendarLastSyncedAt: new Date() },
+  });
+
+  return google.length + manual.length;
+}
+
 async function main() {
   const passwordHash = await hashPassword(DEV_PASSWORD);
   for (const u of USERS) {
@@ -266,12 +327,16 @@ async function main() {
   }
 
   const sampleNapCount = await seedSampleNaps();
+  const sampleEventCount = await seedSampleSchedule();
 
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
   );
   console.log(
     `Seeded ${sampleNapCount} nap records for ${SAMPLE_MEMBERS[0].email} (this week + last week).`,
+  );
+  console.log(
+    `Seeded ${sampleEventCount} calendar events for ${SAMPLE_MEMBERS[0].email} (Google sample + manual; Google Calendar marked connected).`,
   );
   console.log(
     `Login: ${USERS[0].email} / ${DEV_PASSWORD} (same password for every seeded user).`,

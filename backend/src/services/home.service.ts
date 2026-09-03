@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
+import { jstNow, jstTodayLabel, timeUntil } from "../lib/datetime.js";
 import type { Member, MemberStatus } from "../types/domain.js";
 import {
   EMPTY_SNAPSHOT,
@@ -74,7 +74,10 @@ export async function getHomeSummary(
   const hasTeam = membership !== null;
 
   let nextFree: HomeSummaryResponse["nextFree"] = null;
-  const freeSlot = getNextFreeSlot();
+  const now = jstNow();
+  const freeSlot = hasTeam
+    ? await getNextFreeSlot(userId, now.date, now.time)
+    : null;
   if (hasTeam && freeSlot) {
     const untilStart = timeUntil(freeSlot.start, new Date());
     nextFree = {

@@ -42,7 +42,7 @@ export default function CalendarSettingsScreen() {
           />
 
           <Text style={styles.description}>
-            予定を読み取って、チームが休みやすい時間を見つけます。予定の内容は保存しません。
+            予定を取り込んで、チームが休みやすい時間を見つけます。取り込んだ予定はスケジュール画面で編集・削除できます。
           </Text>
 
           {/* Google カレンダー */}
