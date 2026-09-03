@@ -164,15 +164,21 @@ export type NextFreeSlot = {
 
 /**
  * The caller's next open window (≥ 15 min) on `dateISO` from `currentTime`.
- * When the caller is in a team, `availableMemberCount` counts how many
- * teammates are also free for the first 15 minutes of that window.
+ * Returns `null` when the caller has nothing scheduled that day — a wholly
+ * empty day is "no plans", not a gap between commitments, so neither the
+ * Home card nor the day view should surface a slot. When the caller is in
+ * a team, `availableMemberCount` counts how many teammates are also free
+ * for the first 15 minutes of that window.
  */
 export async function getNextFreeSlot(
   userId: string,
   dateISO: string,
   currentTime: string,
 ): Promise<NextFreeSlot | null> {
-  const mine = await getFreeTimesForDate(userId, dateISO, currentTime);
+  const myEvents = await listEventsForDate(userId, dateISO);
+  if (myEvents.length === 0) return null;
+
+  const mine = freeTimesFrom(myEvents, currentTime);
   if (mine.length === 0) return null;
 
   const slot = [...mine].sort(
