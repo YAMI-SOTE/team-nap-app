@@ -53,14 +53,48 @@ Next Action:
 | `RestRecommendation` モデル | 未実装（`rest-decision.service` はルールエンジンで存在するが履歴テーブルは無い） |
 | `TeamMember` モデル | `TeamMembership`（`@@unique([teamId, userId])` + `@@unique([userId])`） |
 | `/health` | `GET /api/v1/health` → `{ status, service: "team-nap-api", timestamp }` |
-| `docs/architecture.md` | `docs/settings-architecture.md`（設定まわり） / `docs/team-feature.md`（チーム機能設計） |
+| `docs/architecture.md` | **存在する**（PR #42 で追加。全体構成 + 詳細ドキュメントへの索引） |
 | `docs/api.md` | `docs/auth.md`（認証・オンボーディング API） |
 | `docs/database.md` | `docs/db.md` |
 | `docs/use-case.md` | 相当は `docs/testing-guide.md`（手動検証手順） |
-| llama.cpp + Gemma 3 1B | 現状は **Ollama**（既定モデル `gemma3n:e2b`、`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`、`backend/src/services/ai.service.ts`）。`llm/` は `llm.md` とプロンプト（`prompts/personal.txt` / `team.txt`）のみ |
+| llama.cpp + Gemma 3 1B | **Ollama**。既定モデル `gemma3:1b`（軽量。`gemma3n:e2b` は ~8GB 必要で任意）。`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`（既定 30s）、`callGemma` は `keep_alive:"30m"`。`backend/src/services/ai.service.ts` に集約。`llm/` は `llm.md` ＋ `prompts/{personal,team}.txt` のみ |
 
 現行モデル一覧: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
 `NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` + enum `MemberActivity`。
+
+---
+
+## 直近の対応状況（2026-09-03 時点）
+
+初回点検（PR #41）以降に片付いたもの／残っているもの。詳細は各 PR。
+
+### 解決済み
+
+- **expo-doctor 3 失敗 → 21/21 pass**
+  - app.json の `splash` を `expo-splash-screen` プラグインへ移設（PR #43）
+  - `expo-font` を直接依存に追加（PR #43）
+  - `expo` / `expo-router` / `expo-linking` / `expo-secure-store` / `expo-constants` を SDK 57 パッチ版へ（PR #46）
+- **AI（Ollama）が実際に生成する状態に**（PR #44 / #47）
+  - 既定モデルを実在・軽量タグ `gemma3:1b` に（`gemma4:e2b` は重すぎてタイムアウト固定だった）
+  - `callGemma` に `keep_alive:"30m"`、`OLLAMA_TIMEOUT_MS`（30s）を env 化
+  - `/ai/personal-comment` `/ai/team-comment` も失敗時フォールバック（旧: 502）
+  - `docker compose up` で end-to-end 検証済み（`ollama list` にモデル / `/ai/personal-comment` が生成文 / Home headline が canned と変わる / `POST /naps` の `aiAdvice` が Gemma 出力）
+- **ドキュメント**：`docs/architecture.md` 追加（PR #42）、README のリンク切れ・環境変数節を修正（PR #42）、`docs/device-testing.md` 追加（PR #45）、root `.env.example` を per-package へのポインタに（PR #42）
+
+### 残タスク（優先度つき）
+
+| 優先 | 項目 |
+| --- | --- |
+| P2 | CI が無い（PR ごとの backend `tsc`/`test`、mobile `tsc` を回す GitHub Actions） |
+| P2 | Backend セキュリティ：`cors()` 全開放・`helmet` なし・`/auth/login` に rate-limit なし |
+| P2 | チームサマリー / ランキング / チームスコアが固定ダミー（`team.service` / `home.service` の snapshot） |
+| P2 | 通知フィードがインメモリ（`notifications.service` の `Map`、再起動で消える） |
+| P2 | Push 通知なし（`expo-notifications` 未導入。アプリ起動中のみ通知が届く） |
+| P2 | チーム統計がゼロ埋め（`stats.service.getTeamStats`、per-member 集計なし） |
+| P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル） |
+| P3 | `napCutoffHour`（設定値）が `decideRestTiming` に未反映 |
+| P3 | root `LICENSE` が空 |
+| P3 | `gemma3:1b` は日本語がやや粗い（品質重視なら要 8GB/2CPU の `gemma3n:e2b`） |
 
 ---
 
@@ -133,9 +167,9 @@ dist が表示されない
 ## Dependency
 
 * [ ] `npm install` が成功する
-* [ ] `npx expo-doctor` が重大Errorなしで終了する
-* [ ] Expo packageのVersion mismatchがない
-* [ ] `npm audit fix --force` によるDependency破損がない
+* [x] `npx expo-doctor` → **21/21 pass**（PR #43 / #46 で 3 失敗を解消）
+* [x] Expo package の version mismatch なし（SDK 57 のパッチ版に整合）
+* [ ] `npm audit fix --force` によるDependency破損がない（実行しない前提）
 
 確認:
 
@@ -468,14 +502,15 @@ EXPO_PUBLIC_API_URL=http://<LOCAL_LAN_IP>:3000
 
 現状の実装を確認する（このリポジトリは **Ollama** ベース。llama.cpp 直叩きではない）。
 
-* [ ] `llm/` directoryが存在する（`llm.md` ＋ `prompts/`）
-* [ ] `backend/src/services/ai.service.ts` が LLM 呼び出しを集約している
-* [ ] `OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS` が env で定義されている
-* [x] モデルタグ（`config/env.ts` の既定 `gemma3n:e2b` = Gemma 3n E2B、実在タグ）
-* [x] AIタイムアウト（`callGemma` は `OLLAMA_TIMEOUT_MS`、既定 8s、env 調整可）
-* [x] AI失敗時のフォールバック（home / nap / personal / team すべて canned copy）
-* [ ] `.gguf` がGit管理されていない
-* [ ] MobileからLLMへ直接接続していない（必ず Backend 経由）
+* [x] `llm/` directoryが存在する（`llm.md` ＋ `prompts/{personal,team}.txt`）
+* [x] `backend/src/services/ai.service.ts` が LLM 呼び出しを集約（`callGemma`）
+* [x] `OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS` を env で定義（`config/env.ts`）
+* [x] モデルタグ：既定 `gemma3:1b`（実在・軽量）。`gemma3n:e2b` は任意（~8GB）
+* [x] AIタイムアウト：`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 30s、env 調整可）＋ `keep_alive:"30m"`
+* [x] AI失敗時のフォールバック：home / nap / personal / team すべて（rule-based / 定型文）
+* [x] **AI 生成の end-to-end 検証済み**（PR #47。`docker compose up` → `/ai/personal-comment` が生成文、Home headline が変わる、`POST /naps` の `aiAdvice` が Gemma 出力）
+* [x] `.gguf` がGit管理されていない（`.gitignore` に `*.gguf`）
+* [x] MobileからLLMへ直接接続していない（`services/api.ts` 経由で Backend のみ）
 
 想定:
 
@@ -490,18 +525,16 @@ Mobile → Backend → Ollama → Gemma
 現状: 休息判定は **ルールエンジン**（`rest-decision.service.ts` / `decideRestTiming`）。
 Gemma は判定文の言い換えのみ。以下を Remaining Task として棚卸しする。
 
-* [ ] `rest-recommendation.service.ts`（存在。実データ連携済み）
-* [ ] `ai.service.ts`（存在。Ollama 呼び出し）
-* [ ] Recommendation API（`POST /api/v1/rest/decision` 存在）
-* [ ] Input JSON Schema
-* [ ] Output JSON Schema
-* [ ] Zod Validation
-* [ ] Rule-based fallback（`decideRestTiming` 自体がルールベース）
-* [ ] AI Timeout handling
-* [ ] AI Error handling
-* [ ] Recommendation persistence（未実装 = RestRecommendation テーブル）
-* [ ] `napCutoffHour`（設定値）を `decideRestTiming` に反映
-* [ ] チームレベルの提案（`handleSuggestTeamNap` は現状 TODO）
+* [x] `rest-recommendation.service.ts`（存在。実データ連携済み）
+* [x] `ai.service.ts`（存在。Ollama 呼び出し）
+* [x] Recommendation API（`POST /api/v1/rest/decision`）
+* [x] Zod Validation（`schemas/ai.schema.ts` / rest は body なし）
+* [x] Rule-based fallback（`decideRestTiming` 自体がルールベース）
+* [x] AI Timeout / Error handling（`OLLAMA_TIMEOUT_MS` ＋ 全経路フォールバック）
+* [x] チームレベルの提案（Home「みんなを誘う」→ `NapProposalSheet` → `/teams/nap-suggestion`。手動・空きスロット非連動）
+* [ ] Recommendation persistence（未実装 = RestRecommendation テーブル。P3）
+* [ ] `napCutoffHour`（設定値）を `decideRestTiming` に反映（P3）
+* [ ] 空きスロット連動の**自動**チーム提案（現状は手動のみ）
 
 ---
 
@@ -509,14 +542,17 @@ Gemma は判定文の言い換えのみ。以下を Remaining Task として棚�
 
 `docs/` を確認する（実ファイル名）。
 
-* [ ] `docs/setup.md`
-* [ ] `docs/db.md`
-* [ ] `docs/auth.md`
-* [ ] `docs/team-feature.md`
-* [ ] `docs/settings-architecture.md`
-* [ ] `docs/testing-guide.md`
-* [ ] `docs/test-account.md`
-* [ ] `docs/ai-development.md`
+* [x] `docs/architecture.md`（PR #42 で追加。入口）
+* [x] `docs/setup.md`
+* [x] `docs/db.md`
+* [x] `docs/auth.md`
+* [x] `docs/team-feature.md`
+* [x] `docs/settings-architecture.md`
+* [x] `docs/testing-guide.md`
+* [x] `docs/device-testing.md`（PR #45 で追加。実機・複数アカウント）
+* [x] `docs/test-account.md`
+* [x] `docs/ai-development.md`
+* [x] `docs/implementation-checklist.md`（本ファイル）
 
 README確認:
 
@@ -600,46 +636,44 @@ Component へ整理する（`mobile/src/components/` / `components/ui/`）。
 
 # 20. Team Features
 
-* [ ] Team作成（`POST /teams`）
-* [ ] Team参加（`POST /teams/join`）
-* [ ] Member一覧（`/home/member-status` / `/settings/team`）
-* [ ] メンバーのライブ在席（WebSocket `/api/v1/realtime`）
-* [ ] メンバー管理（owner のみ、`DELETE /teams/members/:id`）
-* [ ] 招待リンク共有（deep link）
-* [ ] Wake / Rest ナッジ（`/teams/members/:id/{wake,rest}`）
-* [ ] チーム仮眠提案（`/teams/nap-suggestion`）
-* [ ] Team平均 / サマリー（現状は静的スナップショット = 要 DB 化）
-* [ ] Rest ranking（現状は静的ダミー = 要 DB 化）
-* [ ] Team notification（現状インメモリ = 要永続化）
-* [ ] メンバーの選択アイコン表示（全ロースター）
+* [x] Team作成（`POST /teams`）
+* [x] Team参加（`POST /teams/join`）
+* [x] Member一覧（`/home/member-status` / `/settings/team`）
+* [x] メンバーのライブ在席（WebSocket `/api/v1/realtime`）
+* [x] メンバー管理（owner のみ、`DELETE /teams/members/:id`）
+* [x] 招待リンク共有（deep link）
+* [x] Wake / Rest ナッジ（`/teams/members/:id/{wake,rest}`）
+* [x] チーム仮眠提案（`/teams/nap-suggestion`。手動）
+* [x] メンバーの選択アイコン表示（全ロースターに `avatar` を通す。PR #40）
+* [ ] Team平均 / サマリー（**静的スナップショット** = 要 DB 化。P2）
+* [ ] Rest ranking（**静的ダミー**、実メンバーと無関係 = 要 DB 化。P2）
+* [ ] Team notification の永続化（現状インメモリ。P2）
 
 ---
 
 # 21. Stats
 
-* [ ] Rest history（`/naps/history`）
-* [ ] Rest score（個人 = `NapRecord` 由来の実データ）
-* [ ] Daily summary
-* [ ] Weekly summary（今週 = 日曜〜土曜、`calendarWeek`）
-* [ ] 今週のコンディション折れ線（未来の日はプロットしない）
-* [ ] Recommendation acceptance（未実装 = RestRecommendation）
-* [ ] Personalization用Data
-* [ ] チーム統計（現状ゼロ埋め = 要 per-member 集計）
+* [x] Rest history（`/naps/history`）
+* [x] Rest score（個人 = `NapRecord` 由来の実データ）
+* [x] Weekly summary（今週 = 日曜〜土曜、`calendarWeek`）
+* [x] 今週のコンディション折れ線（未来の日はプロットしない。PR #36）
+* [ ] Recommendation acceptance（未実装 = RestRecommendation。P3）
+* [ ] チーム統計（**ゼロ埋め** = 要 per-member 集計。P2）
 
 ---
 
 # 22. Security / Configuration
 
-* [ ] `.env` がGit管理されていない
-* [ ] Password / SecretがSource CodeにHardcodeされていない
-* [ ] Backend Input Validation（zod）が全 mutating route にある
-* [ ] エラーメッセージが日本語で統一されている
-* [ ] DBへMobileから直接接続できない
-* [ ] LLMへMobileから直接接続できない
-* [ ] CORS設定を確認する（現状 `cors()` 全開放 = 要 allowlist）
-* [ ] `helmet` / rate-limit（`/auth/login` 等）を検討
-* [ ] `ensureUser` / `DEV_USER_ID` フォールバックの要否を確認（現行経路では未到達）
-* [ ] Production時のHTTPS対応予定をDocument化する
+* [x] `.env` がGit管理されていない（`.env.example` のみ commit）
+* [x] Password / SecretがSource CodeにHardcodeされていない（seed の dev 資格情報のみ）
+* [x] Backend Input Validation（zod）が全 mutating route にある
+* [x] エラーメッセージが日本語で統一されている（`HttpError` + zod）
+* [x] DBへMobileから直接接続できない（必ず `/api/v1` 経由）
+* [x] LLMへMobileから直接接続できない（`ai.service` 経由）
+* [ ] **CORS が `cors()` 全開放**（allowlist 未設定。P2）
+* [ ] **`helmet` なし / `/auth/login` に rate-limit なし**（P2）
+* [ ] `ensureUser` / `DEV_USER_ID` フォールバックの削除（現行経路では未到達。P3）
+* [ ] Production 時の HTTPS 対応予定を Document 化
 
 ---
 
@@ -731,13 +765,17 @@ Verification:
 例:
 
 ```text
-[Backend] チームサマリー / ランキングを NapRecord 由来の実データにする
-[Backend] 通知フィードを Postgres に永続化する
-[Backend] チーム仮眠提案を end-to-end で実装（空きスロット + overdue 判定 + fan-out）
-[AI] Ollama モデルタグを検証し personal/team comment にフォールバック追加
-[Infra] CORS allowlist + helmet + auth rate-limit + CI（tsc/test）
-[Mobile] 実機でのスワイプ / ナビゲーション挙動を検証
+[Infra] GitHub Actions CI（backend tsc/test + mobile tsc、PR 必須化）
+[Backend] チームサマリー / ランキング / チームスコアを NapRecord 由来の実データに
+[Backend] 通知フィードを Postgres に永続化（Notification モデル + migration）
+[Backend/Sec] helmet + CORS allowlist + /auth/login rate-limit
+[Mobile+Backend] Expo Push 通知（トークン登録 + サーバ送信）
+[Backend] チーム仮眠提案の自動化（空きスロット + overdue 判定 + fan-out）
+[Mobile] 実機でスワイプ / ナビゲーション挙動を検証（expo-router パッチ更新後）
 ```
+
+> 済：expo-doctor 3 失敗（#43/#46）、Ollama モデル実在タグ + 全経路フォールバック
+> + end-to-end 検証（#44/#47）、`docs/architecture.md` / `docs/device-testing.md`（#42/#45）。
 
 ## E. 次に実施する3項目
 
