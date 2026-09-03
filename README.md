@@ -257,7 +257,7 @@ docker compose down
 
 - [docs/setup.md](docs/setup.md)
 - [docs/testing-guide.md](docs/testing-guide.md) — 機能を手で確認する手順
-- [docs/test-account.md](docs/test-account.md) — テスト用アカウント（サンプルチーム）
+- [docs/test-account.md](docs/test-account.md) — テスト用アカウント（`*@teamnap.app` は `samplepass123` / `*@teamnap.local` は `teamnap-dev`。`npm run db:seed` で投入）
 - [docs/ai-development.md](docs/ai-development.md)
 - [docs/db.md](docs/db.md)
 - [docs/auth.ja.md](docs/auth.ja.md) — 認証・セッション・オンボーディング（バックエンド）
