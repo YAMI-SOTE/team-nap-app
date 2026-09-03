@@ -26,21 +26,22 @@ Team Napでは、以下のような機能の実装を予定しています。
 
 ```text
 Mobile App
-React Native + Expo
+React Native + Expo (expo-router)
         |
-        | REST API / JSON
+        | REST /api/v1/*  (Bearer)  +  WebSocket /api/v1/realtime
         v
 Backend API
-Node.js + Express + TypeScript
+Node.js + Express 5 + TypeScript
         |
         +-------------------+
         |                   |
         v                   v
-PostgreSQL             Ollama
-Prisma                 Gemma
+PostgreSQL 17         Ollama
+Prisma 7 + adapter-pg  Gemma（AI コメント生成）
 ```
 
 モバイルアプリからPostgreSQLやLLMへ直接アクセスせず、すべてBackend APIを経由します。
+全体像は [docs/architecture.md](docs/architecture.md) を参照。
 
 ---
 
@@ -67,11 +68,20 @@ team-nap-app/
 │
 ├── llm/                  # Ollama / Gemma関連（プロンプト等）
 │
-├── docs/                 # 設計資料
-│   ├── setup.md          # セットアップ手順
+├── docs/                 # 設計資料（入口: architecture.md）
+│   ├── architecture.md          # 全体構成の概要 + 各ドキュメントへの地図
+│   ├── setup.md                 # セットアップ手順・トラブルシュート
+│   ├── db.md                    # Prisma スキーマ / ER 図 / マイグレーション
+│   ├── auth.md                  # 認証・セッション・オンボーディング
+│   ├── team-feature.md          # チーム機能のバックエンド設計
+│   ├── settings-architecture.md # 設定タブの Screen ↔ API ↔ DB 対応
+│   ├── ai-development.md        # AI コメント機能（Ollama / Gemma）
+│   ├── testing-guide.md         # 機能ごとの手動確認手順
+│   ├── test-account.md          # シードのテストアカウント / パスワード
+│   └── implementation-checklist.md  # 実装点検チェックリスト
 │
-├── compose.yaml          # Docker Compose設定
-├── .env.example
+├── compose.yaml          # Docker Compose設定（backend / db / ollama）
+├── .env.example          # ※ルートに .env は無い。backend/ と mobile/ 参照
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -193,29 +203,42 @@ npm run dev
 
 # 環境変数
 
-`.env.example` をコピーして `.env` を作成してください。
+`.env` は **`backend/` と `mobile/` にそれぞれ** 置きます（ルートには置きません）。
+各ディレクトリの `.env.example` をコピーして作成してください。詳しい説明と
+実行環境別の値は [docs/setup.md](docs/setup.md) にあります。
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
+cp mobile/.env.example  mobile/.env
 ```
 
-例:
+## Backend（`backend/.env`）
+
+`backend/src/config/env.ts` が zod で検証します。`DATABASE_URL` は必須。
 
 ```env
-DB_PASSWORD=teamnap_dev
-```
+# ローカル実行（npm run dev、Postgres は docker compose up -d db）
+DATABASE_URL=postgresql://teamnap:teamnap_dev@localhost:5432/teamnap
+# Docker Compose 内では DB ホストは db:
+#   postgresql://teamnap:teamnap_dev@db:5432/teamnap
 
-Backend用の環境変数は以下のようになります（検証は `backend/src/config/env.ts`）。
-
-```env
-DATABASE_URL=postgresql://teamnap:teamnap_dev@db:5432/teamnap
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=gemma4:e2b
 PORT=3000
 HOST=0.0.0.0
+
+OLLAMA_URL=http://localhost:11434   # Compose 内では http://ollama:11434
+OLLAMA_MODEL=gemma4:e2b             # ※タグ要確認（AI が canned にフォールバックする場合はここ）
 ```
 
-`.env` はGitにcommitしないでください。
+## Mobile（`mobile/.env`）
+
+```env
+EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
+```
+
+実機で確認する場合は `localhost` を開発マシンの LAN IP に置き換えます。
+`.env` は Expo 起動時のみ読まれるため、変更後は Expo を再起動してください。
+
+`.env` はGitにcommitしないでください（各 `.env.example` のみ commit）。
 
 ---
 
@@ -255,14 +278,16 @@ docker compose down
 
 # Docs
 
-- [docs/setup.md](docs/setup.md)
+- [docs/architecture.md](docs/architecture.md) — 全体構成の概要と各ドキュメントへの地図（まずここ）
+- [docs/setup.md](docs/setup.md) — 環境構築・起動手順（Mobile / Backend / Docker）、トラブルシュート
+- [docs/db.md](docs/db.md) — Prisma スキーマ、ER 図、各テーブル、マイグレーション一覧
+- [docs/auth.md](docs/auth.md) — 認証・セッション・パスワード再設定・オンボーディング（バックエンド）
+- [docs/team-feature.md](docs/team-feature.md) — チーム機能のバックエンド実装（作成 / 参加 / 在席 / ナッジ / 提案 / WebSocket）
+- [docs/settings-architecture.md](docs/settings-architecture.md) — 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応
+- [docs/ai-development.md](docs/ai-development.md) — AI コメント機能（Ollama / Gemma）の構成と編集ポイント
 - [docs/testing-guide.md](docs/testing-guide.md) — 機能を手で確認する手順
 - [docs/test-account.md](docs/test-account.md) — テスト用アカウント（`*@teamnap.app` は `samplepass123` / `*@teamnap.local` は `teamnap-dev`。`npm run db:seed` で投入）
-- [docs/ai-development.md](docs/ai-development.md)
-- [docs/db.md](docs/db.md)
-- [docs/auth.ja.md](docs/auth.ja.md) — 認証・セッション・オンボーディング（バックエンド）
-- [docs/team-feature.ja.md](docs/team-feature.ja.md) — チーム機能のバックエンド実装
-- [docs/settings-architecture.md](docs/settings-architecture.md)
+- [docs/implementation-checklist.md](docs/implementation-checklist.md) — リポジトリ全体の実装点検チェックリスト
 
 ---
 
@@ -316,7 +341,7 @@ Compose / 本番では `npm start` が起動時に `prisma migrate deploy` を�
 現在のモデルは `User` / `Session` / `PasswordResetToken` / `Onboarding` /
 `NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` です（詳細は
 [docs/db.md](docs/db.md)、チーム機能のバックエンド設計は
-[docs/team-feature.ja.md](docs/team-feature.ja.md)）。
+[docs/team-feature.md](docs/team-feature.md)）。
 
 ---
 
@@ -446,28 +471,31 @@ Gemma
 
 MobileからLLMを直接呼び出さない構成とします。
 
-AIの入出力はJSON形式を基本とします。
+## 休息提案（ルールエンジン）
 
-例:
-
-```json
-{
-  "sleepHours": 5.5,
-  "minutesSinceLastRest": 120,
-  "nextFreeTimeMinutes": 30
-}
-```
-
-Response:
+`POST /api/v1/rest/decision` は body を取らず、その日の `NapRecord`・睡眠設定・
+現在時刻・空き時間から判定します（`src/services/rest-decision.service.ts` の
+`decideRestTiming`）。レスポンス例:
 
 ```json
 {
-  "recommended": true,
-  "type": "nap",
-  "durationMinutes": 15,
-  "reasonCode": "LOW_SLEEP"
+  "shouldRest": true,
+  "needScore": 2,
+  "recommendedMinutes": 15,
+  "recommendedStart": "14:40",
+  "recommendedEnd": "14:55",
+  "reasonCode": "REST_RECOMMENDED"
 }
 ```
+
+`reasonCode` は `REST_RECOMMENDED | RECENTLY_RESTED | NO_FREE_TIME | TOO_LATE
+| NO_REST_NEEDED`。
+
+## AIコメント生成（Ollama / Gemma）
+
+判定結果や統計を **短い日本語コメントに言い換える** だけを LLM が担当します
+（`src/services/ai.service.ts`）。入出力は JSON。Ollama 停止時は home / nap 系は
+定型文にフォールバックします（詳細は [docs/ai-development.md](docs/ai-development.md)）。
 
 ---
 
@@ -535,7 +563,7 @@ Backend starts
 PostgreSQL starts
 Prisma works
 Docker Compose works
-GET /health works
+GET /api/v1/health works
 ```
 
 その後、

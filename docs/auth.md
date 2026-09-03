@@ -1,7 +1,7 @@
 # 認証・セッション・オンボーディング（バックエンド）
 
 `feature/authentication-system` で入れた認証まわりの実装まとめ。
-Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./team-feature.ja.md)
+Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.md](./team-feature.md)
 
 ---
 

@@ -218,7 +218,7 @@ Compose / production apply migrations automatically (`npm start` runs
 `prisma migrate deploy`). See [../docs/db.md](../docs/db.md).
 
 The team feature's backend design is documented in
-[../docs/team-feature.ja.md](../docs/team-feature.ja.md).
+[../docs/team-feature.md](../docs/team-feature.md).
 
 ## Health check
 
