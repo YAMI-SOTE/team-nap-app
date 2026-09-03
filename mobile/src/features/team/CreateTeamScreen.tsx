@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useCreateTeam } from "@/hooks/useCreateTeam";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
@@ -34,7 +34,7 @@ export default function CreateTeamScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <KeyboardAvoidingView
           style={styles.flex}
@@ -81,6 +81,7 @@ export default function CreateTeamScreen() {
               elevated={false}
               loading={isSubmitting}
               onPress={handleSubmit}
+              style={styles.submitButton}
             />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -103,6 +104,8 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    // Figma: Content pt63 − ステータスバー 47 ＝ セーフエリア下 16px
+    paddingTop: 16,
     paddingBottom: 24,
     gap: 16,
   },
@@ -120,14 +123,12 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.textSecondary,
   },
+  // Figma "Note"（node 733:4991）は塗り無し・左右 14px の余白だけ
   note: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: colors.brandSubtle,
   },
   noteText: {
     flex: 1,
@@ -138,6 +139,9 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 13,
     color: colors.error,
+  },
+  submitButton: {
+    minHeight: 47,
   },
   spacer: {
     flex: 1,

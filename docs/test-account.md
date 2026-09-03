@@ -7,19 +7,30 @@
 
 ---
 
+## パスワード早見表
+
+| アカウント群 | パスワード | チーム / 招待コード |
+| --- | --- | --- |
+| `sample@teamnap.app` ほか `*@teamnap.app` 4 名 | `samplepass123` | サンプルチーム（`NAP-2001`） |
+| `dev@teamnap.local` ほか `*@teamnap.local` 6 名 | `teamnap-dev` | TEAM NAP 開発チーム（`NAP-4821`） |
+
+いずれも `npm run db:seed` で投入。全アカウント共通で、群ごとに 1 つのパスワードです。
+
+---
+
 ## サンプルチーム（複数メンバー・チーム機能テスト用）
 
 チーム **サンプルチーム**（招待コード `NAP-2001`）に 4 人。全員パスワード
-`samplepass123`、全員オンボーディング完了済み。別々の端末 / ブラウザで
+**`samplepass123`**、全員オンボーディング完了済み。別々の端末 / ブラウザで
 それぞれログインすれば、メンバー一覧・ステータス表示・**在席のライブ更新
 （WebSocket）**・メンバー管理・ナッジ・仮眠提案・ランキングを確認できます。
 
-| メール | 名前 | 役割 | 在席 (activity) | 起床サポート |
-| --- | --- | --- | --- | --- |
-| `sample@teamnap.app` | サンプル 太郎 | **owner** | online（作業中） | on |
-| `hanako@teamnap.app` | サンプル 花子 | member | resting（仮眠中） | on |
-| `jiro@teamnap.app` | サンプル 次郎 | member | online（作業中） | **off** ← wake ナッジは 409 |
-| `saburo@teamnap.app` | サンプル 三郎 | member | resting（仮眠中） | on |
+| メール | パスワード | 名前 | 役割 | 在席 (activity) | 起床サポート |
+| --- | --- | --- | --- | --- | --- |
+| `sample@teamnap.app` | `samplepass123` | サンプル 太郎 | **owner** | online（作業中） | on |
+| `hanako@teamnap.app` | `samplepass123` | サンプル 花子 | member | resting（仮眠中） | on |
+| `jiro@teamnap.app` | `samplepass123` | サンプル 次郎 | member | online（作業中） | **off** ← wake ナッジは 409 |
+| `saburo@teamnap.app` | `samplepass123` | サンプル 三郎 | member | resting（仮眠中） | on |
 
 太郎だけがオーナーなので、`設定 > チーム設定 > メンバーを管理` で他 3 人を
 削除できます（`testing-guide.md` 4b）。在席のライブ更新は 4a を参照。
@@ -31,11 +42,20 @@ curl -s -XPOST http://localhost:3000/api/v1/auth/login \
 # => { "token": "...", "user": { "id", "name", "email", "onboardingCompleted": true } }
 ```
 
-### 他のシードアカウント
+### 他のシードアカウント（`*@teamnap.local`）
 
-`dev@teamnap.local` ほか `*@teamnap.local` 6 名は共通パスワード `teamnap-dev`、
-チーム `TEAM NAP 開発チーム`（`NAP-4821`）。`dev@teamnap.local` はオンボーディング
-完了済み、他はオンボーディング行なし（初回ログインで質問画面へ誘導される確認用）。
+チーム `TEAM NAP 開発チーム`（招待コード `NAP-4821`）。全員パスワード
+**`teamnap-dev`**。`dev@teamnap.local` はオンボーディング完了済み、他の 5 名は
+オンボーディング行なし（初回ログインで質問画面へ誘導される確認用）。
+
+| メール | パスワード | 名前 | オンボーディング |
+| --- | --- | --- | --- |
+| `dev@teamnap.local` | `teamnap-dev` | あなた | 完了済み |
+| `b@teamnap.local` | `teamnap-dev` | 佐藤 | 未（質問画面へ） |
+| `c@teamnap.local` | `teamnap-dev` | 鈴木 | 未（質問画面へ） |
+| `d@teamnap.local` | `teamnap-dev` | 高橋 | 未（質問画面へ） |
+| `e@teamnap.local` | `teamnap-dev` | 田中 | 未（質問画面へ） |
+| `f@teamnap.local` | `teamnap-dev` | 渡辺 | 未（質問画面へ） |
 
 ---
 
@@ -93,11 +113,20 @@ curl -s -XPATCH http://localhost:3000/api/v1/auth/me \
 
 - スケジュール画面 → 「今日の予定はありません」の空状態
 - 統計（個人）→ 「まだ仮眠の記録がありません」の空状態、各数値は 0
-- 予定は「予定を追加」から手動で作成すると表示されます
+- 予定は「予定を追加」から手動で、または設定 > カレンダー連携の
+  「今すぐ同期」で Google のサンプル 1 週間分を取り込むと表示されます
 - 仮眠を記録すると統計・履歴・グラフに反映されます（`NapRecord` テーブル、
   すべて実データ由来）
 
-### `sample@teamnap.app`（サンプル 太郎）は仮眠履歴つき
+### `sample@teamnap.app`（サンプル 太郎）はスケジュール・仮眠履歴つき
+
+- スケジュール: Google カレンダー**連携済み**の状態で、当週 1 週間分の
+  サンプル予定（朝会・全体会議・研修（終日）など、`source: "google"`）＋
+  手入力 2 件（`歯医者` / `ジム`、`source: "manual"`）が入っています。
+  スケジュール画面で予定の追加・編集・削除、設定 > カレンダー連携で
+  「今すぐ同期」（Google 予定を洗い替え）／「連携を解除」（Google 予定を削除、
+  手入力は保持）を確認できます。`npm run db:seed` は毎回このアカウントの
+  `CalendarEvent` を作り直します。
 
 統計・履歴・グラフをすぐ確認できるよう、この 1 アカウントだけシードで
 **今週＋先週の仮眠記録**（合計 8 件前後、日付は実行時の週に合わせて生成）を
@@ -107,11 +136,14 @@ curl -s -XPATCH http://localhost:3000/api/v1/auth/me \
   コンディション」の折れ線（縦軸＝その日の仮眠スコア 0–100）、「先週より +N回」
   の差分、「最近の仮眠」の行
 - 仮眠履歴（統計 →「すべて見る」）→ 日付ごとに一覧、水曜など 1 日に 2 件ある日も
-- 各記録に `aiAdvice`（`buildAdvice()` で生成）が入っているので、行の矢印から
-  ふりかえり画面でアドバイスを読み返せます
-- `npm run db:seed` は再実行可能（このアカウントの `NapRecord` を毎回作り直します）
+- 各記録に `aiAdvice`（生成済み）が入っているので、行の矢印からふりかえり画面で
+  アドバイスを読み返せます
+- `npm run db:seed` は再実行可能（このアカウントの `NapRecord` / `CalendarEvent`
+  を毎回作り直します）
 
 他のサンプルメンバー（花子／次郎／三郎）や新規アカウントには仮眠記録は入りません。
+チームサマリー・ランキングも `NapRecord` 由来なので、サンプルチームで太郎だけが
+上位に出ます。
 
-`schedule.service` / `notifications.service` は引き続き全体共有のインメモリで
-サーバ再起動でリセットされます（`NapRecord` は Postgres に永続化）。
+すべてのデータ（`NapRecord` / `CalendarEvent` / 通知フィード / 設定）は Postgres
+に永続化され、サーバ再起動をまたいでも残ります。

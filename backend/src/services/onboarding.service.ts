@@ -88,16 +88,25 @@ export async function completeOnboarding(
     wakeTime: string;
     calendarConnected?: boolean;
     notificationsEnabled?: boolean;
+    /** Chosen avatar id — lives on `User`, not the onboarding row. */
+    avatar?: string | null;
   },
 ): Promise<OnboardingResponse> {
+  const { avatar, ...onboarding } = data;
+  if (avatar !== undefined) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatar || null },
+    });
+  }
   const existing = await prisma.onboarding.findUnique({ where: { userId } });
   const row = await prisma.onboarding.upsert({
     where: { userId },
     update: {
-      ...data,
+      ...onboarding,
       completedAt: existing?.completedAt ?? new Date(),
     },
-    create: { userId, ...data, completedAt: new Date() },
+    create: { userId, ...onboarding, completedAt: new Date() },
   });
   return toResponse(row);
 }

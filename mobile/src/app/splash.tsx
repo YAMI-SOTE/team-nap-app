@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Image, ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
-import { spacing } from "@/theme/spacing";
+import Logo from "@/components/Logo";
 import { useAuth } from "@/features/auth/AuthContext";
 
 /** Minimum time the splash is shown, so it doesn't flash on a fast restore. */
@@ -32,19 +32,9 @@ export default function SplashScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.content}>
-        <Image
-          source={require("../../assets/logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.catchphrase}>休むことも、チームの仕事に</Text>
-        <ActivityIndicator
-          size="large"
-          color={colors.white}
-          style={styles.spinner}
-        />
-      </SafeAreaView>
+      <StatusBar style="light" />
+      <Logo width={160} color={colors.white} />
+      <Text style={styles.catchphrase}>休むことも、チームの仕事に</Text>
     </View>
   );
 }
@@ -53,26 +43,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primary,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: spacing.md,
-  },
-  logo: {
-    width: 200,
-    height: 100,
-    marginBottom: spacing.lg,
+    justifyContent: "center",
+    gap: 24,
+    paddingHorizontal: 24,
   },
   catchphrase: {
-    fontSize: 18,
+    // Figma: Body/L-Bold — 16px / line-height 1.7 / weight 700
+    fontSize: 16,
+    lineHeight: 27,
+    fontWeight: "700",
     color: colors.white,
-    fontWeight: "600",
-    letterSpacing: 1.2,
     textAlign: "center",
-  },
-  spinner: {
-    marginTop: spacing.xxl,
   },
 });

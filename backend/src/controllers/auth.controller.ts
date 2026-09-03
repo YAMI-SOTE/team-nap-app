@@ -65,10 +65,14 @@ export async function meController(req: Request, res: Response) {
 }
 
 export async function updateProfileController(req: Request, res: Response) {
-  const { name, email } = req.body as { name?: string; email?: string };
-  res
-    .status(200)
-    .json({ user: await updateProfile(requireUserId(req), { name, email }) });
+  const { name, email, avatar } = req.body as {
+    name?: string;
+    email?: string;
+    avatar?: string | null;
+  };
+  res.status(200).json({
+    user: await updateProfile(requireUserId(req), { name, email, avatar }),
+  });
 }
 
 export async function deleteAccountController(req: Request, res: Response) {

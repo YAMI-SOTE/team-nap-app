@@ -7,20 +7,46 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../services/notifications.service.js";
+import {
+  registerPushToken,
+  unregisterPushToken,
+} from "../services/push.service.js";
 
-export function getNotificationsController(req: Request, res: Response) {
-  res.status(200).json(listNotifications(requireUserId(req)));
+export async function getNotificationsController(req: Request, res: Response) {
+  res.status(200).json(await listNotifications(requireUserId(req)));
 }
 
-export function markNotificationReadController(req: Request, res: Response) {
-  res
-    .status(200)
-    .json(markNotificationRead(requireUserId(req), firstParam(req, "id")));
-}
-
-export function markAllNotificationsReadController(
+export async function markNotificationReadController(
   req: Request,
   res: Response,
 ) {
-  res.status(200).json(markAllNotificationsRead(requireUserId(req)));
+  res
+    .status(200)
+    .json(await markNotificationRead(requireUserId(req), firstParam(req, "id")));
+}
+
+export async function markAllNotificationsReadController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await markAllNotificationsRead(requireUserId(req)));
+}
+
+/** Register / refresh this device's Expo push token. */
+export async function registerPushTokenController(req: Request, res: Response) {
+  await registerPushToken(
+    requireUserId(req),
+    req.body.token,
+    req.body.platform,
+  );
+  res.status(204).send();
+}
+
+/** Drop this device's Expo push token (sign-out / permission revoked). */
+export async function unregisterPushTokenController(
+  req: Request,
+  res: Response,
+) {
+  await unregisterPushToken(req.body.token);
+  res.status(204).send();
 }

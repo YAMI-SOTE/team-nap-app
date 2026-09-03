@@ -8,6 +8,8 @@ import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
 import { jstDateLabelFromISO } from "../lib/datetime.js";
 import { buildAdvice } from "./nap-advice.service.js";
+import { generateNapAdvice } from "./ai.service.js";
+import { endNapSession } from "./nap-session.service.js";
 
 export type NapEntry = {
   id: string;
@@ -93,16 +95,33 @@ export async function createNap(
   userId: string,
   input: NapInput,
 ): Promise<NapEntry> {
-  const aiAdvice = buildAdvice({
-    minutes: input.minutes,
-    wakeStars: input.wakeStars,
-    focusDeltaPt: input.focusDeltaPt,
-    start: input.start,
-  });
+  let aiAdvice: string;
+
+  try {
+    aiAdvice = await generateNapAdvice({
+      minutes: input.minutes,
+      wakeStars: input.wakeStars,
+      focusDeltaPt: input.focusDeltaPt,
+      start: input.start,
+    });
+  } catch (error) {
+    console.error("Nap AI generation failed:", error);
+
+    aiAdvice = buildAdvice({
+      minutes: input.minutes,
+      wakeStars: input.wakeStars,
+      focusDeltaPt: input.focusDeltaPt,
+      start: input.start,
+    });
+  }
 
   const row = await prisma.napRecord.create({
     data: { userId, ...input, aiAdvice },
   });
+
+  // The nap is over — clear any live session so the teammate card drops.
+  await endNapSession(userId);
+
   return toEntry(row);
 }
 

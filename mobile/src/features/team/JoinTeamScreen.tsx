@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useJoinTeam } from "@/hooks/useJoinTeam";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
 import PillButton from "@/components/PillButton";
 
@@ -37,7 +37,7 @@ export default function JoinTeamScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <KeyboardAvoidingView
           style={styles.flex}

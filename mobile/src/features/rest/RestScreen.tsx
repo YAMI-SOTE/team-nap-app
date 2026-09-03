@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Image,
   LayoutChangeEvent,
   ScrollView,
   StyleSheet,
@@ -14,8 +13,14 @@ import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { colors } from "@/theme/colors";
+import SpriteLoop from "@/components/SpriteLoop";
+import {
+  CAT_SLEEPING_FRAMES,
+  CAT_SLEEPING_FRAME_MS,
+} from "@/constants/characters";
 import { toClockTime, toISODate } from "@/utils/date";
 import { setMyStatus } from "@/services/team";
+import { startNapSession, endNapSession } from "@/services/rest";
 
 // 15分（900秒）
 const INITIAL_TIME = 15 * 60;
@@ -44,8 +49,19 @@ export default function RestScreen() {
     setMyStatus("resting");
     return () => {
       setMyStatus("online");
+      // Clear the live "あと◯分" card no matter how the screen is left
+      // (finished, cancelled, back, auto-complete → rating).
+      endNapSession();
     };
   }, []);
+
+  // Publish / refresh the live nap session whenever the countdown starts
+  // or resumes, so teammates' "あと◯分" tracks the real wake time.
+  useEffect(() => {
+    if (isActive && timeLeft > 0) {
+      startNapSession(Math.ceil(timeLeft / 60));
+    }
+  }, [isActive]);
 
   const buildNapWindow = (elapsedSeconds: number) => {
     const minutes = Math.round(elapsedSeconds / 60);
@@ -137,6 +153,8 @@ export default function RestScreen() {
     setIsActive(false);
     setTimeLeft(INITIAL_TIME);
     prevTimeLeftRef.current = INITIAL_TIME;
+    // Stay on screen but no longer napping → drop the teammate card now.
+    endNapSession();
   };
 
   const handleEnd = () => {
@@ -183,10 +201,11 @@ export default function RestScreen() {
           >
             {/* Illustration — 眠る猫 ＋ 起床時刻の吹き出し（しっぽ付き） */}
             <View style={styles.illustration}>
-              <Image
-                source={require("../../../assets/characters/sleeping-cat.png")}
-                style={styles.illustrationImage}
-                resizeMode="contain"
+              {/* Figma の猫は 5 コマループのインスタンス（node 813:1763） */}
+              <SpriteLoop
+                frames={CAT_SLEEPING_FRAMES}
+                size={192}
+                frameDurationMs={CAT_SLEEPING_FRAME_MS}
               />
               <View style={styles.bubble}>
                 <Text style={styles.bubbleText}>
@@ -313,10 +332,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: "center",
     justifyContent: "center",
-  },
-  illustrationImage: {
-    width: 224,
-    height: 192,
   },
   bubble: {
     position: "absolute",

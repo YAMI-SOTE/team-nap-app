@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -7,9 +14,8 @@ import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 import { createNap } from "@/services/naps";
 import { toISODate } from "@/utils/date";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import SceneBackground from "@/components/SceneBackground";
 import Card from "@/components/Card";
-import CharacterSlot from "@/components/CharacterSlot";
 import PillButton from "@/components/PillButton";
 import { StarFillIcon, StarIcon } from "@/components/icons";
 
@@ -79,18 +85,22 @@ export default function NapRatingScreen() {
   };
 
   return (
-    <View style={styles.root}>
-      <AuroraBackdrop />
-
+    <SceneBackground
+      source={require("../../../assets/backgrounds/nap-day.png")}
+      scrim="bottom"
+      imageOpacity={1}
+    >
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <CharacterSlot
-            size={150}
-            source={require("../../../assets/characters/kirakira-refreshed.png")}
+          <Image
+            source={require("../../../assets/characters/cat-rating.png")}
+            style={styles.character}
+            resizeMode="contain"
+            accessible={false}
           />
 
           <View style={styles.heading}>
@@ -168,7 +178,7 @@ export default function NapRatingScreen() {
           </Pressable>
         </ScrollView>
       </SafeAreaView>
-    </View>
+    </SceneBackground>
   );
 }
 
@@ -191,6 +201,10 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 24,
     paddingVertical: 24,
+  },
+  character: {
+    width: 200,
+    height: 200,
   },
   heading: {
     alignItems: "center",

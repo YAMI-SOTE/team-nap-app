@@ -15,6 +15,9 @@ model User {
   id           String           @id @default(uuid())
   email        String           @unique
   name         String?
+  // Chosen avatar id ("cat" | "man" | "woman" — a placeholder set, see
+  // mobile/src/constants/avatars.ts). Null → initials fallback.
+  avatar       String?
   // scrypt hash ("scrypt$<saltHex>$<hashHex>"). Null for users created by
   // the seed / legacy `ensureUser` path or a future OAuth-only sign-in.
   passwordHash String?
@@ -24,6 +27,91 @@ model User {
   passwordResetTokens PasswordResetToken[]
   onboarding   Onboarding?
   naps         NapRecord[]
+  calendarEvents CalendarEvent[]
+  notifications Notification[]
+  napSession   NapSession?
+  pushTokens   PushToken[]
+}
+
+/// An Expo push token for one of the user's devices. Registered from the
+/// app after sign-in (`POST /notifications/token`) and used to deliver
+/// every `addNotification` as a push (`src/services/push.service.ts`).
+/// The token is globally unique; if it re-registers under a different
+/// user (device handed over) the row is reassigned. Tokens that Expo
+/// reports as `DeviceNotRegistered` are pruned on the next send.
+model PushToken {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// A nap the user has started but not yet finished — backs the
+/// "仮眠の状況 / あと◯分" card on a teammate's detail screen. At most one
+/// per user (`userId @unique`): starting the Rest timer upserts a row,
+/// finishing / cancelling / recording the nap deletes it. A row left
+/// dangling (app killed mid-nap) is treated as ended once `wakeAt` is
+/// more than 30 min in the past (src/services/nap-session.service.ts).
+model NapSession {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  startedAt DateTime @default(now())
+  /// Planned wake time = startedAt + the timer's minutes.
+  wakeAt    DateTime
+  createdAt DateTime @default(now())
+}
+
+/// One entry in a user's notification feed (the お知らせ screen). Persisted
+/// so the feed survives a restart. Written by `nudge.service` (to the
+/// recipient) and `team.service` (to existing members on join / removal /
+/// nap suggestion); read + marked-read via /notifications.
+/// `createdAt` is authoritative — the relative "2分前" label and the
+/// today / earlier grouping are derived at read time
+/// (src/services/notifications.service.ts).
+model Notification {
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  /// NotificationKind union, stored as text: "welcome" | "team_nap_suggestion"
+  /// | "wake_request" | "rest_request" | "nap_ended" | "weekly_review"
+  /// | "member_joined".
+  kind      String
+  title     String
+  body      String
+  /// Null = unread. Set when the user marks it read.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// One entry in a user's schedule. Backs the スケジュール screen CRUD and
+/// feeds the free-time / nap-timing logic (src/services/schedule.service.ts).
+/// `source` distinguishes hand-added events ("manual") from ones pulled in
+/// by the Google Calendar sync ("google"); the latter carry a stable
+/// `externalId` and are replaced wholesale on every re-sync.
+model CalendarEvent {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  title      String   @default("")
+  date       String   // "YYYY-MM-DD" (local calendar day)
+  start      String   // "HH:MM"
+  end        String   // "HH:MM"
+  allDay     Boolean  @default(false)
+  source     String   @default("manual") // "manual" | "google"
+  externalId String?  // id from the source system; null for manual events
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, externalId])
+  @@index([userId, date])
 }
 
 /// A recorded nap. A user may record several on the same calendar date.
@@ -61,6 +149,8 @@ model Onboarding {
   napCutoffHour        Int       @default(15)
   calendarConnected    Boolean   @default(false)
   calendarDeviceConnected Boolean @default(false)
+  // When the Google Calendar events were last pulled in. Null = never / disconnected.
+  calendarLastSyncedAt DateTime?
   notificationsEnabled Boolean   @default(false)
   notifyNapSuggestion     Boolean @default(true)
   notifyNapEnd            Boolean @default(true)

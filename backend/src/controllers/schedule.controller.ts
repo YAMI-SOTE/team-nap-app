@@ -19,28 +19,34 @@ export async function getDayScheduleController(req: Request, res: Response) {
   res.status(200).json(await getDaySchedule(requireUserId(req), date));
 }
 
-export function getEventController(req: Request, res: Response) {
-  const draft = getEvent(firstParam(req, "id"));
+export async function getEventController(req: Request, res: Response) {
+  const draft = await getEvent(requireUserId(req), firstParam(req, "id"));
   if (!draft) {
     throw HttpError.notFound("予定が見つかりません");
   }
   res.status(200).json(draft);
 }
 
-export function createEventController(req: Request, res: Response) {
-  res.status(201).json(createEvent(req.body as EventDraft));
+export async function createEventController(req: Request, res: Response) {
+  res
+    .status(201)
+    .json(await createEvent(requireUserId(req), req.body as EventDraft));
 }
 
-export function updateEventController(req: Request, res: Response) {
-  const updated = updateEvent(firstParam(req, "id"), req.body as EventDraft);
+export async function updateEventController(req: Request, res: Response) {
+  const updated = await updateEvent(
+    requireUserId(req),
+    firstParam(req, "id"),
+    req.body as EventDraft,
+  );
   if (!updated) {
     throw HttpError.notFound("予定が見つかりません");
   }
   res.status(200).json(updated);
 }
 
-export function deleteEventController(req: Request, res: Response) {
-  if (!deleteEvent(firstParam(req, "id"))) {
+export async function deleteEventController(req: Request, res: Response) {
+  if (!(await deleteEvent(requireUserId(req), firstParam(req, "id")))) {
     throw HttpError.notFound("予定が見つかりません");
   }
   res.status(204).end();

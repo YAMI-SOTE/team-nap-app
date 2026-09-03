@@ -85,14 +85,17 @@ export default function NapProposalSheet({
                 <View style={styles.checkCircle}>
                   <CheckCircleIcon size={34} color={colors.primary} />
                 </View>
-                <Text style={styles.title}>提案を送りました</Text>
-                <Text style={styles.subtitle}>
-                  チームの{notified}人にお知らせしました。{"\n"}
-                  みんなの通知に届きます。
-                </Text>
+                <View style={styles.sentHead}>
+                  <Text style={styles.sentTitle}>提案を送りました</Text>
+                  <Text style={styles.sentBody}>
+                    チームの{notified}人にお知らせしました。{"\n"}
+                    みんなの通知に届きます。
+                  </Text>
+                </View>
                 <Pressable
-                  style={styles.primaryButton}
+                  style={[styles.primaryButton, styles.sentButton]}
                   onPress={() => onSent(minutes, notified)}
+                  accessibilityRole="button"
                 >
                   <Text style={styles.primaryButtonText}>閉じる</Text>
                 </Pressable>
@@ -172,19 +175,20 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
+    // Figma（node 733:5473）: r28 / pt12 / pb32 / px24
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   handle: {
     alignSelf: "center",
     width: 44,
     height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.borderStrong,
+    borderRadius: 999,
+    backgroundColor: colors.borderDefault,
     marginBottom: spacing.lg,
   },
   title: {
@@ -226,7 +230,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: spacing.lg,
     borderRadius: 999,
-    paddingVertical: 14,
+    // Figma のボタンは py10 + Body/L-Bold(16/1.7) の1行 = 47px
+    paddingVertical: 10,
     minHeight: 47,
     alignItems: "center",
     justifyContent: "center",
@@ -234,7 +239,8 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 27,
     fontWeight: "700",
   },
   cancelButton: {
@@ -254,9 +260,37 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sentBlock: {
+    // Figma（node 733:5473）は要素間 14。
     alignItems: "center",
-    gap: spacing.xs,
-    paddingBottom: spacing.sm,
+    gap: 14,
+  },
+  sentHead: {
+    width: "100%",
+    alignItems: "center",
+    gap: 4,
+  },
+  sentTitle: {
+    // Figma: Heading/H4 — 18px / 1.5 / 700
+    width: "100%",
+    fontSize: 18,
+    lineHeight: 27,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  sentBody: {
+    // Figma: Caption/Regular — 12px / 1.6
+    width: "100%",
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  sentButton: {
+    // alignItems:"center" の列内では幅が内容ぶんに縮んで丸ボタンに
+    // なってしまうため、明示的に横いっぱいへ伸ばす。
+    alignSelf: "stretch",
+    marginTop: 0,
   },
   checkCircle: {
     width: 64,
@@ -265,7 +299,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.brandSubtle,
-    marginBottom: spacing.xs,
   },
   disabled: {
     opacity: 0.6,

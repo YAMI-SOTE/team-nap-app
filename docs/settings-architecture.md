@@ -74,11 +74,15 @@
 **現状**
 
 - **永続化あり**: 睡眠スケジュール / 通知トグル / カレンダー連携状態は、そのユーザーの
-  `Onboarding` 行（`bedtime` / `wakeTime` / `napCutoffHour` / `notify*` / `calendar*Connected`）。
-  オンボーディングと**同じ行**なので値が食い違わない。
+  `Onboarding` 行（`bedtime` / `wakeTime` / `napCutoffHour` / `notify*` /
+  `calendar*Connected` / `calendarLastSyncedAt`）。オンボーディングと**同じ行**なので
+  値が食い違わない。
 - **ユーザー単位**: 全ルート `authenticate` 必須。`Onboarding` 行が単一ソース。
-- **カレンダー連携はモック**: `google/sync` は `calendarConnected` を true にするだけ
-  （実 OAuth・実同期は無し）。`google.email` / `lastSyncedLabel` は常に `null`。
+- **カレンダー連携は OAuth なしのサンプル取り込み**: `google/sync` は
+  `calendarConnected` / `calendarLastSyncedAt` を更新し、`google-calendar-sample.ts`
+  の定型 1 週間分を `schedule.service` 経由で**そのユーザーの `CalendarEvent` に
+  取り込む**（`source: "google"`、`externalId` で洗い替え）。`google/disconnect` は
+  `source: "google"` の行を全削除。`google.email` / `lastSyncedLabel` は連携中のみ値が入る。
 - **業務バリデーション**: zod スキーマ（`schemas/settings.schema.ts`）で形式は検証。
   就寝〜起床が 16 時間以内かはサーバー（zod refine, `lib/sleep-window.ts`）でも検証。
 
@@ -138,10 +142,12 @@
 - [x] `POST /settings/team/leave` は `team.service` 経由で実際に離脱する
 - [x] チーム設定: メンバー管理（`ManageMembersScreen` + `DELETE /teams/members/:id`）/ 招待リンク共有（ディープリンク）/ コードのコピー
 - [x] 睡眠ウィンドウのサーバー検証（`lib/sleep-window.ts`）
+- [x] カレンダー: ユーザーごとの `CalendarEvent` 永続化 + `google/sync` でサンプル 1 週間分を取り込み / `google/disconnect` で削除
+- [x] 通知トグルの `notificationsEnabled` が Expo プッシュ送信のオプトインを兼ねる（[notifications.md](./notifications.md)）
 
 **未対応**
 
-- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状はフラグを立てるだけのモック）
+- [ ] カレンダー: 実際の Google OAuth / 端末カレンダー同期（現状は OAuth なしのサンプル取り込み）
 - [ ] 睡眠スケジュール: `napCutoffHour` はサーバー所有で編集 UI なし
 - [ ] アカウント: プロフィール写真
 - [ ] チーム名変更をオーナー限定にするか未決

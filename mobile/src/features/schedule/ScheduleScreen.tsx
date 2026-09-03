@@ -11,7 +11,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useSchedule } from "@/hooks/useSchedule";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
 import EmptyState from "@/components/EmptyState";
 import Logo from "@/components/Logo";
@@ -69,24 +69,25 @@ export default function ScheduleScreen() {
   // delete) so the refreshed list always comes in behind it.
   const showLoading = (loading && !data) || revalidating;
   const tasks = data?.tasks ?? [];
-  const isEmpty = !showLoading && !error && tasks.length === 0 && !data?.freeSlot;
+  const isEmpty =
+    !showLoading && !error && tasks.length === 0 && !data?.freeSlot;
+
+  // "今日の予定" only for today; other dates read "M月D日の予定".
+  const today = new Date();
+  const isToday =
+    selectedDate.getFullYear() === today.getFullYear() &&
+    selectedDate.getMonth() === today.getMonth() &&
+    selectedDate.getDate() === today.getDate();
+  const scheduleHeading = isToday
+    ? "今日の予定"
+    : `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日の予定`;
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={pulling}
-              onRefresh={onPullRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        >
+        {/* The page itself does not scroll — only the 予定 list below does. */}
+        <View style={styles.content}>
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
             <NotificationBell />
@@ -107,7 +108,7 @@ export default function ScheduleScreen() {
             ) : isEmpty ? (
               <EmptyState
                 image={require("../../../assets/characters/kirakira-refreshed.png")}
-                title="今日の予定はありません"
+                title="予定はありません"
                 body="スケジュールが空いています。好きなタイミングで仮眠できます。"
                 actionLabel="いま仮眠を開始する"
                 onAction={() => router.push("/rest")}
@@ -133,22 +134,37 @@ export default function ScheduleScreen() {
 
                 {tasks.length > 0 ? (
                   <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>今日の予定</Text>
-                    {tasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        icon={<AlarmBadgeIcon size={41} />}
-                        time={`${task.start}〜${task.end}`}
-                        subtitle={task.title}
-                        showCaret
-                        onPress={() =>
-                          router.push({
-                            pathname: "/schedule/event",
-                            params: { id: task.id },
-                          })
-                        }
-                      />
-                    ))}
+                    <Text style={styles.sectionTitle}>{scheduleHeading}</Text>
+                    {/* Only this list scrolls, and only when it overflows. */}
+                    <ScrollView
+                      style={styles.taskScroll}
+                      contentContainerStyle={styles.taskScrollContent}
+                      showsVerticalScrollIndicator={false}
+                      refreshControl={
+                        <RefreshControl
+                          refreshing={pulling}
+                          onRefresh={onPullRefresh}
+                          tintColor={colors.primary}
+                          colors={[colors.primary]}
+                        />
+                      }
+                    >
+                      {tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          icon={<AlarmBadgeIcon size={41} />}
+                          time={`${task.start}〜${task.end}`}
+                          subtitle={task.title}
+                          showCaret
+                          onPress={() =>
+                            router.push({
+                              pathname: "/schedule/event",
+                              params: { id: task.id },
+                            })
+                          }
+                        />
+                      ))}
+                    </ScrollView>
                   </View>
                 ) : null}
               </>
@@ -173,7 +189,7 @@ export default function ScheduleScreen() {
               onPress={() => router.push("/schedule/event")}
             />
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -188,7 +204,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flexGrow: 1,
+    flex: 1,
     paddingTop: 8,
     paddingHorizontal: 24,
     paddingBottom: 16,
@@ -202,10 +218,19 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    gap: 16,
   },
   section: {
+    flex: 1,
     width: "100%",
     gap: 8,
+  },
+  taskScroll: {
+    flex: 1,
+  },
+  taskScrollContent: {
+    gap: 8,
+    paddingBottom: 8,
   },
   sectionTitle: {
     fontSize: 14,

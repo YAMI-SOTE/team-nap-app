@@ -12,6 +12,10 @@ import {
 import { setAuthToken, setUnauthorizedHandler } from "@/services/api";
 import { authStorage } from "@/services/authStorage";
 import * as authApi from "@/services/authApi";
+import {
+  registerForPushNotifications,
+  unregisterPushNotifications,
+} from "@/services/push";
 
 import type { AuthResult, AuthUser } from "@/types/api";
 
@@ -52,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Drop the push token while the session is still valid.
+    await unregisterPushNotifications();
     try {
       await authApi.logout();
     } catch {
@@ -83,6 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => setUnauthorizedHandler(null);
   }, [clearLocal]);
+
+  // Register this device for push once signed in (best-effort; no-ops on
+  // a simulator or without notification permission).
+  useEffect(() => {
+    if (status === "signedIn") {
+      void registerForPushNotifications();
+    }
+  }, [status]);
 
   // Restore a stored session on cold start.
   useEffect(() => {

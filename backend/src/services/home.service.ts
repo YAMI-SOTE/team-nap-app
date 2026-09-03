@@ -1,19 +1,14 @@
 import { prisma } from "../lib/prisma.js";
-import { jstTodayLabel, timeUntil } from "../lib/datetime.js";
+import { jstNow, jstTodayLabel, timeUntil } from "../lib/datetime.js";
 import type { Member, MemberStatus } from "../types/domain.js";
 import {
   EMPTY_SNAPSHOT,
   teamIdOf,
   teamMemberStatus,
 } from "./team-presence.service.js";
+import { teamWeek } from "./team-nap-stats.service.js";
 import { getNextFreeSlot } from "./schedule.service.js";
 import { generateHomeComments } from "./ai.service.js";
-
-type HomeSnapshot = {
-  headline: [string, string];
-  teamScore: number;
-  aiAdvice: string;
-};
 
 export type HomeSummaryResponse = {
   todayLabel: string;
@@ -57,14 +52,6 @@ function evaluateTeamScore(teamScore: number): TeamEvaluation {
   return "needs_improvement";
 }
 
-// Placeholder team-score snapshot (still static — the real weekly score
-// is not computed yet). Only used for accounts that belong to a team.
-const homeSnapshot: HomeSnapshot = {
-  headline: ["今日のチームは", "いい調子です"],
-  teamScore: 20,
-  aiAdvice: "AIアドバイスを表示する場所",
-};
-
 export async function getHomeSummary(
   userId: string,
 ): Promise<HomeSummaryResponse> {
@@ -74,7 +61,10 @@ export async function getHomeSummary(
   const hasTeam = membership !== null;
 
   let nextFree: HomeSummaryResponse["nextFree"] = null;
-  const freeSlot = getNextFreeSlot();
+  const now = jstNow();
+  const freeSlot = hasTeam
+    ? await getNextFreeSlot(userId, now.date, now.time)
+    : null;
   if (hasTeam && freeSlot) {
     const untilStart = timeUntil(freeSlot.start, new Date());
     nextFree = {
@@ -99,9 +89,11 @@ export async function getHomeSummary(
     };
   }
 
-  const teamEvaluation = evaluateTeamScore(homeSnapshot.teamScore);
+  // Real weekly team score from the members' NapRecord rows.
+  const teamScore = (await teamWeek(membership.teamId)).teamScore;
+  const teamEvaluation = evaluateTeamScore(teamScore);
   const homeComments = await generateHomeComments({
-    teamScore: homeSnapshot.teamScore,
+    teamScore,
     teamEvaluation,
   });
 
@@ -109,7 +101,7 @@ export async function getHomeSummary(
     todayLabel: jstTodayLabel(new Date()),
     headline: homeComments.headline,
     hasTeam: true,
-    teamScore: homeSnapshot.teamScore,
+    teamScore,
     aiAdvice: homeComments.aiAdvice,
     teamScoreMax: TEAM_SCORE_MAX,
     nextFree,

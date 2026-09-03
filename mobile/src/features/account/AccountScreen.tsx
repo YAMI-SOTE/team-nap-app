@@ -14,12 +14,15 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { updateProfile } from "@/services/authApi";
 import { ApiError } from "@/services/api";
 import { colors } from "@/theme/colors";
-import { radius } from "@/theme/spacing";
+import { isAvatarId, type AvatarId } from "@/constants/avatars";
 import AuroraBackdrop from "@/components/AuroraBackdrop";
+import Avatar from "@/components/Avatar";
+import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ScreenHeader from "@/components/ScreenHeader";
 import LabeledInput from "@/components/LabeledInput";
 import PillButton from "@/components/PillButton";
+import SettingsRow from "@/components/SettingsRow";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -35,6 +38,7 @@ export default function AccountScreen() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [emailConfirm, setEmailConfirm] = useState("");
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -47,7 +51,13 @@ export default function AccountScreen() {
     setUsername(user.name ?? "");
     setEmail(user.email);
     setEmailConfirm("");
+    setAvatarId(isAvatarId(user.avatar) ? user.avatar : null);
   }, [user]);
+
+  const avatarChanged = useMemo(
+    () => user != null && avatarId !== (isAvatarId(user.avatar) ? user.avatar : null),
+    [avatarId, user],
+  );
 
   const emailChanged = useMemo(
     () => user != null && email.trim().toLowerCase() !== user.email.toLowerCase(),
@@ -75,9 +85,10 @@ export default function AccountScreen() {
       }
     }
 
-    const patch: { name?: string; email?: string } = {};
+    const patch: { name?: string; email?: string; avatar?: string | null } = {};
     if (nextName !== (user.name ?? "")) patch.name = nextName;
     if (emailChanged) patch.email = email.trim();
+    if (avatarChanged) patch.avatar = avatarId;
     if (Object.keys(patch).length === 0) {
       setSavedNote("変更はありません");
       return;
@@ -99,8 +110,6 @@ export default function AccountScreen() {
       setSaving(false);
     }
   };
-
-  const handleChangePhoto = () => console.log("TODO: change profile photo");
 
   const confirmLogout = async () => {
     setLogoutOpen(false);
@@ -135,14 +144,18 @@ export default function AccountScreen() {
           <ScreenHeader title="アカウント情報" onBack={() => router.back()} />
 
           <View style={styles.avatar}>
-            <View style={styles.avatarPlaceholder} />
-            <Pressable
-              onPress={handleChangePhoto}
-              accessibilityRole="button"
-              hitSlop={6}
-            >
-              <Text style={styles.changePhoto}>写真を変更</Text>
-            </Pressable>
+            <Avatar
+              avatarId={avatarId}
+              name={user?.name}
+              size={AVATAR_SIZE}
+              ring
+            />
+            <Text style={styles.changePhoto}>アイコンを選ぶ</Text>
+            <AvatarPicker
+              selected={avatarId}
+              onSelect={setAvatarId}
+              disabled={saving}
+            />
           </View>
 
           <View style={styles.form}>
@@ -176,12 +189,21 @@ export default function AccountScreen() {
             ) : null}
           </View>
 
+          {/* Figma（node 733:5269）にある行。
+              TODO(backend): ログイン中専用の変更画面が無いため、
+              いまは再設定フロー（/forgot-password）へ送っている。 */}
+          <SettingsRow
+            label="パスワードを変更"
+            onPress={() => router.push("/forgot-password")}
+          />
+
           <PillButton
             variant="primary"
             label="保存する"
             elevated={false}
             onPress={handleSave}
             loading={saving}
+            style={styles.saveButton}
           />
 
           <View style={styles.statusBlock}>
@@ -258,21 +280,17 @@ const styles = StyleSheet.create({
   avatar: {
     width: "100%",
     alignItems: "center",
-    gap: 8,
-  },
-  avatarPlaceholder: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.borderBrand,
+    gap: 12,
   },
   changePhoto: {
     fontSize: 12,
     lineHeight: 19,
     fontWeight: "700",
     color: colors.textBrand,
+  },
+  saveButton: {
+    // Figma: py10 + 16px/1.7 の1行 = 47px
+    minHeight: 47,
   },
   form: {
     width: "100%",

@@ -13,15 +13,33 @@ Team Nap のAI機能を、Home・Rest・Teamなどの他機能から独立して
 
 | 機能 | 実装 | 呼び出し元 |
 | --- | --- | --- |
-| 個人RESTコメント | `generatePersonalRestComment`（Ollama） | `POST /api/v1/ai/personal-comment` |
-| TEAMコメント | `generateTeamRestComment`（Ollama） | `POST /api/v1/ai/team-comment` |
-| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース） | `home.service.getHomeSummary`（チーム所属時のみ） |
-| ふりかえり画面の仮眠アドバイス | `buildAdvice`（**ルールベース**、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存 |
+| 個人RESTコメント | `generatePersonalRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/personal-comment` |
+| TEAMコメント | `generateTeamRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/team-comment` |
+| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース + フォールバック） | `home.service.getHomeSummary`（チーム所属時のみ） |
+| ふりかえり画面の仮眠アドバイス | `generateNapAdvice`（Ollama） → 失敗時 `buildAdvice`（ルールベース、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存。`GET /naps/:id` で ふりかえり画面が読む |
 
-`callGemma` は 8 秒でアボート（`OLLAMA_TIMEOUT_MS`）。`generateHomeComments`
-はモデルが落ちている/遅い/壊れた JSON のとき定型文にフォールバックする
-（500 を返さない）。`buildAdvice` は将来 Ollama 呼び出しに差し替えても
-`NapRecord.aiAdvice` 列とシグネチャは変えずに済む構造。
+`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 60 秒、env で調整可）でアボート。
+モデルが落ちている / 遅い / 壊れた出力のとき、**4 機能すべてがフォールバック**
+する（500 / 502 を返さない）:
+
+- `generateNapAdvice` → `nap-advice.service.ts` の `buildAdvice`（ルールベース）
+- `generatePersonalRestComment` / `generateTeamRestComment` → 評価コードから
+  組み立てた日本語 1〜2 文（`personalFallbackComment` / `teamFallbackComment`）
+- `generateHomeComments` → `teamEvaluation` ごとの定型 headline / aiAdvice
+
+### モデル選定（`OLLAMA_MODEL`）
+
+env ごとに指定する。フォールバックがあるので「未指定 = 常にルールベース」でも動く。
+
+| モデル | 状況 |
+| --- | --- |
+| **`gemma4:e2b`（既定・~7.2GB）** | 日本語が最も自然。**ollama サービスに ~8GB RAM / 2CPU 必要**。生成はウォーム ~24 秒 / コールド（モデルロード込み）~45〜60 秒 → `OLLAMA_TIMEOUT_MS` を 60 秒に設定。RAM が足りないと `llama-server` が OOM kill（`signal: killed`）され、全機能がフォールバックする |
+| `gemma3n:e2b`（~5.6GB） | 日本語は自然。所要リソースは `gemma4:e2b` とほぼ同じ（~8GB）。`OLLAMA_MODEL=gemma3n:e2b docker compose up` で切替 |
+| `gemma3:1b`（~815MB） | 軽量フォールバック用。pull が速く、生成はコールド ~16 秒 / ウォーム ~5〜7 秒。4GB/1CPU でも動く。**日本語がやや不自然**（例：「良い眠りだったですね！…」）。RAM の少ないホストでは `OLLAMA_MODEL=gemma3:1b docker compose up` |
+| （未指定 / Ollama なし） | 生成しない。全機能がルールベース／定型文にフォールバック |
+
+既定は `gemma4:e2b`。ホスト（または Docker VM）の RAM が ~8GB に満たない場合は
+`OLLAMA_MODEL=gemma3:1b` に落として「pull → 生成」が通る状態を優先する。
 
 ### 個人RESTコメント
 

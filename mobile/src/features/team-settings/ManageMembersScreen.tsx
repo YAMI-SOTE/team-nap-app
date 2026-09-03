@@ -12,12 +12,24 @@ import { useRouter } from "expo-router";
 
 import { useTeamSettings } from "@/hooks/useTeamSettings";
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import { radius } from "@/theme/spacing";
+import AppBackground from "@/components/AppBackground";
 import ScreenHeader from "@/components/ScreenHeader";
-import Card from "@/components/Card";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import MemberActionsSheet from "@/components/MemberActionsSheet";
+import Avatar from "@/components/Avatar";
+import { defaultAvatarFor } from "@/utils/defaultAvatar";
+import PillButton from "@/components/PillButton";
+import { DotsThreeIcon, UsersThreeIcon } from "@/components/icons";
 
 import type { TeamSettingsMember } from "@/types/api";
+
+/**
+ * メンバー管理（Figma S06-07_Member_Manage, node 862:3683）。
+ *
+ * 行末の「…」で操作シート（OV-06）を開き、そこから削除確認（OV-07）へ。
+ * 削除できるのはオーナーだけ、という上流の権限判定はそのまま使う。
+ */
 
 const STATUS_LABEL: Record<TeamSettingsMember["status"], string> = {
   working: "作業中",
@@ -25,14 +37,21 @@ const STATUS_LABEL: Record<TeamSettingsMember["status"], string> = {
   offline: "オフライン",
 };
 
-/**
- * "メンバーを管理" — the owner can see the roster and remove members.
- * Non-owners see a read-only list.
- */
+const STATUS_COLOR: Record<TeamSettingsMember["status"], string> = {
+  working: colors.textSecondary,
+  resting: colors.primary,
+  offline: colors.textTertiary,
+};
+
 export default function ManageMembersScreen() {
   const router = useRouter();
   const { data, loading, saving, error, removeMember } = useTeamSettings();
-  const [target, setTarget] = useState<TeamSettingsMember | null>(null);
+  const [actionTarget, setActionTarget] = useState<TeamSettingsMember | null>(
+    null,
+  );
+  const [removeTarget, setRemoveTarget] = useState<TeamSettingsMember | null>(
+    null,
+  );
 
   const noTeam = !loading && !error && data === null;
   useEffect(() => {
@@ -40,63 +59,97 @@ export default function ManageMembersScreen() {
   }, [noTeam, router]);
 
   const canManage = data?.canManage ?? false;
+  const members = data?.members ?? [];
 
   const confirmRemove = async () => {
-    if (!target) return;
-    const ok = await removeMember(target.id);
-    setTarget(null);
-    if (!ok) return;
+    if (!removeTarget) return;
+    await removeMember(removeTarget.id);
+    setRemoveTarget(null);
   };
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <ScreenHeader title="メンバーを管理" onBack={() => router.back()} />
+          <ScreenHeader title="メンバー管理" onBack={() => router.back()} />
+
+          <View style={styles.head}>
+            <Text style={styles.headTitle}>メンバー</Text>
+            <Text style={styles.headCount}>{members.length}人</Text>
+          </View>
 
           {loading ? (
             <View style={styles.stateBlock}>
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : (
-            <Card style={styles.listCard}>
-              {(data?.members ?? []).map((m, i) => (
-                <View
-                  key={m.id}
-                  style={[styles.row, i > 0 && styles.rowDivider]}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{m.label}</Text>
+            <View style={styles.listCard}>
+              {members.map((m, i) => (
+                <View key={m.id}>
+                  {i > 0 ? <View style={styles.divider} /> : null}
+                  <View style={styles.row}>
+                    <Avatar
+                      avatarId={m.avatar ?? defaultAvatarFor(m.id)}
+                      name={m.name}
+                      size={40}
+                    />
+
+                    <View style={styles.rowText}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.name}>
+                          {m.name ?? "名前未設定"}
+                        </Text>
+                        {m.isSelf ? (
+                          <View style={styles.youBadge}>
+                            <Text style={styles.youBadgeText}>あなた</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[
+                          styles.status,
+                          { color: STATUS_COLOR[m.status] },
+                        ]}
+                      >
+                        {STATUS_LABEL[m.status]}
+                      </Text>
+                    </View>
+
+                    {m.role === "owner" ? (
+                      <View style={styles.adminBadge}>
+                        <Text style={styles.adminBadgeText}>管理者</Text>
+                      </View>
+                    ) : null}
+
+                    {canManage && !m.isSelf && m.role !== "owner" ? (
+                      <Pressable
+                        onPress={() => setActionTarget(m)}
+                        disabled={saving}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${m.name ?? "メンバー"}の操作`}
+                      >
+                        <DotsThreeIcon size={20} />
+                      </Pressable>
+                    ) : null}
                   </View>
-                  <View style={styles.rowText}>
-                    <Text style={styles.name}>
-                      {m.name ?? "名前未設定"}
-                      {m.isSelf ? "（あなた）" : ""}
-                    </Text>
-                    <Text style={styles.meta}>
-                      {m.role === "owner" ? "オーナー ・ " : ""}
-                      {STATUS_LABEL[m.status]}
-                    </Text>
-                  </View>
-                  {canManage && !m.isSelf && m.role !== "owner" ? (
-                    <Pressable
-                      onPress={() => setTarget(m)}
-                      disabled={saving}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${m.name ?? "メンバー"}を削除`}
-                    >
-                      <Text style={styles.removeText}>削除</Text>
-                    </Pressable>
-                  ) : null}
                 </View>
               ))}
-            </Card>
+            </View>
           )}
+
+          <PillButton
+            variant="outline"
+            label="メンバーを招待"
+            onPress={() => router.push("/team/invite")}
+            icon={<UsersThreeIcon size={20} color={colors.textBrand} />}
+            style={styles.inviteButton}
+            textStyle={styles.inviteLabel}
+          />
 
           {!loading && !canManage ? (
             <Text style={styles.hint}>
@@ -111,17 +164,41 @@ export default function ManageMembersScreen() {
         </ScrollView>
       </SafeAreaView>
 
+      {/* OV-06_Member_Actions */}
+      <MemberActionsSheet
+        visible={actionTarget !== null}
+        name={actionTarget?.name ?? "メンバー"}
+        subtitle={
+          actionTarget
+            ? `メンバー ・ ${STATUS_LABEL[actionTarget.status]}`
+            : ""
+        }
+        avatarId={actionTarget?.avatar}
+        seed={actionTarget?.id}
+        // TODO(backend): 管理者へ昇格する API が無いため、この操作は出さない。
+        canPromote={false}
+        onPromote={() => setActionTarget(null)}
+        onRemove={() => {
+          setRemoveTarget(actionTarget);
+          setActionTarget(null);
+        }}
+        onCancel={() => setActionTarget(null)}
+      />
+
+      {/* OV-07_Member_Remove_Confirm */}
       <ConfirmDialog
-        visible={target !== null}
-        title="メンバーを削除しますか？"
-        message={`${target?.name ?? "このメンバー"}をチームから外します。相手はもう一度招待コードで参加できます。`}
-        confirmLabel="削除する"
-        confirmAgainLabel="本当に削除する"
+        visible={removeTarget !== null}
+        title={`${removeTarget?.name ?? "このメンバー"}さんを\nチームから外しますか？`}
+        message={
+          "これまでの仮眠記録は残りますが、チームの統計には含まれなくなります。"
+        }
+        confirmLabel="チームから外す"
+        confirmAgainLabel="本当に外す"
         destructive
         doubleConfirm
         loading={saving}
         onConfirm={confirmRemove}
-        onCancel={() => setTarget(null)}
+        onCancel={() => setRemoveTarget(null)}
       />
     </View>
   );
@@ -137,58 +214,108 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 14,
   },
+  head: {
+    height: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headTitle: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  headCount: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
   stateBlock: { paddingVertical: 48, alignItems: "center" },
-  listCard: { gap: 0, paddingVertical: 4 },
+  listCard: {
+    // Figma（node 863:3701）: 白 / r20 / py4 / 影 0 1 1.5 + 0 4 6
+    width: "100%",
+    borderRadius: 20,
+    paddingVertical: 4,
+    backgroundColor: colors.surface,
+    shadowColor: "#12292B",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(18,41,43,0.08)",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    paddingLeft: 16,
+    paddingRight: 14,
     paddingVertical: 12,
   },
-  rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
+  rowText: {
+    flex: 1,
+    gap: 1,
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceSunken,
+  nameRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
   },
-  avatarText: {
+  name: {
     fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  youBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(18,41,43,0.06)",
+  },
+  youBadgeText: {
+    fontSize: 10,
+    lineHeight: 16,
     fontWeight: "700",
     color: colors.textSecondary,
   },
-  rowText: { flex: 1, gap: 2 },
-  name: {
-    fontSize: 14,
-    lineHeight: 21,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  meta: {
-    fontSize: 12,
+  status: {
+    fontSize: 11,
     lineHeight: 18,
-    color: colors.textTertiary,
   },
-  removeText: {
-    fontSize: 13,
+  adminBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(0,156,160,0.1)",
+  },
+  adminBadgeText: {
+    fontSize: 10,
+    lineHeight: 16,
     fontWeight: "700",
-    color: colors.textDanger,
+    color: colors.textBrand,
+  },
+  inviteButton: {
+    height: 47,
+    paddingVertical: 0,
+  },
+  inviteLabel: {
+    fontSize: 14,
   },
   hint: {
     fontSize: 12,
-    lineHeight: 18,
+    lineHeight: 19,
     color: colors.textTertiary,
     textAlign: "center",
   },
   footer: {
     minHeight: 20,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
     fontSize: 12,

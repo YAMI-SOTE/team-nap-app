@@ -4,11 +4,33 @@ import { describe, it } from "node:test";
 import { decideRestTiming } from "./rest-decision.service.js";
 
 describe("decideRestTiming", () => {
-  // ① 長時間作業 + 長時間休息なし
-  it("作業時間と休息間隔から休息必要度が高いと判定する", () => {
+  // ① 今日まだ休息していない + 午後の推奨時間帯
+  it("今日まだ休息しておらず午後の推奨時間帯なら休息を提案する", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      continuousWorkMinutes: 120,
+      lastRestTime: null,
+      currentTime: "14:30",
+      freeTimes: [
+        {
+          start: "14:40",
+          end: "15:20",
+          durationMinutes: 40,
+        },
+      ],
+    });
+
+    assert.equal(result.shouldRest, true);
+    assert.equal(result.needScore, 2);
+    assert.equal(result.reasonCode, "REST_RECOMMENDED");
+    assert.equal(result.recommendedStart, "14:40");
+    assert.equal(result.recommendedEnd, "14:55");
+    assert.equal(result.recommendedMinutes, 15);
+  });
+
+  // ② 前回休息から長時間経過 + 午後の推奨時間帯
+  it("前回休息から120分以上経過し午後なら休息を提案する", () => {
+    const result = decideRestTiming({
+      usualSleepStart: "23:30",
       lastRestTime: "12:00",
       currentTime: "14:30",
       freeTimes: [
@@ -21,31 +43,7 @@ describe("decideRestTiming", () => {
     });
 
     assert.equal(result.shouldRest, true);
-    assert.equal(result.needScore, 4);
-    assert.equal(result.reasonCode, "HIGH_REST_NEED");
-    assert.equal(result.recommendedStart, "14:40");
-    assert.equal(result.recommendedEnd, "14:55");
-    assert.equal(result.recommendedMinutes, 15);
-  });
-
-  // ② 長時間作業
-  it("長時間作業の場合は休息を推奨する", () => {
-    const result = decideRestTiming({
-      usualSleepStart: "23:30",
-      continuousWorkMinutes: 120,
-      lastRestTime: "13:30",
-      currentTime: "14:30",
-      freeTimes: [
-        {
-          start: "14:40",
-          end: "15:20",
-          durationMinutes: 40,
-        },
-      ],
-    });
-
-    assert.equal(result.shouldRest, true);
-    assert.equal(result.needScore, 3);
+    assert.equal(result.needScore, 2);
     assert.equal(result.reasonCode, "REST_RECOMMENDED");
   });
 
@@ -53,7 +51,6 @@ describe("decideRestTiming", () => {
   it("直近60分以内に休息していたら提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      continuousWorkMinutes: 150,
       lastRestTime: "14:20",
       currentTime: "14:30",
       freeTimes: [
@@ -74,7 +71,6 @@ describe("decideRestTiming", () => {
   it("就寝2時間前以内なら提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      continuousWorkMinutes: 150,
       lastRestTime: "18:00",
       currentTime: "22:30",
       freeTimes: [
@@ -94,7 +90,6 @@ describe("decideRestTiming", () => {
   it("15分以上の空き時間がなければ提案しない", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      continuousWorkMinutes: 150,
       lastRestTime: "12:00",
       currentTime: "14:30",
       freeTimes: [
@@ -110,11 +105,10 @@ describe("decideRestTiming", () => {
     assert.equal(result.reasonCode, "NO_FREE_TIME");
   });
 
-  // ⑥ 休息必要度が高い + 複数候補
-  it("休息必要度が高い場合、最適な空き時間を選択する", () => {
+  // ⑥ 複数の空き時間候補
+  it("複数の候補から午後かつ現在時刻に近い空き時間を選択する", () => {
     const result = decideRestTiming({
       usualSleepStart: "23:30",
-      continuousWorkMinutes: 150,
       lastRestTime: null,
       currentTime: "14:00",
       freeTimes: [
@@ -137,12 +131,30 @@ describe("decideRestTiming", () => {
     });
 
     assert.equal(result.shouldRest, true);
-    assert.equal(result.needScore, 4);
-    assert.equal(result.reasonCode, "HIGH_REST_NEED");
-
-    // 3候補の中から14:30が選ばれることを確認
+    assert.equal(result.needScore, 2);
+    assert.equal(result.reasonCode, "REST_RECOMMENDED");
     assert.equal(result.recommendedStart, "14:30");
     assert.equal(result.recommendedEnd, "14:45");
     assert.equal(result.recommendedMinutes, 15);
+  });
+
+  // ⑦ 休息必要度が不足
+  it("午後以外で休息必要度が不足していれば提案しない", () => {
+    const result = decideRestTiming({
+      usualSleepStart: "23:30",
+      lastRestTime: null,
+      currentTime: "10:00",
+      freeTimes: [
+        {
+          start: "10:30",
+          end: "11:00",
+          durationMinutes: 30,
+        },
+      ],
+    });
+
+    assert.equal(result.shouldRest, false);
+    assert.equal(result.needScore, 1);
+    assert.equal(result.reasonCode, "NO_REST_NEEDED");
   });
 });

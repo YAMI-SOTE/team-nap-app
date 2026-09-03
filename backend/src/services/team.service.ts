@@ -4,13 +4,17 @@ import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../lib/http-error.js";
 import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
+import { todayISO } from "../lib/datetime.js";
 import { addNotification } from "./notifications.service.js";
+import { teamIdOf } from "./team-presence.service.js";
+import { teamWeek } from "./team-nap-stats.service.js";
 import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
 // ---------------------------------------------------------------------------
-// Team dashboard (今週の Team Nap) — static snapshot, only meaningful while
-// the user belongs to a team. (Out of scope: making this DB-derived.)
+// Team dashboard (今週の Team Nap) — derived from real NapRecord rows for
+// the calendar week (see team-nap-stats.service). Only meaningful while the
+// user belongs to a team.
 // ---------------------------------------------------------------------------
 
 type TeamWeeklyBar = {
@@ -31,28 +35,6 @@ export type TeamSummaryResponse = {
     napMinutes: number;
   };
   achievement: string;
-};
-
-const teamSummarySnapshot: TeamSummaryResponse = {
-  weekly: {
-    ratePercent: 31,
-    deltaPercent: 14,
-    bars: [
-      { label: "月", ratio: 0.67, state: "past" },
-      { label: "火", ratio: 0.75, state: "past" },
-      { label: "水", ratio: 0.83, state: "past" },
-      { label: "木", ratio: 0.1, state: "past" },
-      { label: "金", ratio: 0.79, state: "today" },
-      { label: "土", ratio: 0.12, state: "future" },
-      { label: "日", ratio: 0.12, state: "future" },
-    ],
-  },
-  suggestion: {
-    headline: ["チームは長時間", "がんばっています"],
-    body: "いっしょにリフレッシュしませんか？",
-    napMinutes: 15,
-  },
-  achievement: "今週は全員が1日1回以上仮眠しました",
 };
 
 // ---------------------------------------------------------------------------
@@ -133,7 +115,7 @@ type TeamWithMembers = {
     userId: string;
     activity: MemberActivity;
     role: string;
-    user: { name: string | null };
+    user: { name: string | null; avatar: string | null };
   }[];
 };
 
@@ -146,6 +128,7 @@ function toSettings(
     label: initial(m.user.name),
     name: m.user.name?.trim() || null,
     status: mapActivity(m.activity),
+    avatar: m.user.avatar ?? null,
     role: m.role === "owner" ? "owner" : "member",
     isSelf: m.userId === callerUserId,
   }));
@@ -179,7 +162,46 @@ export async function getCurrentTeam(
 export async function getTeamSummary(
   userId: string,
 ): Promise<TeamSummaryResponse | null> {
-  return (await hasTeam(userId)) ? teamSummarySnapshot : null;
+  const teamId = await teamIdOf(userId);
+  if (!teamId) return null;
+
+  const [thisW, lastW] = await Promise.all([
+    teamWeek(teamId),
+    teamWeek(teamId, 1),
+  ]);
+  const today = todayISO();
+
+  const ratePercent = Math.round(thisW.achievementRate);
+  const deltaPercent = Math.round(thisW.achievementRate - lastW.achievementRate);
+
+  const bars: TeamWeeklyBar[] = thisW.weekDays.map((iso, i) => ({
+    label: thisW.weekdayLabels[i],
+    ratio: Math.round(thisW.dailyNapRate[i] * 100) / 100,
+    state: iso < today ? "past" : iso === today ? "today" : "future",
+  }));
+
+  const restingNow = thisW.members.filter((m) => m.status === "resting").length;
+  const suggestion = {
+    headline: (ratePercent >= 60
+      ? ["チームはよく", "休めています"]
+      : ["そろそろ", "ひと休みしませんか"]) as [string, string],
+    body:
+      restingNow > 0
+        ? `いま${restingNow}人が休んでいます。いっしょにどうぞ。`
+        : "いっしょにリフレッシュしませんか？",
+    napMinutes: 15,
+  };
+
+  const achievement =
+    thisW.memberCount > 0 && thisW.achievedCount === thisW.memberCount
+      ? "今週はチーム全員が仮眠を記録しました"
+      : thisW.everyoneNappedDays > 0
+        ? `今週は${thisW.everyoneNappedDays}日、全員そろって仮眠しました`
+        : thisW.achievedCount > 0
+          ? `今週は${thisW.achievedCount}人が仮眠を記録しています`
+          : "";
+
+  return { weekly: { ratePercent, deltaPercent, bars }, suggestion, achievement };
 }
 
 export async function createTeam(
@@ -248,17 +270,17 @@ export async function joinTeam(
     select: { userId: true },
   });
   // Notify everyone who was already on the team (not the joiner).
-  for (const m of members) {
-    if (m.userId === userId) continue;
-    addNotification(m.userId, {
-      kind: "member_joined",
-      title: `${user.name ?? "メンバー"}がチームに参加しました`,
-      body: `チームは${members.length}人になりました`,
-      timestamp: "たった今",
-      read: false,
-      group: "today",
-    });
-  }
+  await Promise.all(
+    members
+      .filter((m) => m.userId !== userId)
+      .map((m) =>
+        addNotification(m.userId, {
+          kind: "member_joined",
+          title: `${user.name ?? "メンバー"}がチームに参加しました`,
+          body: `チームは${members.length}人になりました`,
+        }),
+      ),
+  );
 
   await broadcastTeamMembers(target.id);
   return (await getCurrentTeam(userId))!;
@@ -339,13 +361,10 @@ export async function removeMember(
 
   await prisma.teamMembership.delete({ where: { userId: targetUserId } });
   closeUserSockets(targetUserId);
-  addNotification(targetUserId, {
+  await addNotification(targetUserId, {
     kind: "member_joined",
     title: "チームから退出しました",
     body: "オーナーによってチームから外されました",
-    timestamp: "たった今",
-    read: false,
-    group: "today",
   });
   await broadcastTeamMembers(actor.teamId);
   return (await getCurrentTeam(actorUserId))!;
@@ -400,25 +419,22 @@ export async function suggestTeamNap(
   }
 
   const proposer = membership.user.name ?? "メンバー";
-  let notified = 0;
-  for (const m of membership.team.members) {
-    if (m.userId === userId) continue;
-    addNotification(m.userId, {
-      kind: "team_nap_suggestion",
-      title: `${proposer}さんからチーム仮眠の提案`,
-      body: `${minutes}分、みんなで仮眠しませんか？`,
-      timestamp: "たった今",
-      read: false,
-      group: "today",
-    });
-    notified += 1;
-  }
-  return { success: true, notified };
+  const recipients = membership.team.members.filter((m) => m.userId !== userId);
+  await Promise.all(
+    recipients.map((m) =>
+      addNotification(m.userId, {
+        kind: "team_nap_suggestion",
+        title: `${proposer}さんからチーム仮眠の提案`,
+        body: `${minutes}分、みんなで仮眠しませんか？`,
+      }),
+    ),
+  );
+  return { success: true, notified: recipients.length };
 }
 
 // ---------------------------------------------------------------------------
-// 仮眠上手ランキング — still a static per-team snapshot (out of scope to
-// compute from real nap data).
+// 仮眠上手ランキング — real team members, sorted by this week's rest score
+// (team-nap-stats.service).
 // ---------------------------------------------------------------------------
 
 export type TeamRankingEntry = {
@@ -427,6 +443,8 @@ export type TeamRankingEntry = {
   label: string;
   status: MemberStatus;
   score: number;
+  /** Chosen avatar id, or null → client falls back to a default icon. */
+  avatar: string | null;
 };
 
 export type TeamRankingResponse = {
@@ -434,26 +452,23 @@ export type TeamRankingResponse = {
   entries: TeamRankingEntry[];
 };
 
-const rankingSnapshot: TeamRankingEntry[] = [
-  { id: "m-a", name: "メンバーA", label: "A", status: "resting", score: 92 },
-  { id: "m-b", name: "メンバーB", label: "B", status: "working", score: 88 },
-  { id: "m-c", name: "メンバーC", label: "C", status: "offline", score: 76 },
-  { id: "m-d", name: "メンバーD", label: "D", status: "working", score: 64 },
-  { id: "m-e", name: "メンバーE", label: "E", status: "resting", score: 58 },
-  { id: "m-f", name: "メンバーF", label: "F", status: "working", score: 55 },
-  { id: "m-g", name: "メンバーG", label: "G", status: "offline", score: 51 },
-  { id: "m-h", name: "メンバーH", label: "H", status: "working", score: 48 },
-  { id: "m-i", name: "メンバーI", label: "I", status: "resting", score: 44 },
-  { id: "m-j", name: "メンバーJ", label: "J", status: "working", score: 40 },
-  { id: "m-k", name: "メンバーK", label: "K", status: "offline", score: 36 },
-];
-
 export async function getTeamRanking(
   userId: string,
 ): Promise<TeamRankingResponse | null> {
-  if (!(await hasTeam(userId))) {
-    return null;
-  }
-  const entries = [...rankingSnapshot].sort((a, b) => b.score - a.score);
+  const teamId = await teamIdOf(userId);
+  if (!teamId) return null;
+
+  const week = await teamWeek(teamId);
+  const entries: TeamRankingEntry[] = week.members
+    .map((m) => ({
+      id: m.userId,
+      name: m.name ?? "メンバー",
+      label: m.label,
+      status: m.status,
+      score: m.score,
+      avatar: m.avatar,
+    }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
   return { memberCount: entries.length, entries };
 }

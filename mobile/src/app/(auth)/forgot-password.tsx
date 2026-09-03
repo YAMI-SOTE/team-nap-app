@@ -23,7 +23,7 @@ import {
   confirmPasswordReset,
   requestPasswordReset,
 } from "@/services/authService";
-import SkyBackground from "@/components/SkyBackground";
+import EntryBackground from "@/components/EntryBackground";
 import Logo from "@/components/Logo";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PasswordInput from "@/components/PasswordInput";
@@ -101,7 +101,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SkyBackground>
+    <EntryBackground>
       <StatusBar barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <SafeAreaView style={styles.container}>
@@ -216,7 +216,7 @@ export default function ForgotPasswordScreen() {
         onConfirm={() => router.replace("/login")}
         onCancel={() => router.replace("/login")}
       />
-    </SkyBackground>
+    </EntryBackground>
   );
 }
 

@@ -1,29 +1,33 @@
 import {
   View,
   Text,
-  Image,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
   ScrollView,
-  ActivityIndicator,
   StyleSheet,
-  StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
-import { spacing, radius } from "@/theme/spacing";
 import { useLogin } from "@/hooks/useLogin";
-import SkyBackground from "@/components/SkyBackground";
+import EntryBackground from "@/components/EntryBackground";
+import LabeledInput from "@/components/LabeledInput";
 import OrDivider from "@/components/OrDivider";
+import PillButton from "@/components/PillButton";
+import { GoogleIcon } from "@/components/icons";
 import Logo from "@/components/Logo";
-import PasswordInput from "@/components/PasswordInput";
 
+/**
+ * ログイン画面（Figma "S01-02_Login", node 733:4277）。
+ *
+ * Content は px24 / pt63 / pb24 の中央寄せスタックで、要素間は 16px。
+ * ロゴ → 見出し → フォーム（12px 間隔）→ ログイン → または → Google →
+ * 新規登録リンク、の順に並ぶ。
+ */
 export default function LoginScreen() {
   const router = useRouter();
   const {
@@ -40,268 +44,200 @@ export default function LoginScreen() {
 
   const isBusy = isSubmitting || isGoogleSubmitting;
 
-  const routeAfterAuth = (onboardingCompleted: boolean) => {
-    router.replace(onboardingCompleted ? "/home" : "/onboarding");
-  };
-
   const handleSubmit = async () => {
     const result = await submit();
     if (result) {
-      routeAfterAuth(result.user.onboardingCompleted);
+      router.replace("/home");
     }
   };
 
   const handleGoogleSubmit = async () => {
     const result = await submitWithGoogle();
     if (result) {
-      routeAfterAuth(result.user.onboardingCompleted);
+      router.replace("/home");
     }
   };
 
   return (
-    <SkyBackground>
-      <StatusBar barStyle="dark-content" />
+    <EntryBackground>
+      <StatusBar style="dark" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <SafeAreaView style={styles.container}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.flex}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.flex}
+        >
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Logo width={110} color={colors.primary} style={styles.logo} />
+            <Logo width={68} color={colors.primary} />
 
-              <Text style={styles.heading}>おかえりなさい</Text>
+            <View style={styles.heading}>
+              <Text style={styles.title}>おかえりなさい</Text>
               <Text style={styles.subtitle}>
                 メールアドレスでログインしてください
               </Text>
+            </View>
 
-              <View style={styles.formArea}>
-                <Text style={styles.label}>メールアドレス</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="example@gmail.com"
-                  placeholderTextColor={colors.placeholder}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isBusy}
-                  testID="login-email-input"
-                />
+            <View style={styles.form}>
+              <LabeledInput
+                label="メールアドレス"
+                placeholder="example@gmail.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isBusy}
+                testID="login-email-input"
+              />
 
-                <Text style={styles.label}>パスワード</Text>
-                <PasswordInput
-                  style={styles.input}
-                  placeholder="パスワードを入力"
-                  placeholderTextColor={colors.placeholder}
-                  value={password}
-                  onChangeText={setPassword}
-                  editable={!isBusy}
-                  testID="login-password-input"
-                />
+              <LabeledInput
+                label="パスワード"
+                placeholder="パスワードを入力"
+                value={password}
+                onChangeText={setPassword}
+                revealToggle
+                editable={!isBusy}
+                testID="login-password-input"
+              />
 
-                <TouchableOpacity
-                  style={styles.forgotLink}
-                  disabled={isBusy}
-                  onPress={() => router.push("/forgot-password")}
-                  testID="login-forgot-link"
-                >
-                  <Text style={styles.forgotLinkText}>
-                    パスワードをお忘れですか？
-                  </Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.forgotLink}
+                onPress={() => router.push("/forgot-password")}
+                disabled={isBusy}
+                accessibilityRole="link"
+              >
+                <Text style={styles.forgotLinkText}>
+                  パスワードをお忘れですか？
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                <TouchableOpacity
-                  style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleSubmit}
-                  activeOpacity={0.85}
-                  disabled={isBusy}
-                  testID="login-submit-button"
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={colors.white} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>ログイン</Text>
-                  )}
-                </TouchableOpacity>
+            <PillButton
+              label="ログイン"
+              onPress={handleSubmit}
+              loading={isSubmitting}
+              disabled={isBusy}
+              elevated={false}
+              style={styles.primaryButton}
+              testID="login-submit-button"
+            />
 
-                <OrDivider />
+            <OrDivider />
 
-                <TouchableOpacity
-                  style={[styles.googleButton, isBusy && styles.buttonDisabled]}
-                  onPress={handleGoogleSubmit}
-                  activeOpacity={0.85}
-                  disabled={isBusy}
-                  testID="login-google-button"
-                >
-                  {isGoogleSubmitting ? (
-                    <ActivityIndicator color={colors.textPrimary} />
-                  ) : (
-                    <>
-                      <Image
-                        source={require("../../../assets/google-icon.png")}
-                        style={styles.googleIcon}
-                        resizeMode="contain"
-                      />
-                      <Text style={styles.googleButtonText}>
-                        Googleでログイン
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+            <PillButton
+              variant="outline"
+              label="Googleでログイン"
+              onPress={handleGoogleSubmit}
+              loading={isGoogleSubmitting}
+              disabled={isBusy}
+              icon={
+                <GoogleIcon size={20} />
+              }
+              style={styles.googleButton}
+              textStyle={styles.googleButtonText}
+              testID="login-google-button"
+            />
 
-                {errorMessage ? (
-                  <Text style={styles.errorText} testID="login-error-text">
-                    {errorMessage}
-                  </Text>
-                ) : null}
+            {errorMessage ? (
+              <Text style={styles.errorText} testID="login-error-text">
+                {errorMessage}
+              </Text>
+            ) : null}
 
-                <View style={styles.bottomRow}>
-                  <Text style={styles.bottomText}>
-                    アカウントをお持ちでない方は{" "}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => router.push("/signup")}
-                    disabled={isBusy}
-                  >
-                    <Text style={styles.bottomLink}>新規登録</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+            <View style={styles.signUpRow}>
+              <Text style={styles.signUpText}>アカウントをお持ちでない方は</Text>
+              <TouchableOpacity
+                onPress={() => router.replace("/signup")}
+                disabled={isBusy}
+              >
+                <Text style={styles.signUpLink}>新規登録</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
-    </SkyBackground>
+    </EntryBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   flex: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-  },
-  logo: {
-    width: 110,
-    height: 55,
-    marginBottom: spacing.lg,
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingTop: 63,
+    paddingBottom: 24,
   },
   heading: {
-    fontSize: 26,
-    fontWeight: "bold",
+    width: "100%",
+    gap: 4,
+  },
+  title: {
+    // Figma: Heading/H1 — 28px / 1.4 / 700
+    fontSize: 28,
+    lineHeight: 39,
+    fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: spacing.xl,
-  },
-  formArea: {
-    width: "100%",
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
+    // Figma: Body/S-Regular — 13px / 1.6
+    fontSize: 13,
+    lineHeight: 21,
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
   },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    minHeight: 48,
-    fontSize: 16,
-    color: colors.textPrimary,
-    includeFontPadding: false,
-    textAlignVertical: "center",
-    marginBottom: spacing.lg,
+  form: {
+    width: "100%",
+    gap: 12,
   },
   forgotLink: {
     alignSelf: "flex-end",
-    marginTop: -spacing.sm,
-    marginBottom: spacing.lg,
   },
   forgotLinkText: {
-    fontSize: 13,
-    fontWeight: "600",
+    // Figma: Caption/Bold — 12px / 1.6 / 700
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textBrand,
+  },
+  primaryButton: {
+    minHeight: 47,
+  },
+  googleButton: {
+    minHeight: 47,
+    borderColor: colors.borderDefault,
+    paddingHorizontal: 12,
+  },
+  googleButtonText: {
+    fontSize: 14,
     color: colors.textPrimary,
   },
   errorText: {
+    fontSize: 12,
+    lineHeight: 19,
     color: colors.error,
-    fontSize: 13,
-    marginTop: spacing.md,
     textAlign: "center",
   },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 54,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  primaryButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  googleButton: {
-    flexDirection: "row",
-    backgroundColor: colors.white,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 54,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: spacing.sm,
-  },
-  googleButtonText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  bottomRow: {
+  signUpRow: {
+    width: "100%",
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: spacing.xl,
+    gap: 4,
   },
-  bottomText: {
-    fontSize: 13,
+  signUpText: {
+    fontSize: 12,
+    lineHeight: 19,
     color: colors.textSecondary,
   },
-  bottomLink: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: colors.primary,
+  signUpLink: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textBrand,
   },
 });

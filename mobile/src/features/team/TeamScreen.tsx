@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -16,25 +16,33 @@ import { useRealtimeMembers } from "@/features/realtime/RealtimeProvider";
 import NapProposalSheet from "@/features/team/NapProposalSheet";
 import Toast from "@/components/Toast";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import SceneBackground from "@/components/SceneBackground";
+import StatusPill from "@/components/StatusPill";
 import Logo from "@/components/Logo";
-import GradientCard from "@/components/GradientCard";
-import WeeklyBarChart from "@/components/WeeklyBarChart";
-import IconPill from "@/components/IconPill";
-import CharacterSlot from "@/components/CharacterSlot";
 import MemberAvatar, { type MemberStatus } from "@/components/MemberAvatar";
 import PillButton from "@/components/PillButton";
 import NotificationBell from "@/components/NotificationBell";
 import NoTeamScreen from "@/features/team/NoTeamScreen";
 import {
   ClipboardTextIcon,
-  CrownSimpleIcon,
   DotsThreeCircleIcon,
   MoonStarsIcon,
   TrophyIcon,
 } from "@/components/icons";
 
-const SCREEN_PADDING = 24;
+/**
+ * チーム（Figma S04-01c_Team_AltB, node 838:6060）。
+ *
+ * 上半分はイラスト背景の上に達成率だけを大きく置くヒーロー、下半分は
+ * 白いシートにメンバー・達成・CTAをまとめる二層構成。猫と吹き出しは
+ * シートの上端にまたがるように重ねる。
+ *
+ * 接続エラー画面・未加入時の NoTeamScreen・ライブ在席・仮眠提案シート
+ * とトーストは上流の実装をそのまま使う。
+ */
+
+const SCREEN_PADDING = 32;
+const CAT_SIZE = 116;
 
 export default function TeamScreen() {
   const router = useRouter();
@@ -57,175 +65,143 @@ export default function TeamScreen() {
     return <NoTeamScreen />;
   }
 
-  const handleSuggestNap = () => setProposalOpen(true);
-
-  const handleOpenRanking = () => {
-    router.push("/team/ranking");
-  };
-
-  const handleSeeAllMembers = () => {
-    console.log("TODO: open the full member list");
-  };
-
   const rate = summary ? `${summary.weekly.ratePercent}` : "--";
   const deltaText = summary
     ? `先週より ${summary.weekly.deltaPercent >= 0 ? "+" : ""}${summary.weekly.deltaPercent}% ↑`
     : "";
   const restingCount = memberStatus?.memberStatusCounts.resting ?? 0;
   const workingCount = memberStatus?.memberStatusCounts.working ?? 0;
+  const memberCount = memberStatus?.memberCount ?? 0;
   const napMinutes = summary?.suggestion.napMinutes ?? 15;
-  const suggestionHeadline = (
-    summary?.suggestion.headline ?? ["チームは長時間", "がんばっています"]
+  const bubbleText = (
+    summary?.suggestion.headline ?? [
+      "チーム、がんばりすぎかも。",
+      "いっしょにひとやすみしない？",
+    ]
   ).join("\n");
 
   return (
-    <View style={styles.root}>
-      <AuroraBackdrop />
+    <SceneBackground
+      source={require("../../../assets/backgrounds/team-day.png")}
+    >
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <Logo width={68} color={colors.primary} />
-            <NotificationBell />
-          </View>
+        {/* Hero — イラストの上に達成率だけを見せる */}
+        <View style={styles.hero}>
+          <View style={styles.heroCol}>
+            <View style={styles.header}>
+              <Logo width={72} color={colors.primary} />
+              <NotificationBell size={28} />
+            </View>
 
-          {/* Hero — 今週の Team Nap */}
-          <GradientCard
-            colors={[colors.mintVeil, colors.white]}
-            start={{ x: 1, y: 0 }}
-            end={{ x: 0, y: 0 }}
-            style={styles.heroCard}
-          >
-            <View style={styles.heroSummary}>
-              <View style={styles.heroTextCol}>
-                <Text style={styles.heroCaption}>今週の Team Nap</Text>
-                <View style={styles.heroNumberRow}>
-                  <Text style={styles.heroNumber}>{rate}</Text>
-                  <Text style={styles.heroPercent}>%</Text>
+            <View style={styles.stats}>
+              <View style={styles.metric}>
+                <Text style={styles.caption}>今週の Team Nap 達成率</Text>
+                <View style={styles.metricRow}>
+                  <View style={styles.scoreRow}>
+                    <Text style={styles.scoreValue}>{rate}</Text>
+                    <Text style={styles.scoreUnit}>%</Text>
+                  </View>
+                  {summary ? (
+                    <View style={styles.deltaPill}>
+                      <Text style={styles.deltaText}>{deltaText}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
-              {summary ? (
-                <View style={styles.deltaPill}>
-                  <Text style={styles.deltaText}>{deltaText}</Text>
-                </View>
-              ) : null}
-            </View>
-            {summary ? <WeeklyBarChart days={summary.weekly.bars} /> : null}
-          </GradientCard>
 
-          {/* 現在の状態 */}
-          <View style={styles.statusRow}>
-            <IconPill
-              icon={<MoonStarsIcon size={22} color={colors.primary} />}
-              backgroundColor={colors.brandSubtle}
-              style={styles.statusPill}
-            >
-              <View style={styles.statusTextRow}>
-                <Text style={styles.statusLabel}>仮眠中</Text>
-                <Text style={[styles.statusValue, styles.statusValueBrand]}>
-                  {restingCount}
-                </Text>
-                <Text style={styles.statusLabel}>人</Text>
-              </View>
-            </IconPill>
-            <IconPill
-              icon={<ClipboardTextIcon size={22} />}
-              backgroundColor={colors.surfaceSunken}
-              style={styles.statusPill}
-            >
-              <View style={styles.statusTextRow}>
-                <Text style={styles.statusLabel}>作業中</Text>
-                <Text style={[styles.statusValue, styles.statusValuePrimary]}>
-                  {workingCount}
-                </Text>
-                <Text style={styles.statusLabel}>人</Text>
-              </View>
-            </IconPill>
-          </View>
-
-          {/* チームへの提案 */}
-          <GradientCard
-            colors={[colors.brandGradientFrom, colors.brandGradientTo]}
-            start={{ x: 1, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.suggestionCard}
-          >
-            <View style={styles.suggestionRow}>
-              <CharacterSlot
-                size={96}
-                borderColor={colors.white}
-                source={require("../../../assets/characters/kirakira.png")}
-              />
-              <View style={styles.suggestionTextCol}>
-                <Text style={styles.suggestionTitle}>{suggestionHeadline}</Text>
-                <Text style={styles.suggestionBody}>
-                  {summary?.suggestion.body ?? ""}
-                </Text>
-              </View>
-            </View>
-            <PillButton
-              variant="onColor"
-              label={`${napMinutes}分仮眠を提案`}
-              onPress={handleSuggestNap}
-              icon={<MoonStarsIcon size={22} color={colors.primary} />}
-              textStyle={styles.smallButtonText}
-              style={styles.smallButton}
-            />
-          </GradientCard>
-
-          {/* 今週の達成 */}
-          {summary ? (
-            <IconPill
-              icon={<TrophyIcon size={22} />}
-              backgroundColor={colors.brandSubtle}
-              gap={10}
-            >
-              <Text style={styles.achievementText}>{summary.achievement}</Text>
-            </IconPill>
-          ) : null}
-
-          {/* メンバーのようす */}
-          <View style={styles.membersSection}>
-            <Text style={styles.membersHeading}>メンバーのようす</Text>
-            <View style={styles.membersRow}>
-              {(memberStatus?.members ?? []).map((member) => (
-                <MemberAvatar
-                  key={member.id}
-                  label={member.label}
-                  status={member.status as MemberStatus}
-                  onPress={() => router.push(`/members/${member.id}`)}
+              <View style={styles.chips}>
+                <StatusPill
+                  label={`仮眠中 ${restingCount}人`}
+                  icon={<MoonStarsIcon size={16} color={colors.primary} />}
                 />
-              ))}
+                <StatusPill
+                  label={`作業中 ${workingCount}人`}
+                  icon={<ClipboardTextIcon size={16} color={colors.primary} />}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* 猫と吹き出し。シートの上端に少しかぶせる */}
+          <View style={styles.catRow} pointerEvents="none">
+            <View style={styles.bubbleWrap}>
+              <View style={styles.bubble}>
+                <Text style={styles.bubbleText}>{bubbleText}</Text>
+              </View>
+              <View style={styles.bubbleTail} />
+            </View>
+            <Image
+              source={require("../../../assets/characters/cat-team.png")}
+              style={styles.cat}
+              resizeMode="contain"
+              accessible={false}
+            />
+          </View>
+        </View>
+
+        {/* Sheet — メンバー・達成・CTA */}
+        <View style={styles.sheet}>
+          <View style={styles.sheetCol}>
+            <View style={styles.members}>
+              <Text style={styles.membersHeading}>
+                いまのメンバー（{memberCount}人）
+              </Text>
+              <View style={styles.membersRow}>
+                {(memberStatus?.members ?? []).map((member) => (
+                  <MemberAvatar
+                    key={member.id}
+                    label={member.label}
+                    status={member.status as MemberStatus}
+                    avatarId={member.avatar}
+                    avatarSeed={member.id}
+                    napBadge
+                    onPress={() => router.push(`/members/${member.id}`)}
+                  />
+                ))}
+                <Pressable
+                  onPress={() => router.push("/settings/team-members")}
+                  accessibilityRole="button"
+                  accessibilityLabel="メンバーをもっと見る"
+                  style={styles.membersMore}
+                  hitSlop={8}
+                >
+                  <DotsThreeCircleIcon size={40} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.achievement}>
+              <View style={styles.achievementChip}>
+                <TrophyIcon size={16} color={colors.textBrand} />
+                <Text style={styles.achievementText}>
+                  {summary?.achievement ?? ""}
+                </Text>
+              </View>
               <Pressable
-                onPress={handleSeeAllMembers}
+                onPress={() => router.push("/team/ranking")}
                 accessibilityRole="button"
-                accessibilityLabel="メンバーをもっと見る"
-                style={styles.membersMore}
                 hitSlop={8}
               >
-                <DotsThreeCircleIcon size={40} color={colors.textSecondary} />
+                <Text style={styles.rankingLink}>仮眠上手ランキングを見る</Text>
               </Pressable>
             </View>
-          </View>
 
-          {/* ランキング */}
-          <PillButton
-            variant="outline"
-            label="仮眠上手ランキングを見る"
-            onPress={handleOpenRanking}
-            icon={<CrownSimpleIcon size={22} />}
-            textStyle={styles.smallButtonText}
-            style={styles.smallButton}
-          />
+            <PillButton
+              variant="primary"
+              label={`${napMinutes}分仮眠を提案`}
+              onPress={() => setProposalOpen(true)}
+              icon={<MoonStarsIcon size={24} color={colors.white} />}
+              elevated={false}
+              style={styles.suggestButton}
+              textStyle={styles.suggestButtonLabel}
+            />
 
-          <View style={styles.footer}>
-            {loading ? <ActivityIndicator color={colors.primary} /> : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <View style={styles.footer}>
+              {loading ? <ActivityIndicator color={colors.primary} /> : null}
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            </View>
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
 
       <NapProposalSheet
@@ -247,79 +223,74 @@ export default function TeamScreen() {
         message={toast ?? ""}
         onHide={() => setToast(null)}
       />
-    </View>
+    </SceneBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
   safeArea: {
     flex: 1,
   },
-  content: {
-    paddingTop: 8,
+  hero: {
+    flex: 1,
+    alignItems: "center",
+    paddingTop: 4,
     paddingHorizontal: SCREEN_PADDING,
-    paddingBottom: 24,
-    gap: 10,
+  },
+  heroCol: {
+    width: "100%",
+    maxWidth: 402,
+    gap: 30,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingLeft: 4,
-    marginBottom: 2,
   },
-
-  // Hero
-  heroCard: {
-    width: "100%",
-    borderRadius: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    gap: 12,
+  stats: {
+    gap: 15,
   },
-  heroSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
+  metric: {
+    gap: 6,
   },
-  heroTextCol: {
-    alignItems: "flex-start",
-  },
-  heroCaption: {
+  caption: {
     fontSize: 12,
     lineHeight: 19,
-    fontWeight: "700",
-    color: colors.textBrand,
+    color: colors.textSecondary,
   },
-  heroNumberRow: {
+  metricRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  scoreRow: {
     flexDirection: "row",
     alignItems: "baseline",
     gap: 4,
   },
-  heroNumber: {
-    fontSize: 40,
-    lineHeight: 48,
+  scoreValue: {
+    fontSize: 52,
+    lineHeight: 68,
     fontWeight: "700",
-    letterSpacing: -0.4,
-    color: colors.textBrand,
+    letterSpacing: -0.52,
+    color: colors.textPrimary,
   },
-  heroPercent: {
-    fontSize: 20,
-    lineHeight: 26,
+  scoreUnit: {
+    fontSize: 24,
+    lineHeight: 41,
     fontWeight: "700",
-    color: colors.textBrand,
+    color: colors.textTertiary,
   },
   deltaPill: {
-    backgroundColor: colors.surface,
-    borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: colors.textPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   deltaText: {
     fontSize: 12,
@@ -327,98 +298,85 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textBrand,
   },
-
-  // 現在の状態
-  statusRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  statusPill: {
-    flex: 1,
-  },
-  statusTextRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-  },
-  statusLabel: {
-    fontSize: 12,
-    lineHeight: 19,
-    color: colors.textSecondary,
-  },
-  statusValue: {
-    fontSize: 18,
-    lineHeight: 27,
-    fontWeight: "700",
-  },
-  statusValueBrand: {
-    color: colors.textBrand,
-  },
-  statusValuePrimary: {
-    color: colors.textPrimary,
-  },
-
-  // チームへの提案
-  suggestionCard: {
-    width: "100%",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 72,
-    paddingTop: 16,
-    paddingBottom: 28,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  suggestionRow: {
+  chips: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    width: "100%",
-  },
-  suggestionTextCol: {
-    flex: 1,
-    gap: 4,
-  },
-  suggestionTitle: {
-    fontSize: 16,
-    lineHeight: 27,
-    fontWeight: "700",
-    color: colors.white,
-  },
-  suggestionBody: {
-    fontSize: 12,
-    lineHeight: 19,
-    color: colors.white,
-    opacity: 0.85,
-  },
-  smallButton: {
-    height: 47,
-    minHeight: 47,
-  },
-  smallButtonText: {
-    fontSize: 14,
-  },
-
-  // 今週の達成
-  achievementText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 19,
-    fontWeight: "700",
-    color: colors.textSuccess,
-  },
-
-  // メンバーのようす
-  membersSection: {
+    flexWrap: "wrap",
     gap: 8,
+  },
+  catRow: {
     width: "100%",
+    maxWidth: 402,
+    marginTop: "auto",
+    // シートの上端に少しだけ食い込ませる（Figma で猫の足元が 8px 重なる）。
+    marginBottom: -8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  bubbleWrap: {
+    flexShrink: 1,
+    maxWidth: 226,
+  },
+  bubble: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: "#C4EAE9",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    transform: [{ rotate: "-2deg" }],
+    shadowColor: "#12292C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bubbleText: {
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  bubbleTail: {
+    position: "absolute",
+    right: 12,
+    bottom: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    transform: [{ rotate: "-45deg" }],
+  },
+  cat: {
+    width: CAT_SIZE,
+    height: CAT_SIZE,
+  },
+  sheet: {
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.94)",
+    paddingTop: 26,
+    paddingBottom: 24,
+    paddingHorizontal: SCREEN_PADDING,
+    shadowColor: "#0D1F21",
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 12,
+  },
+  sheetCol: {
+    width: "100%",
+    maxWidth: 402,
+    gap: 20,
+  },
+  members: {
+    gap: 17,
   },
   membersHeading: {
-    fontSize: 14,
-    lineHeight: 24,
-    fontWeight: "500",
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   membersRow: {
@@ -431,7 +389,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
+  achievement: {
+    gap: 12,
+  },
+  achievementChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.brandSubtle,
+  },
+  achievementText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textBrand,
+  },
+  rankingLink: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: "700",
+    color: colors.textBrand,
+    textAlign: "center",
+  },
+  suggestButton: {
+    borderRadius: 32,
+    paddingVertical: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  suggestButtonLabel: {
+    fontSize: 20,
+    lineHeight: 30,
+  },
   footer: {
     minHeight: 20,
     justifyContent: "center",

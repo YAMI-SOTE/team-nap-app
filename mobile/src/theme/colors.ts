@@ -1,14 +1,14 @@
 export const colors = {
-  primary: "#009698",
+  primary: "#009CA0", // --tn-bg-brand / --tn-text-brand-vivid / --tn-icon-brand
   primaryDark: "#007A7C",
   primarySoft: "#DDF3FA",
   background: "#FFFFFF",
   surface: "#FFFFFF",
-  textPrimary: "#111827",
-  textSecondary: "#374151",
+  textPrimary: "#12292C", // --tn-text-primary
+  textSecondary: "#5E6F71", // --tn-text-secondary
   textMuted: "#6B7280",
   border: "#E5E7EB",
-  placeholder: "#9CA3AF",
+  placeholder: "#A3B2B4", // --tn-text-placeholder
   error: "#EF4444",
   white: "#FFFFFF",
 
@@ -28,6 +28,8 @@ export const colors = {
   brandStrong: "#00868A", // --tn-bg-brand-strong
   textSuccess: "#1F8058", // --tn-text-success
   textDanger: "#B33F3E", // --tn-text-danger
+  canvas: "#F7FAFA", // --tn-bg-canvas
+  iconDefault: "#44585A", // --tn-icon-default
   accentGold: "#E0A82F", // trophy / crown accent (Phosphor gold)
   mintVeil: "#E3F6F5", // Gradient / Mint Veil (light end)
   brandGradientFrom: "#26B2B6", // "チームへの提案" card gradient start

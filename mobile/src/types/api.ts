@@ -9,6 +9,8 @@ export interface AuthUser {
   id: string;
   name: string | null;
   email: string;
+  /** Chosen avatar id ("cat" | "man" | "woman"), or null → initials fallback. */
+  avatar: string | null;
   /** false until onboarding is finished — the client gates routing on this. */
   onboardingCompleted: boolean;
 }
@@ -42,6 +44,8 @@ export interface HomeMember {
   id: string;
   label: string;
   status: HomeMemberStatus;
+  /** Chosen avatar id ("cat" | "man" | "woman"), or null → default icon. */
+  avatar: string | null;
 }
 
 export interface HomeSummaryResponse {
@@ -144,6 +148,8 @@ export interface TeamRankingEntry {
   label: string;
   status: HomeMemberStatus;
   score: number;
+  /** Chosen avatar id, or null → default icon. */
+  avatar: string | null;
 }
 
 export interface TeamRankingResponse {
@@ -165,6 +171,8 @@ export interface MemberDetailResponse {
   name: string;
   label: string;
   status: HomeMemberStatus;
+  /** Chosen avatar id, or null → default icon. */
+  avatar: string | null;
   /** "仮眠の状況" card — present while the member is resting. */
   nap: {
     /** Scheduled wake time, e.g. "14:47". */
@@ -246,8 +254,11 @@ export interface StatFocus {
 }
 
 export interface WeeklyCondition {
-  /** One value per weekday (mon–fri), any scale. */
-  values: number[];
+  /**
+   * One entry per day Sun→Sat, any scale. `null` marks a day that has
+   * not happened yet this week — the chart draws no marker for it.
+   */
+  values: Array<number | null>;
   labels: string[];
 }
 

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { useAuth } from "@/features/auth/AuthContext";
 import { colors } from "@/theme/colors";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Logo from "@/components/Logo";
 import SettingsSection from "@/components/SettingsSection";
@@ -29,9 +29,12 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
             <NotificationBell />
@@ -58,6 +61,7 @@ export default function SettingsScreen() {
           <SettingsSection title="通知">
             <SettingsRow
               label="仮眠の提案"
+              variant="control"
               trailing={
                 <Toggle
                   value={data?.napSuggestion ?? false}
@@ -67,6 +71,7 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               label="仮眠の終了"
+              variant="control"
               trailing={
                 <Toggle
                   value={data?.napEnd ?? false}
@@ -76,6 +81,7 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               label="チームからの仮眠提案"
+              variant="control"
               trailing={
                 <Toggle
                   value={data?.teamNapSuggestion ?? false}
@@ -87,6 +93,7 @@ export default function SettingsScreen() {
             />
             <SettingsRow
               label="メンバーからの起床サポート"
+              variant="control"
               trailing={
                 <Toggle
                   value={data?.wakeSupport ?? false}
@@ -112,7 +119,7 @@ export default function SettingsScreen() {
             {loading ? <ActivityIndicator color={colors.primary} /> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
 
       <ConfirmDialog
@@ -138,11 +145,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
-    justifyContent: "space-between",
-    paddingTop: 8,
+    flexGrow: 1,
+    // Figma（node 733:5240）は上詰め＋セクション間 32px 固定。
+    // justifyContent: "space-between" だと画面高に応じてセクション間が
+    // 伸び縮みして、余白がデザインとズレる。
+    gap: 32,
+    // Figma は画面上端から 63px。SafeAreaView の上インセット（≒59）を
+    // 差し引いた分だけをここで足す。
+    paddingTop: 4,
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: "row",

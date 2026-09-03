@@ -1,17 +1,11 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import { useStats } from "@/hooks/useStats";
-import AuroraBackdrop from "@/components/AuroraBackdrop";
+import AppBackground from "@/components/AppBackground";
 import ConnectionErrorView from "@/components/ConnectionErrorView";
 import EmptyState from "@/components/EmptyState";
 import Logo from "@/components/Logo";
@@ -19,6 +13,7 @@ import SegmentedControl from "@/components/SegmentedControl";
 import PersonalStatsView from "@/features/stats/PersonalStatsView";
 import TeamStatsView from "@/features/stats/TeamStatsView";
 import NotificationBell from "@/components/NotificationBell";
+import { MoonStarsIcon } from "@/components/icons";
 
 const TABS = [
   { key: "personal", label: "個人" },
@@ -42,15 +37,19 @@ export default function StatsScreen() {
 
   return (
     <View style={styles.root}>
-      <AuroraBackdrop />
+      <AppBackground />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
+        {/* Fixed, non-scrolling. */}
+        <View
+          style={[
+            styles.content,
+            // Figma: S05-01 の Content は gap 10、S05-02 は gap 8。
+            activeTab === "team" && styles.contentTeam,
+          ]}
         >
           <View style={styles.header}>
             <Logo width={68} color={colors.primary} />
-            <NotificationBell />
+            <NotificationBell size={28} />
           </View>
 
           {hasTeam ? (
@@ -71,10 +70,11 @@ export default function StatsScreen() {
             </View>
           ) : activeTab === "personal" && personal && !personal.hasRecords ? (
             <EmptyState
-              image={require("../../../assets/characters/genki.png")}
+              image={require("../../../assets/characters/cat-stats-empty.png")}
               title="まだ仮眠の記録がありません"
-              body="15分の仮眠をとると、スコアや集中度の変化がここに表示されます。"
+              body={"15分の仮眠をとると、スコアや\n集中度の変化がここに表示されます。"}
               actionLabel="はじめての仮眠をとる"
+              actionIcon={<MoonStarsIcon size={24} color={colors.white} />}
               onAction={() => router.push("/rest")}
             />
           ) : activeTab === "personal" && personal ? (
@@ -95,7 +95,7 @@ export default function StatsScreen() {
               onMorePress={() => router.push("/team")}
             />
           ) : null}
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -110,10 +110,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
     paddingTop: 8,
     paddingHorizontal: 24,
     paddingBottom: 24,
     gap: 10,
+  },
+  contentTeam: {
+    gap: 8,
   },
   header: {
     flexDirection: "row",

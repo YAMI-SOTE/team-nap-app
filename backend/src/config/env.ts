@@ -14,10 +14,28 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().min(1).default("0.0.0.0"),
 
-  // AI comment generation (Ollama).
-  // NOTE: verify the model tag — "gemma4:e2b" looks like a typo.
+  // AI comment generation (Ollama). Default `gemma4:e2b` (~7.2GB) for the
+  // best Japanese wording. It needs ~8GB RAM / 2 CPU and generates in
+  // ~24s warm (cold model load can be ~45-60s), so OLLAMA_TIMEOUT_MS is
+  // set accordingly. On a smaller box set OLLAMA_MODEL=gemma3:1b (~815MB,
+  // ~5-16s, fits 4GB/1CPU). Any pullable tag works; if generation can't
+  // keep up everything falls back to the rule-based / canned copy.
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().min(1).default("gemma4:e2b"),
+  // Abort a single generation after this long, then fall back to
+  // rule-based / canned copy. `gemma4:e2b` needs ~24s warm and longer for
+  // the first (cold) request, so keep this generous.
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
+
+  // Expo push. `EXPO_PUSH_URL` almost never changes. `EXPO_ACCESS_TOKEN`
+  // is optional — set it (from expo.dev → Account → Access tokens) to
+  // send with "Enhanced Security for Push Notifications" turned on;
+  // without it, unauthenticated sends still work.
+  EXPO_PUSH_URL: z
+    .string()
+    .url()
+    .default("https://exp.host/--/api/v2/push/send"),
+  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
 
   // Postgres connection string for Prisma.
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

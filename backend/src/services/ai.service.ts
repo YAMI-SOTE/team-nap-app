@@ -3,6 +3,63 @@ import { env } from "../config/env.js";
 const OLLAMA_URL = env.OLLAMA_URL;
 const OLLAMA_MODEL = env.OLLAMA_MODEL;
 
+/**
+ * The LLM only rephrases evaluation codes the backend already computed, so
+ * whenever Ollama is unreachable / slow / gives junk we can compose a
+ * faithful Japanese sentence from the same codes. These are the fallbacks
+ * for the personal / team comment endpoints (Home / nap advice have their
+ * own inline fallbacks further down).
+ */
+const PERSONAL_DURATION_JA: Record<
+  PersonalRestData["restDurationEvaluation"],
+  string
+> = {
+  short: "少し短めの休息でした",
+  appropriate: "ちょうどよい長さの休息でした",
+  long: "やや長めの休息でした",
+};
+
+const PERSONAL_WAKE_JA: Record<PersonalRestData["wakeEvaluation"], string> = {
+  good: "目覚めもすっきりしていたようです",
+  normal: "目覚めはいつもどおりでした",
+  sleepy: "起きたあとも少し眠気が残っていたようです",
+};
+
+const PERSONAL_SELF_JA: Record<
+  PersonalRestData["selfInitiatedEvaluation"],
+  string
+> = {
+  self: "自分のタイミングで休めていました",
+  notification: "通知をきっかけに休めていました",
+};
+
+export function personalFallbackComment(data: PersonalRestData): string {
+  return `${PERSONAL_DURATION_JA[data.restDurationEvaluation]}。${
+    PERSONAL_WAKE_JA[data.wakeEvaluation]
+  }。${PERSONAL_SELF_JA[data.selfInitiatedEvaluation]}。`;
+}
+
+const TEAM_REST_JA: Record<TeamRestData["teamRestEvaluation"], string> = {
+  good: "チーム全体の休息状態は良好です",
+  normal: "チーム全体の休息状態は標準的です",
+  needs_improvement: "チーム全体の休息状態には改善の余地があります",
+};
+
+const TEAM_ENCOURAGEMENT_JA: Record<
+  TeamRestData["encouragementEvaluation"],
+  string
+> = {
+  active: "メンバー同士の声かけも活発です",
+  normal: "メンバー同士の声かけは標準的です",
+  low: "メンバー同士の声かけは少なめです",
+};
+
+export function teamFallbackComment(data: TeamRestData): string {
+  return `${TEAM_REST_JA[data.teamRestEvaluation]}。${
+    TEAM_ENCOURAGEMENT_JA[data.encouragementEvaluation]
+  }。`;
+}
+
 // ---------------------------------------------------------------------------
 // Personal rest comment
 // ---------------------------------------------------------------------------
@@ -77,7 +134,12 @@ notification = 通知をきっかけに休息を開始した
 ${JSON.stringify(data, null, 2)}
 `;
 
-  return callGemma(prompt);
+  try {
+    return await callGemma(prompt);
+  } catch (error) {
+    console.error("Personal AI comment fell back to canned copy:", error);
+    return personalFallbackComment(data);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +190,69 @@ low = メンバー同士の声かけが少ない
 ・日本語のみ
 ・1〜2文
 ・100文字以内
+・前置きは不要
+・コメント本文だけを返してください
+
+【入力データ】
+${JSON.stringify(data, null, 2)}
+`;
+
+  try {
+    return await callGemma(prompt);
+  } catch (error) {
+    console.error("Team AI comment fell back to canned copy:", error);
+    return teamFallbackComment(data);
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Nap reflection advice
+// ---------------------------------------------------------------------------
+
+export type NapAdviceAiData = {
+  minutes: number;
+  wakeStars: number;
+  focusDeltaPt: number;
+  start: string;
+};
+
+export async function generateNapAdvice(
+  data: NapAdviceAiData,
+): Promise<string> {
+  const prompt = `
+あなたは休息支援アプリの「仮眠後のふりかえり画面」に表示する
+短いアドバイスの文章作成を担当します。
+
+入力された仮眠データだけを使って、
+今回の休息について自然で短い日本語のコメントを作成してください。
+
+【入力項目】
+minutes:
+仮眠した時間（分）
+
+wakeStars:
+起床後の目覚めの自己評価。1〜5で、5が最も良い評価です。
+
+focusDeltaPt:
+仮眠後の集中度を表す値です。
+正の値は集中しやすい状態、負の値は集中しにくい状態を表します。
+
+start:
+仮眠を開始した時刻です。
+
+【最重要ルール】
+・入力されていない情報を推測しないでください
+・医学的な診断や効果の断定をしないでください
+・ユーザーを責める表現を使わないでください
+・強い命令表現を避けてください
+・具体的すぎる健康上の助言をしないでください
+・今回の仮眠についてのみコメントしてください
+
+【出力ルール】
+・日本語のみ
+・1〜3文
+・120文字以内
 ・前置きは不要
 ・コメント本文だけを返してください
 
@@ -299,12 +424,12 @@ ${JSON.stringify(data, null, 2)}
 // Ollama / Gemma
 // ---------------------------------------------------------------------------
 
-/** Give up on the model after this long so a slow/absent Ollama never wedges a request. */
-const OLLAMA_TIMEOUT_MS = 8000;
-
 async function callGemma(prompt: string): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => controller.abort(),
+    env.OLLAMA_TIMEOUT_MS,
+  );
 
   let response: Response;
   try {
@@ -317,6 +442,10 @@ async function callGemma(prompt: string): Promise<string> {
         model: OLLAMA_MODEL,
         prompt,
         stream: false,
+        // Keep the model resident for 30 min so only the very first call
+        // after an idle period pays the load cost (which can exceed the
+        // timeout and fall back).
+        keep_alive: "30m",
         options: {
           temperature: 0.2,
         },
