@@ -4,6 +4,28 @@
     "slug": "team-nap",
     "version": "1.0.0",
     "scheme": "teamnap",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#009CA0"
+    },
+    "ios": {
+      "bundleIdentifier": "app.teamnap.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.teamnap.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#009CA0"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-status-bar",
