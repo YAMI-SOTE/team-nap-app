@@ -120,6 +120,7 @@ erDiagram
         string id PK
         string email UK
         string name "nullable"
+        string avatar "nullable（cat | man | woman）"
         string passwordHash "nullable"
         datetime createdAt
     }
@@ -226,6 +227,7 @@ erDiagram
 | id           | String PK  | `uuid()`                |
 | email        | String     | `@unique`（保存時に小文字化）|
 | name         | String?    | 表示名（頭文字生成に使用）|
+| avatar       | String?    | 選択アイコン ID（`cat` \| `man` \| `woman`。プレースホルダーの候補セット）。null は頭文字フォールバック。`mobile/src/constants/avatars.ts` が単一ソース |
 | passwordHash | String?    | scrypt ハッシュ `scrypt$<salt>$<hash>`。シード / 旧 `ensureUser` 経由のユーザーは null |
 | createdAt    | DateTime   | `now()`                 |
 
@@ -406,6 +408,7 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
+  avatar              String?
   passwordHash        String?
   createdAt           DateTime             @default(now())
   memberships         TeamMembership[]
@@ -658,6 +661,7 @@ git add backend/prisma && git commit
 20260901210222_nap_records_allow_multiple_per_day  NapRecord の (userId, date) UNIQUE を撤去
 20260901222623_onboarding_settings_fields  Onboarding に napCutoffHour / notify* / calendarDeviceConnected を追加
 20260901224358_team_roles_and_invite_index  TeamMembership.role + Team.inviteCodeNormalized（一意）
+20260902110246_user_avatar            User.avatar 追加（選択アイコン ID、null 可）
 ```
 
 ---

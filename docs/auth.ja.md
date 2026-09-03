@@ -33,6 +33,7 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 | `POST /signup` | – | `{ name, email, password }` → 201 `{ token, user }`。`password` は 8 文字以上。既存メールは 409（旧 `ensureUser` 由来のパスワード無しアカウントは引き継ぎ可） |
 | `POST /login` | – | `{ email, password }` → 200 `{ token, user }`。失敗は 401（存在有無で文言を変えない） |
 | `GET /me` | Bearer | `{ user }` |
+| `PATCH /me` | Bearer | `{ name?, email?, avatar? }`（1 項目以上）→ `{ user }`。`avatar` は `cat`｜`man`｜`woman`｜`null`。メール重複は 409 |
 | `POST /password` | Bearer | `{ currentPassword, newPassword }` → `{ revokedOtherSessions }`。現在のセッションは残し他を失効。現行 PW 誤りは 400 |
 | `GET /sessions` | Bearer | 有効セッション一覧。呼び出し中のものは `current: true` |
 | `DELETE /sessions/:id` | Bearer | 1 セッション失効 → 204（自分の有効セッションでなければ 404） |
@@ -41,7 +42,8 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 | `POST /password-reset/request` | – | `{ email }` → 常に 202 `{ ok }`（存在秘匿）。本番以外は `resetToken` も返す。トークンは常にサーバログに出力 |
 | `POST /password-reset/confirm` | – | `{ token, password }` → 204。単回・期限付き。成功で **全セッション失効**。無効/使用済/期限切れは 400 |
 
-`user` は毎回 `{ id, name, email, onboardingCompleted }`。
+`user` は毎回 `{ id, name, avatar, email, onboardingCompleted }`
+（`avatar` は選択アイコン ID `cat`｜`man`｜`woman`、未選択は `null`）。
 
 ### オンボーディング（`/api/v1/onboarding`、すべて Bearer）
 
@@ -49,7 +51,7 @@ Google OAuth は対象外。関連: [db.md](./db.md) / [team-feature.ja.md](./te
 | --- | --- | --- |
 | `GET /` | – | `{ completed, bedtime, wakeTime, calendarConnected, notificationsEnabled, completedAt }`。行が無ければデフォルトで遅延作成 |
 | `PUT /` | 4 項目の任意の部分集合 | 途中保存。完了にはしない |
-| `POST /complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled? }` | 初回のみ `completedAt` を刻む。以降は冪等（回答だけ更新） |
+| `POST /complete` | `{ bedtime, wakeTime, calendarConnected?, notificationsEnabled?, avatar? }` | 初回のみ `completedAt` を刻む。以降は冪等（回答だけ更新）。`avatar`（`cat`｜`man`｜`woman`｜`null`）は `User.avatar` に保存 |
 
 `bedtime` / `wakeTime` は zod で「就寝→起床が 16 時間以内」を検証（`lib/sleep-window.ts`。
 `/settings/sleep-schedule` と同じルール）。`Onboarding` 行は設定画面
