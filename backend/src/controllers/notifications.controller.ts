@@ -8,19 +8,22 @@ import {
   markNotificationRead,
 } from "../services/notifications.service.js";
 
-export function getNotificationsController(req: Request, res: Response) {
-  res.status(200).json(listNotifications(requireUserId(req)));
+export async function getNotificationsController(req: Request, res: Response) {
+  res.status(200).json(await listNotifications(requireUserId(req)));
 }
 
-export function markNotificationReadController(req: Request, res: Response) {
-  res
-    .status(200)
-    .json(markNotificationRead(requireUserId(req), firstParam(req, "id")));
-}
-
-export function markAllNotificationsReadController(
+export async function markNotificationReadController(
   req: Request,
   res: Response,
 ) {
-  res.status(200).json(markAllNotificationsRead(requireUserId(req)));
+  res
+    .status(200)
+    .json(await markNotificationRead(requireUserId(req), firstParam(req, "id")));
+}
+
+export async function markAllNotificationsReadController(
+  req: Request,
+  res: Response,
+) {
+  res.status(200).json(await markAllNotificationsRead(requireUserId(req)));
 }

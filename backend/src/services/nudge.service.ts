@@ -55,13 +55,10 @@ export async function sendNudge(
   }
 
   const copy = COPY[kind];
-  addNotification(toUserId, {
+  await addNotification(toUserId, {
     kind: copy.notification,
     title: `${from.user.name ?? "メンバー"}から${copy.verb}`,
     body: copy.body,
-    timestamp: "たった今",
-    read: false,
-    group: "today",
   });
 
   return { success: true };

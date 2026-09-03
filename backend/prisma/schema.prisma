@@ -28,6 +28,31 @@ model User {
   onboarding   Onboarding?
   naps         NapRecord[]
   calendarEvents CalendarEvent[]
+  notifications Notification[]
+}
+
+/// One entry in a user's notification feed (the お知らせ screen). Persisted
+/// so the feed survives a restart. Written by `nudge.service` (to the
+/// recipient) and `team.service` (to existing members on join / removal /
+/// nap suggestion); read + marked-read via /notifications.
+/// `createdAt` is authoritative — the relative "2分前" label and the
+/// today / earlier grouping are derived at read time
+/// (src/services/notifications.service.ts).
+model Notification {
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  /// NotificationKind union, stored as text: "welcome" | "team_nap_suggestion"
+  /// | "wake_request" | "rest_request" | "nap_ended" | "weekly_review"
+  /// | "member_joined".
+  kind      String
+  title     String
+  body      String
+  /// Null = unread. Set when the user marks it read.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 /// One entry in a user's schedule. Backs the スケジュール screen CRUD and

@@ -270,17 +270,17 @@ export async function joinTeam(
     select: { userId: true },
   });
   // Notify everyone who was already on the team (not the joiner).
-  for (const m of members) {
-    if (m.userId === userId) continue;
-    addNotification(m.userId, {
-      kind: "member_joined",
-      title: `${user.name ?? "メンバー"}がチームに参加しました`,
-      body: `チームは${members.length}人になりました`,
-      timestamp: "たった今",
-      read: false,
-      group: "today",
-    });
-  }
+  await Promise.all(
+    members
+      .filter((m) => m.userId !== userId)
+      .map((m) =>
+        addNotification(m.userId, {
+          kind: "member_joined",
+          title: `${user.name ?? "メンバー"}がチームに参加しました`,
+          body: `チームは${members.length}人になりました`,
+        }),
+      ),
+  );
 
   await broadcastTeamMembers(target.id);
   return (await getCurrentTeam(userId))!;
@@ -361,13 +361,10 @@ export async function removeMember(
 
   await prisma.teamMembership.delete({ where: { userId: targetUserId } });
   closeUserSockets(targetUserId);
-  addNotification(targetUserId, {
+  await addNotification(targetUserId, {
     kind: "member_joined",
     title: "チームから退出しました",
     body: "オーナーによってチームから外されました",
-    timestamp: "たった今",
-    read: false,
-    group: "today",
   });
   await broadcastTeamMembers(actor.teamId);
   return (await getCurrentTeam(actorUserId))!;
@@ -422,20 +419,17 @@ export async function suggestTeamNap(
   }
 
   const proposer = membership.user.name ?? "メンバー";
-  let notified = 0;
-  for (const m of membership.team.members) {
-    if (m.userId === userId) continue;
-    addNotification(m.userId, {
-      kind: "team_nap_suggestion",
-      title: `${proposer}さんからチーム仮眠の提案`,
-      body: `${minutes}分、みんなで仮眠しませんか？`,
-      timestamp: "たった今",
-      read: false,
-      group: "today",
-    });
-    notified += 1;
-  }
-  return { success: true, notified };
+  const recipients = membership.team.members.filter((m) => m.userId !== userId);
+  await Promise.all(
+    recipients.map((m) =>
+      addNotification(m.userId, {
+        kind: "team_nap_suggestion",
+        title: `${proposer}さんからチーム仮眠の提案`,
+        body: `${minutes}分、みんなで仮眠しませんか？`,
+      }),
+    ),
+  );
+  return { success: true, notified: recipients.length };
 }
 
 // ---------------------------------------------------------------------------
