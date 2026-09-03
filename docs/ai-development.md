@@ -13,15 +13,32 @@ Team Nap のAI機能を、Home・Rest・Teamなどの他機能から独立して
 
 | 機能 | 実装 | 呼び出し元 |
 | --- | --- | --- |
-| 個人RESTコメント | `generatePersonalRestComment`（Ollama） | `POST /api/v1/ai/personal-comment` |
-| TEAMコメント | `generateTeamRestComment`（Ollama） | `POST /api/v1/ai/team-comment` |
-| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース） | `home.service.getHomeSummary`（チーム所属時のみ） |
-| ふりかえり画面の仮眠アドバイス | `buildAdvice`（**ルールベース**、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存 |
+| 個人RESTコメント | `generatePersonalRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/personal-comment` |
+| TEAMコメント | `generateTeamRestComment`（Ollama + フォールバック） | `POST /api/v1/ai/team-comment` |
+| HOMEの見出し + aiAdvice | `generateHomeComments`（Ollama、JSON を要求してパース + フォールバック） | `home.service.getHomeSummary`（チーム所属時のみ） |
+| ふりかえり画面の仮眠アドバイス | `generateNapAdvice`（Ollama） → 失敗時 `buildAdvice`（ルールベース、`nap-advice.service.ts`） | `naps.service.createNap` が生成し `NapRecord.aiAdvice` に保存。`GET /naps/:id` で ふりかえり画面が読む |
 
-`callGemma` は 8 秒でアボート（`OLLAMA_TIMEOUT_MS`）。`generateHomeComments`
-はモデルが落ちている/遅い/壊れた JSON のとき定型文にフォールバックする
-（500 を返さない）。`buildAdvice` は将来 Ollama 呼び出しに差し替えても
-`NapRecord.aiAdvice` 列とシグネチャは変えずに済む構造。
+`callGemma` は `OLLAMA_TIMEOUT_MS`（既定 30 秒、env で調整可）でアボート。
+モデルが落ちている / 遅い / 壊れた出力のとき、**4 機能すべてがフォールバック**
+する（500 / 502 を返さない）:
+
+- `generateNapAdvice` → `nap-advice.service.ts` の `buildAdvice`（ルールベース）
+- `generatePersonalRestComment` / `generateTeamRestComment` → 評価コードから
+  組み立てた日本語 1〜2 文（`personalFallbackComment` / `teamFallbackComment`）
+- `generateHomeComments` → `teamEvaluation` ごとの定型 headline / aiAdvice
+
+### モデル選定（`OLLAMA_MODEL`）
+
+env ごとに指定する。フォールバックがあるので「未指定 = 常にルールベース」でも動く。
+
+| モデル | 状況 |
+| --- | --- |
+| `gemma3n:e2b`（既定） | ローカルで生成成功。ただし **生成に約 24 秒**（コールド時）、タイムアウトすると約 30 秒。**~8GB / 2CPU 必要**。現行 VPS（4GB / 1CPU 制限）では起動できない |
+| `gemma3:1b` | VPS で動作確認済み（ウォーム後 約 5〜7 秒）。ただし**日本語がやや不自然** |
+| （未指定） | 生成しない。全機能が上記フォールバックのみ |
+
+VPS のコンテナ制限を 8GB / 2CPU へ引き上げるかは検討中。当面は環境変数で
+モデルを切り替える（`compose.yaml` の `OLLAMA_MODEL` / `backend/.env`）。
 
 ### 個人RESTコメント
 

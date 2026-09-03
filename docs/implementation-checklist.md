@@ -57,7 +57,7 @@ Next Action:
 | `docs/api.md` | `docs/auth.md`（認証・オンボーディング API） |
 | `docs/database.md` | `docs/db.md` |
 | `docs/use-case.md` | 相当は `docs/testing-guide.md`（手動検証手順） |
-| llama.cpp + Gemma 3 1B | 現状は **Ollama**（`OLLAMA_URL` / `OLLAMA_MODEL`、`backend/src/services/ai.service.ts`）。`llm/` は `llm.md` とプロンプト（`prompts/personal.txt` / `team.txt`）のみ |
+| llama.cpp + Gemma 3 1B | 現状は **Ollama**（既定モデル `gemma3n:e2b`、`OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS`、`backend/src/services/ai.service.ts`）。`llm/` は `llm.md` とプロンプト（`prompts/personal.txt` / `team.txt`）のみ |
 
 現行モデル一覧: `User` / `Session` / `PasswordResetToken` / `Onboarding` /
 `NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` + enum `MemberActivity`。
@@ -470,10 +470,10 @@ EXPO_PUBLIC_API_URL=http://<LOCAL_LAN_IP>:3000
 
 * [ ] `llm/` directoryが存在する（`llm.md` ＋ `prompts/`）
 * [ ] `backend/src/services/ai.service.ts` が LLM 呼び出しを集約している
-* [ ] `OLLAMA_URL` / `OLLAMA_MODEL` が env で定義されている
-* [ ] モデルタグが正しい（`config/env.ts` の既定 `gemma4:e2b` はタイポ疑い — 要確認）
-* [ ] AIタイムアウトがある（`callGemma` に 30s。ユーザー導線では短縮を検討）
-* [ ] AI失敗時のフォールバックがある（home / nap は canned copy、personal/team comment は無し）
+* [ ] `OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT_MS` が env で定義されている
+* [x] モデルタグ（`config/env.ts` の既定 `gemma3n:e2b` = Gemma 3n E2B、実在タグ）
+* [x] AIタイムアウト（`callGemma` は `OLLAMA_TIMEOUT_MS`、既定 8s、env 調整可）
+* [x] AI失敗時のフォールバック（home / nap / personal / team すべて canned copy）
 * [ ] `.gguf` がGit管理されていない
 * [ ] MobileからLLMへ直接接続していない（必ず Backend 経由）
 
