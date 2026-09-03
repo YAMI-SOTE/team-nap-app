@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { Stack } from "expo-router";
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from "react-native-safe-area-context";
 
 import { notifyFrontendBoot } from "@/services/appBoot";
 import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
@@ -53,15 +57,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <RealtimeProvider>
-        <NotificationsProvider>
-          {/* Centres the phone-width column in a desktop browser; no-op on native. */}
-          <WebFrame>
-            <RootNavigator />
-          </WebFrame>
-        </NotificationsProvider>
-      </RealtimeProvider>
-    </AuthProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AuthProvider>
+        <RealtimeProvider>
+          <NotificationsProvider>
+            {/* Centres the phone-width column in a desktop browser; no-op on native. */}
+            <WebFrame>
+              <RootNavigator />
+            </WebFrame>
+          </NotificationsProvider>
+        </RealtimeProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
