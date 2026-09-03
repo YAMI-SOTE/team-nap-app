@@ -4,6 +4,8 @@ import {
   leaveTeam as clearCurrentTeam,
   type TeamSettingsResponse,
 } from "./team.service.js";
+import { googleSampleEvents } from "./google-calendar-sample.js";
+import { clearGoogleEvents, replaceGoogleEvents } from "./schedule.service.js";
 
 export type { TeamSettingsResponse };
 
@@ -119,17 +121,36 @@ export async function updateSleepSchedule(
   };
 }
 
-// --- Calendar links (mock: no real OAuth / device sync yet) ------------------
+// --- Calendar links ---------------------------------------------------------
+//
+// There is no real Google OAuth in this project. "Connecting" Google
+// Calendar imports a canned week of events (google-calendar-sample.ts)
+// into the user's own CalendarEvent store; re-syncing refreshes them and
+// disconnecting removes them. Device-calendar sync is still a stub flag.
+
+/** "たった今" / "N分前" / "N時間前" / "M月D日" for the last-sync label. */
+function relativeJa(from: Date | null): string | null {
+  if (!from) return null;
+  const diffMinutes = Math.floor((Date.now() - from.getTime()) / 60000);
+  if (diffMinutes < 1) return "たった今";
+  if (diffMinutes < 60) return `${diffMinutes}分前`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}時間前`;
+  return `${from.getMonth() + 1}月${from.getDate()}日`;
+}
 
 function calendarView(row: {
   calendarConnected: boolean;
   calendarDeviceConnected: boolean;
+  calendarLastSyncedAt: Date | null;
 }): CalendarIntegrationResponse {
   return {
     google: {
       connected: row.calendarConnected,
-      email: null,
-      lastSyncedLabel: null,
+      email: row.calendarConnected ? "sample@gmail.com" : null,
+      lastSyncedLabel: row.calendarConnected
+        ? relativeJa(row.calendarLastSyncedAt)
+        : null,
     },
     device: { connected: row.calendarDeviceConnected },
   };
@@ -145,10 +166,11 @@ export async function syncGoogleCalendar(
   userId: string,
 ): Promise<CalendarIntegrationResponse> {
   await settingsRow(userId);
+  await replaceGoogleEvents(userId, googleSampleEvents());
   return calendarView(
     await prisma.onboarding.update({
       where: { userId },
-      data: { calendarConnected: true },
+      data: { calendarConnected: true, calendarLastSyncedAt: new Date() },
     }),
   );
 }
@@ -157,10 +179,11 @@ export async function disconnectGoogleCalendar(
   userId: string,
 ): Promise<CalendarIntegrationResponse> {
   await settingsRow(userId);
+  await clearGoogleEvents(userId);
   return calendarView(
     await prisma.onboarding.update({
       where: { userId },
-      data: { calendarConnected: false },
+      data: { calendarConnected: false, calendarLastSyncedAt: null },
     }),
   );
 }

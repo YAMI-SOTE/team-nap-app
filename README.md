@@ -313,7 +313,8 @@ npm run db:studio      # GUI で閲覧
 Migrationはチーム全体で同じDatabase Schemaを再現するために必要です。
 Compose / 本番では `npm start` が起動時に `prisma migrate deploy` を実行します。
 
-現在のモデルは `User` / `Team` / `TeamMembership` の3つです（詳細は
+現在のモデルは `User` / `Session` / `PasswordResetToken` / `Onboarding` /
+`NapRecord` / `CalendarEvent` / `Team` / `TeamMembership` です（詳細は
 [docs/db.md](docs/db.md)、チーム機能のバックエンド設計は
 [docs/team-feature.ja.md](docs/team-feature.ja.md)）。
 

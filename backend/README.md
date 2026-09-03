@@ -7,15 +7,18 @@ Express + TypeScript API server for the Team Nap app.
 ## Persistence
 
 Prisma 7 + PostgreSQL, connected through the `@prisma/adapter-pg` driver
-adapter (`src/lib/prisma.ts`). Persisted models: **`User`, `Team`,
-`TeamMembership`, `Session`** (see `prisma/schema.prisma` and
+adapter (`src/lib/prisma.ts`). Persisted models: **`User`, `Session`,
+`PasswordResetToken`, `Onboarding`, `NapRecord`, `CalendarEvent`, `Team`,
+`TeamMembership`** (see `prisma/schema.prisma` and
 [../docs/db.md](../docs/db.md)).
 
-Team-related services are DB-backed: `team.service`, `member.service`,
-`nudge.service`, and the member-status part of `home.service`. The rest
-(`settings`, `schedule`, `naps`, and the team summary/ranking snapshots)
-is still in-memory state in `src/services/*`. `notifications.service` is
-in-memory too but now **keyed by userId** (a `Map`), not one global list.
+DB-backed services: `auth`/`session`/`password-reset`, `onboarding`,
+`settings` (all on the `Onboarding` row), `naps` (`NapRecord`), `schedule`
+(`CalendarEvent` — per-user CRUD + the Google Calendar sample import),
+`team`/`member`/`nudge`, and the member-status part of `home.service`.
+Still in-memory in `src/services/*`: `notifications.service` (a `Map`
+**keyed by userId**, not one global list) and the team summary/ranking
+snapshots.
 
 ## Authentication & sessions
 
