@@ -1,35 +1,14 @@
-import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
 
 import { colors } from "@/theme/colors";
 import Logo from "@/components/Logo";
-import { useAuth } from "@/features/auth/AuthContext";
 
-/** Minimum time the splash is shown, so it doesn't flash on a fast restore. */
-const MIN_SPLASH_MS = 900;
-
+/**
+ * Visual splash. Navigation away from here is handled centrally by
+ * `useProtectedRoute` in the root layout once the session is known.
+ */
 export default function SplashScreen() {
-  const router = useRouter();
-  const { status, user } = useAuth();
-  const [minElapsed, setMinElapsed] = useState(false);
-
-  useEffect(() => {
-    const id = setTimeout(() => setMinElapsed(true), MIN_SPLASH_MS);
-    return () => clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
-    if (!minElapsed || status === "loading") return;
-
-    if (status === "signedOut") {
-      router.replace("/login");
-      return;
-    }
-    router.replace(user?.onboardingCompleted ? "/home" : "/onboarding");
-  }, [minElapsed, status, user, router]);
-
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
