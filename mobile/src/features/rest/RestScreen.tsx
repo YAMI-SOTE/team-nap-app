@@ -108,7 +108,7 @@ export default function RestScreen() {
 
   // Figmaのフレーム幅(402px)に対する比率で、実画面幅にスケーリングする。
   // カードは画面幅の 78% 前後（312 / 402）に収まるよう上限も設ける。
-  const scale = screenWidth > 0 ? Math.min(screenWidth / FIGMA_FRAME_WIDTH, 1.1) : 0;
+  const scale = screenWidth > 0 ? Math.min(screenWidth / FIGMA_FRAME_WIDTH, 1) : 0;
   const CARD_SIZE = FIGMA_CARD_SIZE * scale;
   const TIMER_SIZE = CARD_SIZE - FIGMA_RING_INSET * 2 * scale;
   const RADIUS = Math.max((TIMER_SIZE - STROKE_WIDTH) / 2, 0);
@@ -204,7 +204,7 @@ export default function RestScreen() {
               {/* Figma の猫は 5 コマループのインスタンス（node 813:1763） */}
               <SpriteLoop
                 frames={CAT_SLEEPING_FRAMES}
-                size={192}
+                size={168}
                 frameDurationMs={CAT_SLEEPING_FRAME_MS}
               />
               <View style={styles.bubble}>
@@ -328,8 +328,8 @@ const styles = StyleSheet.create({
   },
   illustration: {
     width: "100%",
-    height: 200,
-    marginTop: 10,
+    height: 168,
+    marginTop: 4,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   timerCard: {
-    marginTop: 24,
+    marginTop: 10,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: CARD_BG,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "flex-end",
     gap: 32,
-    marginTop: 40,
+    marginTop: 20,
   },
   buttonContainer: {
     alignItems: "center",

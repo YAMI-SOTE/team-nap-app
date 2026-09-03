@@ -578,7 +578,9 @@ function TimeField({ label, value, options, onChange, px }: TimeFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <View style={[styles.timeField, { gap: px(4) }]}>
+    <View
+      style={[styles.timeField, { gap: px(4) }, isOpen && { zIndex: 30 }]}
+    >
       <Text
         style={[styles.timeLabel, { fontSize: px(14), lineHeight: px(24) }]}
       >
@@ -709,6 +711,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     width: "100%",
+    zIndex: 20,
   },
   timeField: {
     flex: 1,
@@ -734,12 +737,12 @@ const styles = StyleSheet.create({
     top: 64,
     left: 0,
     right: 0,
-    maxHeight: 180,
+    maxHeight: 160,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     borderRadius: 12,
     backgroundColor: colors.surface,
-    zIndex: 10,
+    zIndex: 100,
     elevation: 6,
     shadowColor: "#12292C",
     shadowOffset: { width: 0, height: 4 },
@@ -765,6 +768,7 @@ const styles = StyleSheet.create({
   actions: {
     width: "100%",
     alignItems: "center",
+    zIndex: 1,
   },
   dots: {
     flexDirection: "row",

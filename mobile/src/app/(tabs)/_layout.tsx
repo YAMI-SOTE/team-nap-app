@@ -26,15 +26,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.textBrand,
         tabBarInactiveTintColor: "#000000",
         tabBarShowLabel: true,
+        // Web defaults to "beside-icon" once the bar is "wide enough",
+        // which then has no room for the 5 JP labels and drops them.
+        tabBarLabelPosition: "below-icon",
         tabBarLabelStyle: { fontSize: 11, marginTop: 2 },
-        tabBarIconStyle: { marginTop: 2 },
+        tabBarIconStyle: { marginTop: 4 },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderStrong,
           borderTopWidth: 1,
-          height: 64,
-          paddingTop: 8,
-          paddingBottom: 10,
+          height: 68,
+          paddingTop: 6,
+          paddingBottom: 8,
         },
         sceneStyle: { backgroundColor: colors.background },
       }}
