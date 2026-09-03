@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/spacing";
 import Avatar from "@/components/Avatar";
-import { type AvatarId } from "@/constants/avatars";
+import { defaultAvatarFor } from "@/utils/defaultAvatar";
 import { CrownSimpleIcon, SignOutIcon } from "@/components/icons";
 
 type MemberActionsSheetProps = {
@@ -11,7 +11,10 @@ type MemberActionsSheetProps = {
   name: string;
   /** 「メンバー ・ 仮眠中」のようなサブテキスト。 */
   subtitle: string;
-  avatar: AvatarId;
+  /** The member's chosen avatar id, or null → default icon seeded by `seed`. */
+  avatarId?: string | null;
+  /** Seed for the default icon when `avatarId` is null (usually the member id). */
+  seed?: string;
   /** 既に管理者なら「管理者にする」を出さない。 */
   canPromote?: boolean;
   onPromote: () => void;
@@ -27,7 +30,8 @@ export default function MemberActionsSheet({
   visible,
   name,
   subtitle,
-  avatar,
+  avatarId,
+  seed,
   canPromote = true,
   onPromote,
   onRemove,
@@ -45,7 +49,11 @@ export default function MemberActionsSheet({
         <View style={styles.handle} />
 
         <View style={styles.head}>
-          <Avatar avatarId={avatar} name={name} size={56} />
+          <Avatar
+            avatarId={avatarId ?? defaultAvatarFor(seed ?? name)}
+            name={name}
+            size={56}
+          />
           <View style={styles.headText}>
             <Text style={styles.name}>{name}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>

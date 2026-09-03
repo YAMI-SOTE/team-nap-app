@@ -17,10 +17,14 @@ type MemberAvatarProps = {
   label: string;
   /** Presence state — drives the status dot color. */
   status: MemberStatus;
-  /** Optional avatar photo. Falls back to a default icon (cat / man / woman). */
   /**
-   * 写真未設定のときにどのデフォルトアイコンを出すかを決める種。
-   * 通常はメンバーIDを渡す（同じ人には常に同じ絵が出る）。
+   * The member's chosen avatar id ("cat" | "man" | "woman"). When null /
+   * omitted, a default icon is picked deterministically from `avatarSeed`.
+   */
+  avatarId?: string | null;
+  /**
+   * 本人がアイコンを選んでいないときに、どのデフォルトアイコンを出すかを
+   * 決める種。通常はメンバーIDを渡す（同じ人には常に同じ絵が出る）。
    * 省略時は label を使う。
    */
   avatarSeed?: string;
@@ -52,6 +56,7 @@ const STATUS_COLOR: Record<MemberStatus, string> = {
 export default function MemberAvatar({
   label,
   status,
+  avatarId,
   avatarSeed,
   showLabel = true,
   napBadge = false,
@@ -60,6 +65,8 @@ export default function MemberAvatar({
 }: MemberAvatarProps) {
   const Container = onPress ? Pressable : View;
   const napping = napBadge && status === "resting";
+  // The member's own choice wins; otherwise a stable default from the seed.
+  const resolvedAvatar = avatarId ?? defaultAvatarFor(avatarSeed ?? label);
 
   return (
     <Container
@@ -70,7 +77,7 @@ export default function MemberAvatar({
     >
       <View style={styles.avatarWrap}>
         <Avatar
-          avatarId={defaultAvatarFor(avatarSeed ?? label)}
+          avatarId={resolvedAvatar}
           name={label}
           size={AVATAR_SIZE}
         />

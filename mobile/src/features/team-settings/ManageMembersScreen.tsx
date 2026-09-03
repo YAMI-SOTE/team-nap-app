@@ -92,7 +92,11 @@ export default function ManageMembersScreen() {
                 <View key={m.id}>
                   {i > 0 ? <View style={styles.divider} /> : null}
                   <View style={styles.row}>
-                    <Avatar avatarId={defaultAvatarFor(m.id)} name={m.name} size={40} />
+                    <Avatar
+                      avatarId={m.avatar ?? defaultAvatarFor(m.id)}
+                      name={m.name}
+                      size={40}
+                    />
 
                     <View style={styles.rowText}>
                       <View style={styles.nameRow}>
@@ -169,7 +173,8 @@ export default function ManageMembersScreen() {
             ? `メンバー ・ ${STATUS_LABEL[actionTarget.status]}`
             : ""
         }
-        avatar={defaultAvatarFor(actionTarget?.id ?? "")}
+        avatarId={actionTarget?.avatar}
+        seed={actionTarget?.id}
         // TODO(backend): 管理者へ昇格する API が無いため、この操作は出さない。
         canPromote={false}
         onPromote={() => setActionTarget(null)}

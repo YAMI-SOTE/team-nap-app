@@ -8,6 +8,8 @@ export type MemberRowMember = {
   id: string;
   label: string;
   status: MemberStatus;
+  /** Chosen avatar id, or null → a default icon seeded by `id`. */
+  avatar?: string | null;
 };
 
 type MemberRowProps = {
@@ -34,6 +36,8 @@ export default function MemberRow({
           key={member.id}
           label={member.label}
           status={member.status}
+          avatarId={member.avatar}
+          avatarSeed={member.id}
           onPress={
             onMemberPress ? () => onMemberPress(member.id) : undefined
           }

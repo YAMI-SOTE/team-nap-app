@@ -152,6 +152,8 @@ export default function TeamScreen() {
                     key={member.id}
                     label={member.label}
                     status={member.status as MemberStatus}
+                    avatarId={member.avatar}
+                    avatarSeed={member.id}
                     napBadge
                     onPress={() => router.push(`/members/${member.id}`)}
                   />

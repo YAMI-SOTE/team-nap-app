@@ -133,7 +133,7 @@ type TeamWithMembers = {
     userId: string;
     activity: MemberActivity;
     role: string;
-    user: { name: string | null };
+    user: { name: string | null; avatar: string | null };
   }[];
 };
 
@@ -146,6 +146,7 @@ function toSettings(
     label: initial(m.user.name),
     name: m.user.name?.trim() || null,
     status: mapActivity(m.activity),
+    avatar: m.user.avatar ?? null,
     role: m.role === "owner" ? "owner" : "member",
     isSelf: m.userId === callerUserId,
   }));
@@ -427,6 +428,8 @@ export type TeamRankingEntry = {
   label: string;
   status: MemberStatus;
   score: number;
+  /** Chosen avatar id, or null → client falls back to a default icon. */
+  avatar: string | null;
 };
 
 export type TeamRankingResponse = {
@@ -434,7 +437,9 @@ export type TeamRankingResponse = {
   entries: TeamRankingEntry[];
 };
 
-const rankingSnapshot: TeamRankingEntry[] = [
+// Still a static per-team snapshot (real per-member nap scoring is not
+// computed yet). `avatar: null` → the client picks a stable default icon.
+const rankingSnapshot: Omit<TeamRankingEntry, "avatar">[] = [
   { id: "m-a", name: "メンバーA", label: "A", status: "resting", score: 92 },
   { id: "m-b", name: "メンバーB", label: "B", status: "working", score: 88 },
   { id: "m-c", name: "メンバーC", label: "C", status: "offline", score: 76 },
@@ -454,6 +459,8 @@ export async function getTeamRanking(
   if (!(await hasTeam(userId))) {
     return null;
   }
-  const entries = [...rankingSnapshot].sort((a, b) => b.score - a.score);
+  const entries: TeamRankingEntry[] = [...rankingSnapshot]
+    .sort((a, b) => b.score - a.score)
+    .map((e) => ({ ...e, avatar: null }));
   return { memberCount: entries.length, entries };
 }
