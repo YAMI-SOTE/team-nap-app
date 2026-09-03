@@ -35,7 +35,14 @@ export default function RootLayout() {
             screenOptions={{
               headerShown: false,
             }}
-          />
+          >
+            {/*
+              Inside the tab area the iOS edge-swipe must not pop the root
+              Stack back to the auth screens underneath — horizontal swipes
+              here switch tabs instead (see components/TabSwipe).
+            */}
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+          </Stack>
         </NotificationsProvider>
       </RealtimeProvider>
     </AuthProvider>
