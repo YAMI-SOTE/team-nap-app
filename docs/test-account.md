@@ -7,19 +7,30 @@
 
 ---
 
+## パスワード早見表
+
+| アカウント群 | パスワード | チーム / 招待コード |
+| --- | --- | --- |
+| `sample@teamnap.app` ほか `*@teamnap.app` 4 名 | `samplepass123` | サンプルチーム（`NAP-2001`） |
+| `dev@teamnap.local` ほか `*@teamnap.local` 6 名 | `teamnap-dev` | TEAM NAP 開発チーム（`NAP-4821`） |
+
+いずれも `npm run db:seed` で投入。全アカウント共通で、群ごとに 1 つのパスワードです。
+
+---
+
 ## サンプルチーム（複数メンバー・チーム機能テスト用）
 
 チーム **サンプルチーム**（招待コード `NAP-2001`）に 4 人。全員パスワード
-`samplepass123`、全員オンボーディング完了済み。別々の端末 / ブラウザで
+**`samplepass123`**、全員オンボーディング完了済み。別々の端末 / ブラウザで
 それぞれログインすれば、メンバー一覧・ステータス表示・**在席のライブ更新
 （WebSocket）**・メンバー管理・ナッジ・仮眠提案・ランキングを確認できます。
 
-| メール | 名前 | 役割 | 在席 (activity) | 起床サポート |
-| --- | --- | --- | --- | --- |
-| `sample@teamnap.app` | サンプル 太郎 | **owner** | online（作業中） | on |
-| `hanako@teamnap.app` | サンプル 花子 | member | resting（仮眠中） | on |
-| `jiro@teamnap.app` | サンプル 次郎 | member | online（作業中） | **off** ← wake ナッジは 409 |
-| `saburo@teamnap.app` | サンプル 三郎 | member | resting（仮眠中） | on |
+| メール | パスワード | 名前 | 役割 | 在席 (activity) | 起床サポート |
+| --- | --- | --- | --- | --- | --- |
+| `sample@teamnap.app` | `samplepass123` | サンプル 太郎 | **owner** | online（作業中） | on |
+| `hanako@teamnap.app` | `samplepass123` | サンプル 花子 | member | resting（仮眠中） | on |
+| `jiro@teamnap.app` | `samplepass123` | サンプル 次郎 | member | online（作業中） | **off** ← wake ナッジは 409 |
+| `saburo@teamnap.app` | `samplepass123` | サンプル 三郎 | member | resting（仮眠中） | on |
 
 太郎だけがオーナーなので、`設定 > チーム設定 > メンバーを管理` で他 3 人を
 削除できます（`testing-guide.md` 4b）。在席のライブ更新は 4a を参照。
@@ -31,11 +42,20 @@ curl -s -XPOST http://localhost:3000/api/v1/auth/login \
 # => { "token": "...", "user": { "id", "name", "email", "onboardingCompleted": true } }
 ```
 
-### 他のシードアカウント
+### 他のシードアカウント（`*@teamnap.local`）
 
-`dev@teamnap.local` ほか `*@teamnap.local` 6 名は共通パスワード `teamnap-dev`、
-チーム `TEAM NAP 開発チーム`（`NAP-4821`）。`dev@teamnap.local` はオンボーディング
-完了済み、他はオンボーディング行なし（初回ログインで質問画面へ誘導される確認用）。
+チーム `TEAM NAP 開発チーム`（招待コード `NAP-4821`）。全員パスワード
+**`teamnap-dev`**。`dev@teamnap.local` はオンボーディング完了済み、他の 5 名は
+オンボーディング行なし（初回ログインで質問画面へ誘導される確認用）。
+
+| メール | パスワード | 名前 | オンボーディング |
+| --- | --- | --- | --- |
+| `dev@teamnap.local` | `teamnap-dev` | あなた | 完了済み |
+| `b@teamnap.local` | `teamnap-dev` | 佐藤 | 未（質問画面へ） |
+| `c@teamnap.local` | `teamnap-dev` | 鈴木 | 未（質問画面へ） |
+| `d@teamnap.local` | `teamnap-dev` | 高橋 | 未（質問画面へ） |
+| `e@teamnap.local` | `teamnap-dev` | 田中 | 未（質問画面へ） |
+| `f@teamnap.local` | `teamnap-dev` | 渡辺 | 未（質問画面へ） |
 
 ---
 
