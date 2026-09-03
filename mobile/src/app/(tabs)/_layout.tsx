@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/theme/colors";
@@ -20,6 +21,8 @@ import {
  * そのため、このグループ内には rest 用の screen 登録を置かない。
  */
 const BAR_CONTENT_HEIGHT = 58;
+const IS_WEB = Platform.OS === "web";
+const WEB_BAR_CONTENT_HEIGHT = 68;
 
 export default function TabsLayout() {
   // Add the device's bottom inset ourselves (0 on web / most Android) so
@@ -36,17 +39,26 @@ export default function TabsLayout() {
         // Web flips to "beside-icon" when the bar is "wide enough", which
         // then has no room for the 5 JP labels and drops them.
         tabBarLabelPosition: "below-icon",
-        tabBarLabelStyle: { fontSize: 10, marginTop: 1 },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          marginTop: 1,
+          paddingBottom: IS_WEB ? 1 : 0,
+        },
         tabBarIconStyle: { marginTop: 2 },
-        tabBarItemStyle: { paddingVertical: 0 },
+        tabBarItemStyle: {
+          paddingVertical: 0,
+          minHeight: IS_WEB ? 48 : undefined,
+        },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderStrong,
           borderTopWidth: 1,
-          height: BAR_CONTENT_HEIGHT + insets.bottom,
+          height: (IS_WEB ? WEB_BAR_CONTENT_HEIGHT : BAR_CONTENT_HEIGHT) + insets.bottom,
+          minHeight: (IS_WEB ? WEB_BAR_CONTENT_HEIGHT : BAR_CONTENT_HEIGHT) + insets.bottom,
           paddingTop: 6,
           paddingBottom: insets.bottom + 6,
           paddingHorizontal: 4,
+          overflow: "visible",
         },
         sceneStyle: { backgroundColor: colors.background },
       }}
