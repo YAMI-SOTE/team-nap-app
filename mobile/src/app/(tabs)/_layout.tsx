@@ -25,13 +25,18 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.textBrand,
         tabBarInactiveTintColor: "#000000",
-        tabBarLabelStyle: { fontSize: 10 },
+        tabBarShowLabel: true,
+        tabBarLabelStyle: { fontSize: 11, marginTop: 2 },
+        tabBarIconStyle: { marginTop: 2 },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderStrong,
           borderTopWidth: 1,
+          height: 64,
           paddingTop: 8,
+          paddingBottom: 10,
         },
+        sceneStyle: { backgroundColor: colors.background },
       }}
     >
       <Tabs.Screen

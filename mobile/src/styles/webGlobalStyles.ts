@@ -8,8 +8,15 @@ import { Platform } from "react-native";
  * Import once, for its side effect, from the root layout.
  */
 export const WEB_CSS = `
+/* Always render light. Without this, on a device set to dark mode the
+   browser paints the page canvas and native form controls (the time
+   dropdowns) dark, which looks broken against the app's light UI. */
+:root { color-scheme: light; }
+
 html, body, #root { height: 100%; }
-body { margin: 0; overscroll-behavior-y: none; }
+/* Match WebFrame's backdrop so any scroll-overshoot / gap isn't a dark
+   or white band at the edges. */
+body { margin: 0; overscroll-behavior: none; background: #EFF4F4; }
 #root { display: flex; }
 
 /* No focus ring / inset shadow / native chrome around text inputs — the
