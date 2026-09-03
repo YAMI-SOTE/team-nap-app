@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { sendPushToUser } from "./push.service.js";
 
 type NotificationKind =
   | "welcome"
@@ -132,7 +133,7 @@ export async function listNotifications(
   return rows.map((r) => toItem(r, now));
 }
 
-/** Append a notification to `userId`'s feed. */
+/** Append a notification to `userId`'s feed (and push it to their devices). */
 export async function addNotification(
   userId: string,
   input: NewNotification,
@@ -140,6 +141,15 @@ export async function addNotification(
   const row = await prisma.notification.create({
     data: { userId, kind: input.kind, title: input.title, body: input.body },
   });
+
+  // Fire the push without blocking or risking the caller — the feed row
+  // is already written. `sendPushToUser` handles opt-in + errors itself.
+  void sendPushToUser(userId, {
+    title: input.title,
+    body: input.body,
+    data: { kind: input.kind },
+  });
+
   return toItem(row, new Date());
 }
 
