@@ -266,7 +266,23 @@ export default function OnboardingScreen() {
     if (status === "signedOut") router.replace("/signup");
   }, [status, router]);
 
-  const finishOnboarding = async () => {
+  /**
+   * Answers chosen on the *same* tap that finishes onboarding.
+   *
+   * The last slide's button both records a choice and completes the flow.
+   * `setState` does not update the value visible to the current render, so
+   * reading the state here saved the value from *before* the tap — the
+   * user pressed the notification button and we stored
+   * `notificationsEnabled: false`. Since the backend refuses to send a
+   * push when that flag is false, every account onboarded this way had
+   * push silently disabled.
+   */
+  type FinalAnswers = Partial<{
+    calendarConnected: boolean;
+    notificationsEnabled: boolean;
+  }>;
+
+  const finishOnboarding = async (answers: FinalAnswers = {}) => {
     if (finishing) return;
     setFinishing(true);
     setFinishError(null);
@@ -274,8 +290,9 @@ export default function OnboardingScreen() {
       await completeOnboarding({
         bedtime: toClock(sleepTime),
         wakeTime: toClock(wakeTime),
-        calendarConnected,
-        notificationsEnabled,
+        calendarConnected: answers.calendarConnected ?? calendarConnected,
+        notificationsEnabled:
+          answers.notificationsEnabled ?? notificationsEnabled,
         avatar: avatarId,
       });
       await refresh();
@@ -286,9 +303,9 @@ export default function OnboardingScreen() {
     }
   };
 
-  const goToIndex = (nextIndex: number) => {
+  const goToIndex = (nextIndex: number, answers: FinalAnswers = {}) => {
     if (nextIndex >= SLIDES.length) {
-      void finishOnboarding();
+      void finishOnboarding(answers);
       return;
     }
     scrollRef.current?.scrollTo({ x: nextIndex * size.width, animated: true });
@@ -308,7 +325,12 @@ export default function OnboardingScreen() {
       return;
     }
     if (slide.key === "notification") {
+      // Carry the answer with the navigation: this is the last slide, so
+      // the same tap finishes onboarding and the state update would not
+      // be visible in time.
       setNotificationsEnabled(true);
+      goToIndex(index + 1, { notificationsEnabled: true });
+      return;
     }
     goToIndex(index + 1);
   };
@@ -337,7 +359,10 @@ export default function OnboardingScreen() {
         onConfirm={() => {
           setCalendarConnected(true);
           setCalendarPromptOpen(false);
-          goToIndex(index + 1);
+          // Carried explicitly for the same reason as the notification
+          // answer above — correct today because a slide follows, and
+          // still correct if the calendar step ever becomes the last one.
+          goToIndex(index + 1, { calendarConnected: true });
         }}
         onCancel={() => {
           setCalendarPromptOpen(false);
