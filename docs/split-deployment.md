@@ -131,16 +131,96 @@ tailscale funnel status                 # 公開 URL を確認
 - 少人数のデモには十分。大量アクセスや常時公開には向かない。
 - 停止: `tailscale funnel reset`。
 
-### 案 C（既存路線）Caddy + 443 開放 — [setup.md](./setup.md#3-リバースプロキシ--tls) のまま
+### 案 C VPS に直接つなぐ（Caddy + 443 開放）
 
-VPS の 80/443 を開けて A レコードを VPS に向け、Caddy で TLS 終端。
-[setup.md の Caddy 例](./setup.md#3-リバースプロキシ--tls) がそのまま使える。
-VPS の IP が露出し、受信ポートを開ける点が A/B と違う。既にこの構成なら
-フロントを Vercel に移すだけでよい。
+トンネルを使わず、**VPS の IP に直接** ドメインを向けて 80/443 を開ける。
+Caddy が Let's Encrypt 証明書を自動取得・更新し、`:3000` にプロキシする
+（WebSocket も自動）。リポジトリに設定一式を用意済み → [`deploy/`](../deploy/)。
+
+**必要なもの**: `API_DOMAIN`（例 `api.example.com`）の A レコードを VPS の
+公開 IP に向ける。**ドメインを持っていないなら `<VPS_IP>.sslip.io`**
+（例 `203.0.113.10.sslip.io`）を使えば DNS 設定は不要 — そのまま IP に解決され、
+Caddy がその名前で証明書を取る。
+
+#### C-1. ホスト名を用意して確認
+
+```bash
+# 別マシンから。VPS の公開 IP が返ればOK（sslip.io なら設定不要で必ず返る）
+dig +short api.example.com
+```
+
+#### C-2. ファイアウォールを 22 / 80 / 443 だけに
+
+VPS 側:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp        # ACME HTTP-01 チャレンジに必須
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+クラウド事業者側の Security Group / ネットワーク ACL でも 22/80/443 を許可
+（80/443 が事業者ファイアウォールで閉じていると証明書取得に失敗する）。
+
+#### C-3. 本番 env を置く（リポジトリ root）
+
+```bash
+cd <repo>            # compose.yaml のある場所
+cp deploy/.env.prod.example .env
+$EDITOR .env         # API_DOMAIN を実際の値に。OLLAMA_MODEL=gemma3:1b。DB パスワードも
+```
+
+#### C-4. 起動
+
+```bash
+docker compose -f compose.yaml -f deploy/compose.prod.yaml up -d --build
+docker compose -f compose.yaml -f deploy/compose.prod.yaml logs -f caddy
+```
+
+`certificate obtained successfully` が出れば TLS 準備完了（初回は数十秒）。
+`deploy/compose.prod.yaml` は Postgres `5432` / Ollama `11434` / backend の
+生 `3000` の publish を止め、`NODE_ENV=production` を強制する。
+`ports: !reset []` は Docker Compose v2.24.0+ 必須（古い場合は
+[`deploy/README.md`](../deploy/README.md) の手動手順）。
+
+#### C-5. 確認
+
+```bash
+# VPS の外から。-k なしで通ること（＝証明書が有効）
+curl https://api.example.com/api/v1/health
+# → {"status":"ok","service":"team-nap-api",...}
+```
+
+通れば **これが `<public-api-host>`**。Vercel の
+`EXPO_PUBLIC_API_URL = https://api.example.com/api/v1`。
+
+#### C-6. 「直接公開して安全か」
+
+短期のハッカソン審査なら **概ね可**。ただし前提:
+
+- ファイアウォールが 22/80/443 のみ（C-2）。
+- Postgres / Ollama を publish しない（C-4 の overlay が実施）。
+- `NODE_ENV=production`（`/auth/debug` 等を無効化）。
+- DB パスワードを compose 既定 `teamnap_dev` から変更。
+- **審査後に落とす**: `docker compose ... down` ＋ `ufw deny 80,443`。
+
+残るリスク（許容範囲だが把握しておく）:
+
+- `/auth/signup` は誰でも叩ける（アカウント作り放題）。
+- `/auth/login` にレート制限がまだ無い（総当たり耐性なし）。
+  → 気になるなら `express-rate-limit` を `/auth/*` に（コード変更・別 PR）、
+  または Caddy 側で `rate_limit`。
+- CORS は現状全許可。デモでは動くが、後で Vercel オリジンに絞るのが望ましい。
+
+IP を隠したい / DDoS 対策が欲しいが**トンネルは使いたくない**場合は、
+ドメインを Cloudflare の DNS に載せて対象レコードを **プロキシ（オレンジ雲）**
+にするだけでよい（Caddy は VPS 上のまま、`cloudflared` は不要）。その場合
+Caddy の証明書は DNS-01 か、Cloudflare の「Full (strict)」+ Origin 証明書に。
 
 > **補足**: フロントも VPS の Caddy で配信すれば Vercel すら不要（1 オリジン・
 > CORS 不要）。ただし Vercel の CDN / push デプロイ / プレビュー URL は失う。
-> 「独自ドメイン付きの手離れした Web ホスティング」が目的なら Vercel を使う。
 
 ---
 
@@ -321,10 +401,13 @@ Promote。
 
 ## 9. まとめ（最短ルート）
 
-1. VPS: `OLLAMA_MODEL=gemma3:1b`、`NODE_ENV=production`、`compose.yaml` の
-   `db` / `ollama` の `ports:` を削除。
-2. VPS: **案 A**（Cloudflare Tunnel）で `https://api.example.com` を用意。
-3. Vercel: Root=`mobile`、Build=`npx expo export -p web`、Output=`dist`、
-   `mobile/vercel.json` に SPA リライト、`EXPO_PUBLIC_API_URL=https://api.example.com/api/v1`。
+1. VPS で API を HTTPS 公開する（いずれか）:
+   - **VPS に直接**（案 C）: A レコード or `<IP>.sslip.io` → `ufw` で 22/80/443
+     → `cp deploy/.env.prod.example .env` で `API_DOMAIN` 設定 →
+     `docker compose -f compose.yaml -f deploy/compose.prod.yaml up -d --build`。
+   - トンネル: **案 A**（Cloudflare Tunnel）or **案 B**（Tailscale Funnel）。
+2. `curl https://<API_DOMAIN>/api/v1/health` が VPS の外から通ることを確認。
+3. Vercel: Root Directory=`mobile`（ビルド設定と SPA リライトは
+   `mobile/vercel.json`）、環境変数 `EXPO_PUBLIC_API_URL=https://<API_DOMAIN>/api/v1`。
 4. `eas env:set --environment preview ...` でネイティブも同 API に。
-5. §7 のスモークチェックを携帯回線で通す。
+5. §7 のスモークチェックを携帯回線で通す。審査後に落とす。

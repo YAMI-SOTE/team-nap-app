@@ -6,6 +6,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!deploy/.env.prod.example
 
 # Expo / React Native
 .expo/

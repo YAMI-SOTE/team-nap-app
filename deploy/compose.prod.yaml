@@ -1,0 +1,50 @@
+# Production overlay: expose the backend to the public internet directly
+# from the VPS, behind a Caddy reverse proxy with automatic HTTPS.
+#
+#   docker compose -f compose.yaml -f deploy/compose.prod.yaml up -d --build
+#
+# What it changes vs. the base compose.yaml:
+#   - adds `caddy` (ports 80/443) → TLS terminates here, proxies to backend
+#   - stops publishing Postgres (5432), Ollama (11434) and the raw backend
+#     port (3000) to the host — only Caddy (same compose network) reaches
+#     the backend
+#   - forces NODE_ENV=production
+#
+# Requires the repo-root .env (copy from deploy/.env.prod.example):
+#   API_DOMAIN=api.example.com
+#   NODE_ENV=production
+#   OLLAMA_MODEL=gemma3:1b
+#
+# `ports: !reset []` needs Docker Compose v2.24.0+. On older Compose, edit
+# compose.yaml instead (see deploy/README.md).
+
+services:
+  backend:
+    ports: !reset []
+    environment:
+      NODE_ENV: production
+
+  db:
+    ports: !reset []
+
+  ollama:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in the repo-root .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
