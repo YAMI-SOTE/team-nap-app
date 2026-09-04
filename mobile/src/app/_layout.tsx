@@ -26,18 +26,24 @@ function RootNavigator() {
   // Keep Google Calendar events fresh on foreground (throttled, silent).
   useForegroundCalendarSync();
 
+  // Until the stored session is resolved, render ONLY the boot splash —
+  // don't mount any route. Otherwise a directly-opened / remembered URL
+  // (e.g. `/home` on web) mounts its screen and fires requests before
+  // `useProtectedRoute` can redirect, so you'd briefly land on a broken
+  // Home instead of the loading screen.
+  if (status === "loading") {
+    return <BootOverlay />;
+  }
+
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }}>
-        {/*
-          Inside the tab area the iOS edge-swipe must not pop the root
-          Stack back to the auth screens underneath — horizontal swipes
-          here switch tabs instead (see components/TabSwipe).
-        */}
-        <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-      </Stack>
-      {status === "loading" ? <BootOverlay /> : null}
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      {/*
+        Inside the tab area the iOS edge-swipe must not pop the root
+        Stack back to the auth screens underneath — horizontal swipes
+        here switch tabs instead (see components/TabSwipe).
+      */}
+      <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+    </Stack>
   );
 }
 
