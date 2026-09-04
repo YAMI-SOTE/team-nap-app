@@ -3,7 +3,7 @@ import type { RequestHandler } from "express";
 import { HttpError } from "../lib/http-error.js";
 import { bearerToken } from "../lib/tokens.js";
 import { step } from "../lib/api-flow.js";
-import { resolveSession, touchSession } from "../services/session.service.js";
+import { lookupSession, touchSession } from "../services/session.service.js";
 import { touchLastSeen } from "../services/team-presence.service.js";
 
 /**
@@ -20,13 +20,23 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
     return;
   }
 
-  const session = await resolveSession(token);
-  if (!session) {
-    step("error", "auth: invalid session");
-    next(HttpError.unauthorized("セッションが無効または期限切れです"));
+  const result = await lookupSession(token);
+  if (!result.ok) {
+    step("error", `auth: session ${result.reason}`);
+    // A revoked session almost always means this account signed in on
+    // another device (see `createSession` — one device at a time), so say
+    // that instead of the generic "expired".
+    next(
+      HttpError.unauthorized(
+        result.reason === "revoked"
+          ? "別の端末でログインされたため、サインアウトされました"
+          : "セッションが無効または期限切れです",
+      ),
+    );
     return;
   }
 
+  const session = result.session;
   req.auth = { userId: session.userId, sessionId: session.sessionId };
   step("auth", "session ok", { userId: session.userId });
 

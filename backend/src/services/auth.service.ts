@@ -5,7 +5,7 @@ import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession, revokeAllSessions } from "./session.service.js";
 import { leaveTeam } from "./team.service.js";
 import { teamIdOf } from "./team-presence.service.js";
-import { broadcastTeamMembers } from "../realtime/hub.js";
+import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
 
 /**
  * Email + password sign-up / login. Both issue a session (see
@@ -71,6 +71,7 @@ export async function signUp(
     });
     await ensureOnboarding(existing.id);
     const { token } = await createSession(existing.id, userAgent);
+    closeUserSockets(existing.id, "signed in on another device");
     return { token, user: await getPublicUser(existing.id) };
   }
 
@@ -79,6 +80,7 @@ export async function signUp(
   });
   await ensureOnboarding(created.id);
   const { token } = await createSession(created.id, userAgent);
+  closeUserSockets(created.id, "signed in on another device");
   return { token, user: await getPublicUser(created.id) };
 }
 
@@ -205,5 +207,8 @@ export async function login(
   }
 
   const { token } = await createSession(user.id, userAgent);
+  // The previous device's token is now revoked; drop its live socket too
+  // so it stops receiving this team's updates before it notices the 401.
+  closeUserSockets(user.id, "signed in on another device");
   return { token, user: toPublicUser(user) };
 }

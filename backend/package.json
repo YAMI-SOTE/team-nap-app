@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed:judges": "tsx prisma/seed-judges.run.ts"
   },
   "keywords": [],
   "author": "N_Hash",
