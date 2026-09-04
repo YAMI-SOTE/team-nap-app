@@ -573,11 +573,12 @@ export default function OnboardingScreen() {
 
                       <PillButton
                         variant="primary"
-                        label={
-                          slideIndex === SLIDES.length - 1
-                            ? "はじめる"
-                            : slide.primaryLabel
-                        }
+                        // Each slide names the action its button performs.
+                        // The last slide used to be overridden to
+                        // 「はじめる」, which only ever hid the notification
+                        // slide's own 「通知をオンにする」 — leaving a bell
+                        // icon above a button that did not say what it did.
+                        label={slide.primaryLabel}
                         onPress={() => handlePrimaryPress(slide)}
                         icon={slide.primaryIcon}
                         elevated={false}
