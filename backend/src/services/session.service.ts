@@ -7,6 +7,12 @@ import { generateToken, hashToken } from "../lib/tokens.js";
  * Session lifecycle. A session is an opaque bearer token whose SHA-256
  * hash is stored in `Session`. Tokens expire after `SESSION_TTL_HOURS`
  * and can be revoked individually or all at once.
+ *
+ * **One device at a time.** Issuing a session revokes every other live
+ * session for that user, so an account is only ever signed in on the
+ * device that logged in most recently. The enforcement lives in
+ * `createSession` rather than in each caller, so email login, sign-up and
+ * Google login all get it — and so does anything added later.
  */
 
 export type IssuedSession = {
@@ -26,14 +32,25 @@ export async function createSession(
 ): Promise<IssuedSession> {
   const token = generateToken();
   const expiresAt = ttlFromNow();
-  const session = await prisma.session.create({
-    data: {
-      userId,
-      tokenHash: hashToken(token),
-      userAgent: userAgent?.slice(0, 255) ?? null,
-      expiresAt,
-    },
-  });
+
+  // Revoke-then-create in one transaction: a caller must never end up
+  // with the old sessions killed but no new one issued, and two logins
+  // racing must not both survive.
+  const [, session] = await prisma.$transaction([
+    prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+    prisma.session.create({
+      data: {
+        userId,
+        tokenHash: hashToken(token),
+        userAgent: userAgent?.slice(0, 255) ?? null,
+        expiresAt,
+      },
+    }),
+  ]);
+
   return { token, sessionId: session.id, expiresAt };
 }
 
@@ -43,18 +60,42 @@ export type ResolvedSession = {
 };
 
 /**
+ * Why a token was refused. `revoked` is the interesting one: the session
+ * existed and was deliberately ended — in practice because the account
+ * signed in somewhere else — which is worth telling the user rather than
+ * showing the generic "expired" copy.
+ */
+export type SessionRejection = "unknown" | "expired" | "revoked";
+
+export type SessionLookup =
+  | { ok: true; session: ResolvedSession }
+  | { ok: false; reason: SessionRejection };
+
+/** Resolve a raw bearer token, explaining a refusal. */
+export async function lookupSession(token: string): Promise<SessionLookup> {
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
+  if (!session) return { ok: false, reason: "unknown" };
+  if (session.revokedAt) return { ok: false, reason: "revoked" };
+  if (session.expiresAt.getTime() <= Date.now()) {
+    return { ok: false, reason: "expired" };
+  }
+  return {
+    ok: true,
+    session: { sessionId: session.id, userId: session.userId },
+  };
+}
+
+/**
  * Resolve a raw bearer token to its live session, or `null` when the
  * token is unknown, expired, or revoked.
  */
 export async function resolveSession(
   token: string,
 ): Promise<ResolvedSession | null> {
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
-  });
-  if (!session || session.revokedAt) return null;
-  if (session.expiresAt.getTime() <= Date.now()) return null;
-  return { sessionId: session.id, userId: session.userId };
+  const result = await lookupSession(token);
+  return result.ok ? result.session : null;
 }
 
 /** Fire-and-forget `lastUsedAt` bump; errors are swallowed by the caller. */

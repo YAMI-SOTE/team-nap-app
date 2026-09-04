@@ -189,14 +189,18 @@ async function sweep(): Promise<void> {
 }
 
 /**
- * Close every socket belonging to `userId` — call this when they leave or
- * are removed from a team so their client stops receiving that team's
- * updates.
+ * Close every socket belonging to `userId` — when they leave or are
+ * removed from a team, or when a newer device takes over the account.
+ * The reason travels with the close frame, so a client log says which of
+ * those happened.
  */
-export function closeUserSockets(userId: string): void {
+export function closeUserSockets(
+  userId: string,
+  reason = "membership changed",
+): void {
   const set = byUser.get(userId);
   if (!set) return;
-  for (const ws of [...set]) ws.close(4003, "membership changed");
+  for (const ws of [...set]) ws.close(4003, reason);
 }
 
 /**

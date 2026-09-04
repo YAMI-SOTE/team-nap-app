@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password.js";
 import { buildAdvice } from "../src/services/nap-advice.service.js";
 import { googleSampleEvents } from "../src/services/google-calendar-sample.js";
+import { JUDGE_PASSWORD, JUDGE_TEAMS, seedJudges } from "./seed-judges.js";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -329,6 +330,9 @@ async function main() {
   const sampleNapCount = await seedSampleNaps();
   const sampleEventCount = await seedSampleSchedule();
 
+  // --- Judge / demo dataset (docs/test-account.md) ------------------------
+  const judges = await seedJudges(prisma);
+
   console.log(
     `Seeded ${USERS.length} users + team "${team.name}" (${team.inviteCode}) with ${MEMBERSHIPS.length} members.`,
   );
@@ -346,6 +350,18 @@ async function main() {
   );
   for (const m of SAMPLE_MEMBERS) {
     console.log(`  ${m.email}  (${m.name}, ${m.activity})`);
+  }
+
+  console.log(
+    `Judge dataset: ${judges.users} users in ${judges.teams} teams, ` +
+      `${judges.naps} naps, ${judges.events} calendar events. ` +
+      `Password ${JUDGE_PASSWORD}:`,
+  );
+  for (const team of JUDGE_TEAMS) {
+    console.log(`  ${team.name} (${team.inviteCode})`);
+    for (const m of team.members) {
+      console.log(`    ${m.email.padEnd(24)} ${m.name}`);
+    }
   }
 }
 
