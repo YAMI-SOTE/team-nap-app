@@ -363,11 +363,39 @@ DevTools の **Console** と **Network** を必ず見る。エラー文で切り
 
 | Console / Network の見え方 | 原因 | 直し方 |
 | --- | --- | --- |
+| `blocked by CORS policy: ... access the `local` address space` / `Permission was denied` / `net::ERR_FAILED` | **Chrome の Private Network Access**。公開ページ（Vercel）から「プライベート／ローカル扱いの IP」への fetch がブロックされている。API ホスト名が **`100.64.0.0/10`（Tailscale の CGNAT IP）に解決**しているのが原因（＝自分の端末が Tailscale に繋がっていて MagicDNS が `.ts.net` を `100.x` に返している）。`Access-Control-Allow-Origin: *` は出ているので**通常の CORS ではない**。 | 下の「PNA / Tailscale IP でブロックされる」節。要は **公開 IP に解決するホスト名**で API を出す。 |
 | `Mixed Content: ... was loaded over HTTPS but requested an insecure ... http://` | `EXPO_PUBLIC_API_URL` が `http://` になっている（または API ホストが HTTP のみ） | 値を `https://` に。API を HTTPS で公開（§2）。 |
 | `blocked by CORS policy` / `No 'Access-Control-Allow-Origin'` | backend が CORS ヘッダを返していない。※ 素の構成は `app.use(cors())` で全許可なので、これが出る＝**backend がエラーページを返している**（＝実は ② の 502/404）か、CORS を独自に絞った | まず ② を再確認。CORS を絞ったなら許可リストに Vercel ドメインを追加。 |
 | `net::ERR_CERT_...` | API の証明書が無効 | ② の証明書行を参照。 |
 | リクエストは `200` だが画面が動かない | API ではなく**フロントのルーティング**（SPA リライト未設定 → 直リンクで白画面）。`mobile/vercel.json` の `rewrites` が効いているか | §3.2。`vercel.json` が `mobile/` 直下にあるか、Root Directory が `mobile` か。 |
 | `401` ばかり返る | トークン未保存 / 期限切れ。ログインからやり直す。web は localStorage にトークンを持つのでシークレットウィンドウで検証。 | — |
+
+#### PNA / Tailscale IP でブロックされる（`.ts.net` を API に直接使ったとき）
+
+症状: Console に
+`has been blocked by CORS policy: Permission was denied for this request to
+access the `local` address space` ＋ `net::ERR_FAILED`。`curl` では 200 が
+返る。
+
+原因: **`instance-xxxx.tailXXXX.ts.net` を `EXPO_PUBLIC_API_URL` にそのまま
+使っている**。自分の端末が Tailscale に繋がっていると MagicDNS がこの名前を
+Tailscale の `100.64.0.0/10`（CGNAT）アドレスに解決する。Chrome は公開オリジン
+（`https://*.vercel.app`）から `100.x` などプライベート空間への fetch を
+Private Network Access で禁止する。
+
+- **審査員（Tailscale 非接続）**は、Funnel 有効なら同じ名前が Funnel の
+  **公開 IP** に解決するので PNA では止まらない。＝**自分の Tailscale 端末
+  からだけ再現し、審査員側では動く**可能性がある。ただし検証しづらく脆い。
+- 確認: 端末で `dig +short instance-xxxx.tailXXXX.ts.net` → `100.x` が返れば
+  この現象。端末の Tailscale を切る（`tailscale down`）か、スマホのモバイル
+  回線で Vercel サイトを開いて動けば、審査員側は問題なし。
+- **恒久対策（推奨）**: API を **公開 IP に解決するホスト名**で出す。
+  `.ts.net` の MagicDNS 名は使わない。
+  - VPS の公開 IP を持つドメイン / サブドメイン（A レコード）＋ nginx or Caddy ＋
+    Let's Encrypt。
+  - ドメインが無ければ `<VPS の公開IP>.sslip.io`（DNS 設定不要）。
+  - Cloudflare Tunnel（§2 案 A）なら `api.example.com` が常に公開 IP。
+  いずれかにして `EXPO_PUBLIC_API_URL=https://<その名前>/api/v1` → 再デプロイ。
 
 #### REST は通るが WebSocket（在席リアルタイム）だけ落ちる
 
