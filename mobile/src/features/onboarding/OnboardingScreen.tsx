@@ -102,19 +102,25 @@ const SLIDES: Slide[] = [
   },
   {
     // 上流 PR #35 で追加されたアバター選択ステップ。Figma に対応フレームが
-    // 無いため、Intro のシーンと座標をそのまま流用している。
+    // 無いため、Intro のシーンを流用している。
+    //
+    // ただしアバター選択の分だけシートが高い（イラスト領域 470 に対して
+    // Intro は 555）。Intro の座標をそのまま使うと猫がシート上端より 105
+    // も下に食い込み、`catAboveSheet` と相まって見出しを覆い隠していた。
+    // シーン全体（猫と吹き出し）を、縮んだ分と同じ 85 だけ上へ平行移動して
+    // Intro の構図を保つ: 猫の見える下端 490 < 見出し上端 502。
     key: "avatar",
     background: require("../../../assets/onboarding/scenes/bg-intro.png"),
     cat: require("../../../assets/onboarding/scenes/cat-intro.png"),
     illustrationHeight: 470,
     catX: 36,
-    catY: 267,
+    catY: 182, // Intro の 267 から -85
     catSize: 330,
     catAboveSheet: true,
     bubble: {
       text: "きみのアイコン、\nどれにする？",
       x: 242,
-      y: 216,
+      y: 131, // 猫と同じだけ上へ（Intro の 216 から -85）
       width: 119,
       rotate: -2,
       tailLeft: 10,

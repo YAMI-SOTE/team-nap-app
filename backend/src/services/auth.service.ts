@@ -4,6 +4,8 @@ import { hashPassword, verifyPassword } from "../lib/password.js";
 import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession, revokeAllSessions } from "./session.service.js";
 import { leaveTeam } from "./team.service.js";
+import { teamIdOf } from "./team-presence.service.js";
+import { broadcastTeamMembers } from "../realtime/hub.js";
 
 /**
  * Email + password sign-up / login. Both issue a session (see
@@ -114,6 +116,15 @@ export async function updateProfile(
   if (Object.keys(data).length === 0) return getPublicUser(userId);
 
   await prisma.user.update({ where: { id: userId }, data });
+
+  // The roster payload carries the avatar and the initial, so a name or
+  // avatar change is a presence change as far as teammates' screens are
+  // concerned.
+  if (data.name !== undefined || data.avatar !== undefined) {
+    const teamId = await teamIdOf(userId);
+    if (teamId) await broadcastTeamMembers(teamId);
+  }
+
   return getPublicUser(userId);
 }
 

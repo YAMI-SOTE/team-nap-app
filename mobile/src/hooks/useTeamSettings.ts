@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useRealtimeRevision } from "@/features/realtime/RealtimeProvider";
 import { getTeamSettings, leaveTeam } from "@/services/settings";
 import { removeTeamMember, renameTeam } from "@/services/team";
 
@@ -10,6 +11,9 @@ export function useTeamSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-read when the server says the team changed (rename, roster).
+  const revision = useRealtimeRevision("team");
 
   useEffect(() => {
     let active = true;
@@ -36,7 +40,7 @@ export function useTeamSettings() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
   async function leave() {
     setSaving(true);
