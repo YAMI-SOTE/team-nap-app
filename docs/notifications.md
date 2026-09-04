@@ -16,7 +16,7 @@
 | 関数 | 役割 |
 | --- | --- |
 | `listNotifications(userId)` | 新しい順。初回は welcome を遅延 seed（冪等） |
-| `addNotification(userId, { kind, title, body })` | 行を作成し、非同期でプッシュも投げる |
+| `addNotification(userId, { kind, title, body }, { push })` | 行を作成し、**realtime ソケットへ即送信**し、非同期でプッシュも投げる（`push: false` でプッシュだけ抑止） |
 | `markNotificationRead(userId, id)` / `markAllNotificationsRead(userId)` | `readAt` を設定 |
 
 - **`createdAt` が唯一の真実。** 相対時刻ラベル（「たった今」「2分前」「3時間前」
@@ -49,6 +49,33 @@ member_joined | team_nap_suggestion`。
 | `team.service.joinTeam` | `member_joined` | 参加前からいた各メンバー |
 | `team.service.removeMember` | `member_joined` | 除名された本人 |
 | `team.service.suggestTeamNap` | `team_nap_suggestion` | 自分以外の全メンバー |
+| `jobs/nap-end.job` | `nap_ended` | 仮眠が予定時刻に達した本人（**プッシュは抑止**、下記） |
+| `jobs/weekly-review.job` | `weekly_review` | 全ユーザー（月曜 9:00 JST 以降、週 1 回） |
+
+---
+
+## 1‑2. 配信経路は 3 つ
+
+| 経路 | 届く条件 | 備考 |
+| --- | --- | --- |
+| **realtime ソケット** | サインイン中で socket 接続済み | `{ type: "notification", data }`。**通知権限不要**。Web でも動く唯一の経路 |
+| **Expo プッシュ** | 実機 + 通知許可 + `Onboarding.notificationsEnabled` | シミュレータ・Web では動かない（`!Device.isDevice` で return） |
+| **フィード再取得** | 画面マウント時 / フォアグラウンド復帰時 | 取りこぼしの最終防波堤 |
+
+ソケット経由の項目は id で重複排除して先頭に挿入するので、再取得と競合しても
+二重に並ばない（`NotificationsProvider`）。
+
+### 起床アラーム（`nap_ended`）だけ設計が違う
+
+**アラーム本体は端末側のローカル通知**（`services/push.ts` の
+`scheduleNapEndAlarm`）。理由は、仮眠中の端末はロックされていてアプリが
+バックグラウンドにあり、休憩画面の JS タイマーは動いていないから。**アプリが
+閉じていても確実に鳴るのはローカル通知だけ。**
+
+サーバ側の `nap-end.job` は 30 秒ごとに `wakeAt` を過ぎた `NapSession` を拾い、
+フィード行を書いて `invalidate` を broadcast するが、**`{ push: false }` を渡す**。
+端末は既に鳴っており、同じ仮眠で 2 回鳴らすのは鳴らないより悪いため。冪等性は
+セッション行を先に `deleteMany` で確保することで担保している。
 
 ---
 

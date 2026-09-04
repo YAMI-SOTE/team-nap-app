@@ -105,6 +105,16 @@ Next Action:
   `docs/backend.md` へ移動、`docs/notifications.md` 新設、各ドキュメントの重複削除と
   実装状況の反映
 
+### 直近で解消した項目
+
+| 項目 | どう解消したか |
+| --- | --- |
+| 在席に本当の "offline" が無い | `deriveStatus` が socket 接続を第一根拠、`lastSeenAt` を減衰フォールバックにして 作業中 / 仮眠中 / オフライン を導出。20 秒ごとの sweep が変化時のみ push するので減衰が実際に画面へ届く。[team-feature.md §11](./team-feature.md) |
+| Home の AI がコールドモデルで最大 60 秒待つ | `GET /home/summary` がモデルを待たなくなった。3 通りしかない文言をキャッシュし、生成は背景で回す。実測 1.1–1.8s → 0.02s |
+| 通知がリロードしないと出ない（Web では実質届かない） | realtime に `notification` フレームを追加。通知権限もプッシュ基盤も不要 |
+| `nap_ended` / `weekly_review` が型とアイコンだけで producer 不在 | 端末側ローカルアラーム + `nap-end.job` / `weekly-review.job` を追加 |
+| メンバー詳細の「あと◯分」が固まったまま | `invalidate` で再取得 + 30 秒ごとにローカルで減算 |
+
 ### 残タスク（優先度つき）
 
 | 優先 | 項目 | 参照 |
@@ -112,7 +122,6 @@ Next Action:
 | P2 | **CI が無い** — PR ごとに backend `tsc`/`test`、mobile `tsc` を回す GitHub Actions | §22 |
 | P2 | **Backend セキュリティ** — `cors()` 全開放・`helmet` なし・`/auth/login` に rate-limit なし | §22 |
 | P2 | プッシュ通知の実機配信 — 実装済み（#55）だが `eas init` のプロジェクト id ＋ 開発ビルドが要る | [notifications.md](./notifications.md) |
-| P2 | 在席に本当の "offline" が無い — `MemberActivity` は `online`/`resting` のみ。`lastSeenAt` を足して N 分無応答→offline | 追加分 |
 | P2 | チーム共通の空きスロット交差計算が無い — `getNextFreeSlot` は呼び出しユーザー基準まで。自動チーム提案の前提 | 追加分 |
 | P3 | `RestRecommendation` 永続化（提案履歴・受諾フラグのテーブル。`decideRestTiming` は動くが履歴なし） | §21 |
 | P3 | `napCutoffHour`（設定値）が `decideRestTiming` に未反映 | — |
@@ -120,7 +129,6 @@ Next Action:
 | P3 | 既定 `gemma4:e2b` は ~8GB RAM / 2CPU 必要。足りないホストは `OLLAMA_MODEL=gemma3:1b`（日本語やや粗い） | 対応表 |
 | P3 | `(dev)/ai-test` 画面が本番バンドルに入る — `__DEV__` ガード or production 除外 | 追加分 |
 | P3 | `sanitizeModelOutput` が接頭辞リーク（「【コメント】…」）を除去しない — `^【.*?】` を strip | 追加分 |
-| P3 | Home の AI が **コールドモデルで最大 60 秒待つ** — `GET /home/summary` の初回のみ。`keep_alive:"30m"` で idle 復帰以外は軽減済み。残るは起動直後 / 再起動直後。呼び出し口ごとにタイムアウトを変える or 起動時ウォームアップ | 追加分 |
 | P3 | mobile 側のテストが無い（`mobile/` に test runner 未設定） | 追加分 |
 | P3 | WebSocket 在席が単一プロセス前提（`realtime/hub.ts` はメモリ。複数インスタンスで消える） | 追加分 |
 | P3 | `helmet` 導入時に CSP / HSTS を検討（HTTPS 化とセット） | 追加分 |
