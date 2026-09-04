@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -231,8 +232,23 @@ export default function OnboardingScreen() {
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   // 実際に描画された枠を onLayout で測る。Dimensions.get('window') は Web で
-  // 実際の表示サイズとズレることがあるため、必ずこちらを正とする。
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  // 実際の表示サイズとズレることがあるため、測れたらそちらを正とする。
+  //
+  // ただし **初期値はウィンドウ寸法にしておく**。スライドは `size.width` が 0 の
+  // 間 1 枚も描画されないので、onLayout が来るまでこの画面は完全な白紙になる。
+  // 実際 Web ビルドではレイアウトイベントが届かず、オンボーディングが最後まで
+  // 何も表示されないケースを確認した（Home など onLayout に依存しない画面は
+  // 正常に描画される）。ウィンドウ寸法なら初回描画から実寸に十分近く、
+  // onLayout が来ればそこで上書きされる。
+  const windowSize = useWindowDimensions();
+  const [measured, setMeasured] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const size = measured ?? {
+    width: windowSize.width,
+    height: windowSize.height,
+  };
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -241,7 +257,7 @@ export default function OnboardingScreen() {
       height > 0 &&
       (width !== size.width || height !== size.height)
     ) {
-      setSize({ width, height });
+      setMeasured({ width, height });
     }
   };
 
