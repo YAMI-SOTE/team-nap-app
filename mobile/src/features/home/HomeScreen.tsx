@@ -50,6 +50,13 @@ export default function HomeScreen() {
   const { data: restRecommendation } = useRestRecommendation();
   const [proposalOpen, setProposalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // On a short browser window the fixed layout would clip the CTAs. Drop
+  // the status chips to buy vertical room; the ScrollView catches the rest.
+  // Must stay above the no-team early return below: a hook that only runs
+  // on some renders breaks the hook order ("Rendered fewer hooks than
+  // expected") the moment a solo account's summary arrives.
+  const { height: windowHeight } = useWindowDimensions();
+  const compact = Platform.OS === "web" && windowHeight < 760;
   const summary = data?.summary;
 
   // Solo accounts never see team score / members / free-slot blocks.
@@ -69,11 +76,6 @@ export default function HomeScreen() {
 
   const restingCount = memberStatus?.memberStatusCounts.resting ?? 0;
   const nextFree = summary?.nextFree ?? null;
-
-  // On a short browser window the fixed layout would clip the CTAs. Drop
-  // the status chips to buy vertical room; the ScrollView catches the rest.
-  const { height: windowHeight } = useWindowDimensions();
-  const compact = Platform.OS === "web" && windowHeight < 760;
 
   return (
     <SceneBackground
