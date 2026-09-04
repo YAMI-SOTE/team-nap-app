@@ -2,6 +2,7 @@
   "expo": {
     "name": "Team Nap",
     "slug": "team-nap",
+    "owner": "nhashjps-team",
     "version": "1.0.0",
     "scheme": "teamnap",
     "orientation": "portrait",
