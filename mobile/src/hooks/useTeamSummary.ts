@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { useRealtimeRevision } from "@/features/realtime/RealtimeProvider";
 import {
   getSharedMemberStatus,
   getTeamSummary,
@@ -27,6 +28,9 @@ export function useTeamSummary() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  // Re-read when the server says the team changed (rename, roster).
+  const revision = useRealtimeRevision("team");
 
   useEffect(() => {
     if (status !== "signedIn") return;
@@ -67,7 +71,7 @@ export function useTeamSummary() {
     return () => {
       active = false;
     };
-  }, [reloadKey, status]);
+  }, [reloadKey, status, revision]);
 
   return { data, hasTeam, loading, error, connectionError, reload };
 }

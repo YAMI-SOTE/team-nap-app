@@ -16,6 +16,8 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/services/notifications";
+import { addPushReceivedListener } from "@/services/push";
+import { realtime } from "@/services/realtime";
 
 import type { NotificationItem } from "@/types/api";
 
@@ -26,7 +28,11 @@ type NotificationsContextValue = {
   unreadCount: number;
   loading: boolean;
   error: string | null;
-  /** Re-fetch from the backend (also runs on mount and on app foreground). */
+  /**
+   * Re-fetch from the backend (also runs on mount, on app foreground, and
+   * whenever a push notification arrives for this device). New items also
+   * arrive over the realtime socket without a re-fetch.
+   */
   refresh: () => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
@@ -35,6 +41,12 @@ type NotificationsContextValue = {
 const NotificationsContext = createContext<NotificationsContextValue | null>(
   null,
 );
+
+/**
+ * Tapping a banner while the app is foregrounded fires both the "received"
+ * and the "opened" listener for the same push; one re-fetch is enough.
+ */
+const PUSH_REFRESH_COALESCE_MS = 1500;
 
 /**
  * App-wide notifications state. Mounted once at the router root so every
@@ -48,6 +60,7 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const lastPushRefreshRef = useRef(0);
 
   const refresh = useCallback(() => {
     getNotifications()
@@ -94,8 +107,33 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
       if (state === "active") refresh();
     });
 
+    // A push means the server-side feed already changed, so pull it right
+    // away instead of waiting for the next foreground: the bell count and
+    // the list update while the user is still looking at the screen.
+    const offPush = addPushReceivedListener(() => {
+      const now = Date.now();
+      if (now - lastPushRefreshRef.current < PUSH_REFRESH_COALESCE_MS) return;
+      lastPushRefreshRef.current = now;
+      refresh();
+    });
+
+    // The socket carries the item itself, so the feed updates with no
+    // round-trip — and, unlike push, it works on web and needs no
+    // notification permission. Insert by id so a racing refresh cannot
+    // duplicate the row.
+    const offSocket = realtime.on((event) => {
+      if (event.type !== "notification") return;
+      setItems((prev) => {
+        if (prev === null) return prev;
+        if (prev.some((n) => n.id === event.data.id)) return prev;
+        return [event.data, ...prev];
+      });
+    });
+
     return () => {
       subscription.remove();
+      offPush();
+      offSocket();
     };
   }, [status, refresh]);
 

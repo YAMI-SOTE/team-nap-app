@@ -1,21 +1,31 @@
 import { config } from "@/constants/config";
 
-import type { HomeMemberStatusResponse } from "@/types/api";
+import type {
+  HomeMemberStatusResponse,
+  NotificationItem,
+} from "@/types/api";
 
 /**
- * Realtime presence client. Opens a WebSocket to the backend hub
- * (`/api/v1/realtime?token=…`) and emits every `member-status` snapshot
- * the server pushes. Reconnects with backoff while a token is set.
+ * Realtime client. Opens a WebSocket to the backend hub
+ * (`/api/v1/realtime?token=…`) and emits every frame the server pushes —
+ * presence snapshots, new notifications, and "re-read this" invalidations.
+ * Reconnects with backoff while a token is set.
  *
  * The client only receives — it changes its own status through the REST
  * endpoint (`setMyStatus`). React Native ships a global `WebSocket`, so
  * there is no extra dependency.
  */
 
-export type RealtimeEvent = {
-  type: "member-status";
-  data: HomeMemberStatusResponse;
-};
+/** What the server says has gone stale (see backend `RealtimeScope`). */
+export type RealtimeScope = "team" | "member";
+
+export type RealtimeEvent =
+  /** Team roster + presence snapshot. */
+  | { type: "member-status"; data: HomeMemberStatusResponse }
+  /** A new feed item for this user — arrives without any push permission. */
+  | { type: "notification"; data: NotificationItem }
+  /** "Re-read this": the server changed something with no pushed payload. */
+  | { type: "invalidate"; scope: RealtimeScope };
 
 type Listener = (event: RealtimeEvent) => void;
 type StatusListener = (connected: boolean) => void;
@@ -109,7 +119,11 @@ class RealtimeClient {
     this.ws.onmessage = (e) => {
       try {
         const parsed = JSON.parse(String(e.data)) as RealtimeEvent;
-        if (parsed?.type === "member-status") {
+        if (
+          parsed?.type === "member-status" ||
+          parsed?.type === "notification" ||
+          parsed?.type === "invalidate"
+        ) {
           for (const l of this.listeners) l(parsed);
         }
       } catch {

@@ -8,7 +8,11 @@ import { todayISO } from "../lib/datetime.js";
 import { addNotification } from "./notifications.service.js";
 import { deriveMemberStatus, teamIdOf } from "./team-presence.service.js";
 import { teamWeek } from "./team-nap-stats.service.js";
-import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
+import {
+  broadcastInvalidate,
+  broadcastTeamMembers,
+  closeUserSockets,
+} from "../realtime/hub.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
 
 // ---------------------------------------------------------------------------
@@ -294,6 +298,9 @@ export async function renameTeam(
     where: { id: membership.teamId },
     data: { name },
   });
+  // The name is not part of the presence payload, so a roster broadcast
+  // would not carry it — tell watchers to re-read the team instead.
+  broadcastInvalidate(membership.teamId, "team");
   return (await getCurrentTeam(userId))!;
 }
 

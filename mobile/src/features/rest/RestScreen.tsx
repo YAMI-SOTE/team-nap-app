@@ -20,6 +20,7 @@ import {
 } from "@/constants/characters";
 import { toClockTime, toISODate } from "@/utils/date";
 import { setMyStatus } from "@/services/team";
+import { cancelNapEndAlarm, scheduleNapEndAlarm } from "@/services/push";
 import { startNapSession, endNapSession } from "@/services/rest";
 
 // 15分（900秒）
@@ -52,14 +53,25 @@ export default function RestScreen() {
       // Clear the live "あと◯分" card no matter how the screen is left
       // (finished, cancelled, back, auto-complete → rating).
       endNapSession();
+      // Leaving the screen means this nap is over one way or another, so
+      // the pending alarm must not outlive it.
+      void cancelNapEndAlarm();
     };
   }, []);
 
   // Publish / refresh the live nap session whenever the countdown starts
   // or resumes, so teammates' "あと◯分" tracks the real wake time.
+  //
+  // The alarm is scheduled here too, and this is the part that actually
+  // wakes the user: the countdown below only runs while the app is
+  // foregrounded, and a napping phone is locked. Pausing cancels it so a
+  // paused nap does not ring at the old time.
   useEffect(() => {
     if (isActive && timeLeft > 0) {
       startNapSession(Math.ceil(timeLeft / 60));
+      void scheduleNapEndAlarm(timeLeft);
+    } else {
+      void cancelNapEndAlarm();
     }
   }, [isActive]);
 
@@ -90,6 +102,8 @@ export default function RestScreen() {
     const prev = prevTimeLeftRef.current;
     prevTimeLeftRef.current = timeLeft;
     if (timeLeft === 0 && prev > 0 && prev <= 2) {
+      // Finished with the app open — the alarm is redundant now.
+      void cancelNapEndAlarm();
       goToRating(INITIAL_TIME);
     }
   }, [timeLeft]);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useRealtimeRevision } from "@/features/realtime/RealtimeProvider";
 import { getTeamRanking } from "@/services/team";
 
 import type { TeamRankingResponse } from "@/types/api";
@@ -8,6 +9,9 @@ export function useTeamRanking() {
   const [data, setData] = useState<TeamRankingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-read when the server says the team changed (rename, roster).
+  const revision = useRealtimeRevision("team");
 
   useEffect(() => {
     let active = true;
@@ -28,7 +32,7 @@ export function useTeamRanking() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [revision]);
 
   return { data, loading, error };
 }

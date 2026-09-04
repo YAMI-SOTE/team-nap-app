@@ -9,16 +9,24 @@ import {
 import { AppState, type AppStateStatus } from "react-native";
 
 import { useAuth } from "@/features/auth/AuthContext";
-import { realtime } from "@/services/realtime";
+import { realtime, type RealtimeScope } from "@/services/realtime";
 import { authStorage } from "@/services/authStorage";
 
 import type { HomeMemberStatusResponse } from "@/types/api";
+
+/**
+ * Bumped every time the server says a scope went stale. Screens put the
+ * number straight into their fetch effect's dependencies, so "re-read
+ * this" needs no subscription bookkeeping in each hook.
+ */
+type Revisions = Record<RealtimeScope, number>;
 
 type RealtimeContextValue = {
   /** Latest team member-status snapshot pushed by the server, or `null`. */
   memberStatus: HomeMemberStatusResponse | null;
   /** Whether the presence socket is currently connected. */
   connected: boolean;
+  revisions: Revisions;
 };
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
@@ -33,10 +41,20 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const [memberStatus, setMemberStatus] =
     useState<HomeMemberStatusResponse | null>(null);
   const [connected, setConnected] = useState(false);
+  const [revisions, setRevisions] = useState<Revisions>({ team: 0, member: 0 });
 
   useEffect(() => {
     const offEvent = realtime.on((event) => {
-      if (event.type === "member-status") setMemberStatus(event.data);
+      if (event.type === "member-status") {
+        setMemberStatus(event.data);
+      } else if (event.type === "invalidate") {
+        setRevisions((prev) => ({
+          ...prev,
+          [event.scope]: prev[event.scope] + 1,
+        }));
+      }
+      // "notification" frames are handled by NotificationsProvider, which
+      // owns the feed state.
     });
     const offStatus = realtime.onStatus(setConnected);
     return () => {
@@ -54,6 +72,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     } else {
       realtime.disconnect();
       setMemberStatus(null);
+      setRevisions({ team: 0, member: 0 });
     }
     return () => {
       active = false;
@@ -73,8 +92,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   }, [status]);
 
   const value = useMemo(
-    () => ({ memberStatus, connected }),
-    [memberStatus, connected],
+    () => ({ memberStatus, connected, revisions }),
+    [memberStatus, connected, revisions],
   );
 
   return (
@@ -90,4 +109,14 @@ export function useRealtimeMembers(): RealtimeContextValue {
     throw new Error("useRealtimeMembers must be used within <RealtimeProvider>");
   }
   return ctx;
+}
+
+/**
+ * A counter that increments whenever the server invalidates `scope`.
+ * Add it to a fetch effect's dependency list to make that screen live:
+ *
+ *   useEffect(() => { load(); }, [id, revision]);
+ */
+export function useRealtimeRevision(scope: RealtimeScope): number {
+  return useRealtimeMembers().revisions[scope];
 }

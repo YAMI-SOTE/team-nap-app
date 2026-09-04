@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { sendToUser } from "../realtime/hub.js";
 import { sendPushToUser } from "./push.service.js";
 
 type NotificationKind =
@@ -134,23 +135,43 @@ export async function listNotifications(
 }
 
 /** Append a notification to `userId`'s feed (and push it to their devices). */
+export type AddNotificationOptions = {
+  /**
+   * Send an Expo push as well as writing the feed row. Default true.
+   *
+   * Pass `false` when the device already raises its own alert for this
+   * event — the nap-end alarm is scheduled locally on the phone so it
+   * fires with the app closed, and a server push on top of it would ring
+   * twice for the same nap.
+   */
+  push?: boolean;
+};
+
 export async function addNotification(
   userId: string,
   input: NewNotification,
+  options: AddNotificationOptions = {},
 ): Promise<NotificationItem> {
   const row = await prisma.notification.create({
     data: { userId, kind: input.kind, title: input.title, body: input.body },
   });
+  const item = toItem(row, new Date());
 
-  // Fire the push without blocking or risking the caller — the feed row
-  // is already written. `sendPushToUser` handles opt-in + errors itself.
-  void sendPushToUser(userId, {
-    title: input.title,
-    body: input.body,
-    data: { kind: input.kind },
-  });
+  // Deliver over the open socket first: it is instant, needs no push
+  // permission, and is the only path that works on web at all.
+  sendToUser(userId, { type: "notification", data: item });
 
-  return toItem(row, new Date());
+  if (options.push !== false) {
+    // Fire the push without blocking or risking the caller — the feed row
+    // is already written. `sendPushToUser` handles opt-in + errors itself.
+    void sendPushToUser(userId, {
+      title: input.title,
+      body: input.body,
+      data: { kind: input.kind },
+    });
+  }
+
+  return item;
 }
 
 export async function markNotificationRead(

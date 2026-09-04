@@ -5,8 +5,17 @@
  * anyone on the team changes activity / joins / leaves / comes online /
  * drops off.
  *
- * One-directional: clients still change their own status through
- * `PUT /api/v1/teams/me/status`; the hub only pushes.
+ * One-directional: clients still change their own status through the REST
+ * API; the hub only pushes. Three frame types go out:
+ *
+ *   { type: "member-status", data }   team roster + presence (broadcast)
+ *   { type: "notification",  data }   a new feed item (one user)
+ *   { type: "invalidate", scope }     "refetch this" (broadcast)
+ *
+ * `invalidate` exists so server-side changes that are not presence — a
+ * teammate starting a nap, a team being renamed — still reach an open
+ * client without inventing a bespoke payload for each one. It is also the
+ * only delivery path that works on web, where Expo push does not exist.
  *
  * The hub is also the authority on who is *here*: it keeps a socket index
  * per user and hands `team-presence.service` a probe (see
@@ -112,6 +121,41 @@ export async function broadcastTeamMembers(teamId: string): Promise<void> {
   const message = JSON.stringify({ type: "member-status", data: snapshot });
   lastPushed.set(teamId, message);
 
+  for (const ws of set) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(message);
+  }
+}
+
+/**
+ * What a client should re-read when it gets an `invalidate` frame.
+ *
+ *   "team"   — team summary / settings / name / ranking
+ *   "member" — a teammate's detail, including the live nap card
+ */
+export type RealtimeScope = "team" | "member";
+
+/** Push a frame to every socket `userId` currently holds. */
+export function sendToUser(userId: string, payload: unknown): void {
+  const set = byUser.get(userId);
+  if (!set || set.size === 0) return;
+  const message = JSON.stringify(payload);
+  for (const ws of set) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(message);
+  }
+}
+
+/**
+ * Tell everyone watching `teamId` that `scope` is stale. Deliberately
+ * carries no data: the client re-reads through the same REST path it
+ * already uses, so there is one shape of truth rather than two.
+ */
+export function broadcastInvalidate(
+  teamId: string,
+  scope: RealtimeScope,
+): void {
+  const set = byTeam.get(teamId);
+  if (!set || set.size === 0) return;
+  const message = JSON.stringify({ type: "invalidate", scope });
   for (const ws of set) {
     if (ws.readyState === WebSocket.OPEN) ws.send(message);
   }
