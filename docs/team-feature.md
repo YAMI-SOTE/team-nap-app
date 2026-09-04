@@ -264,7 +264,7 @@ publish し、teammate の「あと◯分」カードのソースになる。
 | --- | --- |
 | チーム作成 / 参加 / 離脱 / 改名 | ✅ Postgres |
 | メンバー一覧・在席ステータス・起床サポート | ✅ Postgres |
-| 在席ステータスのライブ更新 | ✅ WebSocket（`/api/v1/realtime`）。`setActivity` / join / leave / remove で全メンバーへ push。休憩画面の開閉が `PUT /teams/me/status` を叩く |
+| 在席ステータスのライブ更新 | ✅ WebSocket（`/api/v1/realtime`）。socket 接続を第一根拠にし、`lastSeenAt` で減衰。20 秒ごとの sweep が「変化したときだけ」push するので、アプリを閉じた人もちゃんとオフラインに落ちる。§11 参照 |
 | メンバー管理（オーナー権限・除名・オーナー委譲） | ✅ `role` 列 + `DELETE /teams/members/:id`（オーナーのみ） |
 | 招待コード照合 | ✅ `inviteCodeNormalized` の一意インデックスを直接引く |
 | メンバー詳細の `nap`（「あと◯分」） | ✅ `NapSession` から（§6.1a） |
@@ -338,12 +338,50 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 
 - 接続: `ws://<host>/api/v1/realtime?token=<bearer>`。`resolveSession` で
   userId を解決 → 所属チーム。未ログイン `4001` / チーム未加入 `4002`。
-- 接続直後に `{ type: "member-status", data }`（`GET /home/member-status`
-  と同形）を送信。以後は `broadcastTeamMembers(teamId)` が呼ばれるたびに送信。
-- `broadcastTeamMembers` の呼び出し元: `setActivity` / `joinTeam` /
-  `leaveTeam` / `removeMember`。離脱・除名された本人のソケットは `4003` で切断。
-- 30 秒ごとに ping/pong で死んだ接続を落とす。**片方向**（ステータス変更は
-  引き続き `PUT /teams/me/status`）。
+- 送信するフレームは 3 種類。**片方向**（変更は引き続き REST 経由）。
+
+  | フレーム | 宛先 | 意味 |
+  | --- | --- | --- |
+  | `{ type: "member-status", data }` | チーム全員 | 在席スナップショット（`GET /home/member-status` と同形） |
+  | `{ type: "notification", data }` | 特定ユーザー | 新着フィード項目。**通知権限不要・Web でも届く** |
+  | `{ type: "invalidate", scope }` | チーム全員 | 「読み直して」。`scope` は `"team"` / `"member"` |
+
+  `invalidate` があえてペイロードを持たないのは、クライアントが既存の REST 経路で
+  読み直すことで**真実の形が 2 つに分かれないようにする**ため。モバイル側は
+  revision カウンタ（`useRealtimeRevision`）として露出し、各 hook は effect の
+  依存配列に入れるだけで live になる。
+
+- `broadcastTeamMembers` の呼び出し元: `setActivity` / `joinTeam` / `leaveTeam` /
+  `removeMember` / `updateProfile`（アバター・名前は在席ペイロードに載るため）。
+  `broadcastInvalidate`: `renameTeam`（`team`）/ 仮眠セッション開始・終了（`member`）。
+- **在席の減衰を配信する sweep**（20 秒ごと）。在席は時間で offline に落ちるが、
+  それを知らせるイベントは誰も発火しない。sweep が各チームを再計算し、
+  **実際に変化したときだけ** push する（変化なしならクエリ 1 回・通信ゼロ）。
+  これが無いと「アプリを閉じた人が他人の画面でずっと作業中のまま」になる。
+- 30 秒ごとに ping/pong で死んだ接続を落とす。
+
+### 在席の判定（`team-presence.service.ts`）
+
+根拠は 2 段階。
+
+1. **開いている socket**（確実）。hub が `setLivePresenceProbe` で probe を渡す
+   （hub → team-presence の一方向 import を保つため。逆向きは循環する）。
+   接続した瞬間に「作業中」になる。
+2. **`lastSeenAt`**（減衰するフォールバック）。認証済み REST と WS pong で更新。
+
+| 条件 | 結果 |
+| --- | --- |
+| socket 接続中 | `activity` に従う（作業中 / 仮眠中） |
+| `OFFLINE_AFTER_MS`（5分）以上無反応 | オフライン |
+| `activity: "resting"` かつ `RESTING_EXPIRES_AFTER_MS`（2時間）以内 | 仮眠中 |
+| 上記を超えた `resting` | オフライン（**放置された仮眠が永久に残らない**） |
+| socket 切断後 `DISCONNECT_GRACE_MS`（45秒） | オフラインへ（`markDisconnected`） |
+| サインアウト | 即オフライン（`markOffline` / `dropUserPresence`） |
+
+- 再接続時に `reconcileActivity` が、実体（live な `NapSession`）の無い `resting`
+  フラグを解除する。アプリを kill された仮眠がログインし直しても付いてこない。
+- ロスターを組む全箇所（home / team / メンバー詳細 / 週次 stats / 自分の
+  ステータス）は `deriveMemberStatus` 経由に統一。画面ごとに判定が食い違わない。
 - モバイル: `services/realtime.ts`（グローバル `WebSocket`、指数バックオフ再接続）
   + `RealtimeProvider`（サインイン中だけ接続）。Home / Team 画面はこの
   スナップショットを取得済みデータに上書きする。休憩画面の mount/unmount で
@@ -361,7 +399,7 @@ curl -s -XPOST $BASE/teams/join -H "authorization: Bearer $NEW" \
 ## 13. 既知の TODO / 注意点
 
 - `renameTeam` は現状メンバーなら誰でも可能（owner 限定にするかは未決）。
-- `activity` に本当の "offline" が無い（`online` / `resting` のみ）。
-  `lastSeenAt` を足して N 分無応答→offline を導出する余地。
-- WebSocket 在席ハブ（`realtime/hub.ts`）はプロセス内状態。単一インスタンス前提。
+- WebSocket 在席ハブ（`realtime/hub.ts`）はプロセス内状態（`byTeam` / `byUser`）。
+  単一インスタンス前提。API を水平スケールするなら socket レジストリの共有
+  （Redis pub/sub 等）が別途必要。
 - `ensureUser` は旧 `X-User-Id` 経路向けの保険で、現行経路では未到達（実質 no-op）。

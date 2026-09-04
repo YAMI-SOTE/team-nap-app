@@ -112,11 +112,17 @@ src/
 
 | 箇所 | 現状 |
 | --- | --- |
-| `realtime/hub.ts` | WebSocket 在席ハブはプロセス内の接続集合。単一インスタンス前提（複数インスタンス / 再起動で失われる） |
+| `realtime/hub.ts` | WebSocket ハブはプロセス内の接続集合（`byTeam` / `byUser`）。単一インスタンス前提（複数インスタンス / 再起動で失われる）。水平スケールするなら Redis pub/sub 等での共有が要る |
 | RestRecommendation | 休息提案の履歴・受諾フラグのテーブルは未実装（判定ロジック自体は `rest-decision.service` に存在） |
 
 以前ダミー / インメモリだった **通知フィード・チームサマリー・ランキング・チーム
 スコア・チーム統計・メンバー詳細の「あと◯分」・プッシュ通知**はすべて実装済み。
+
+realtime は在席専用ではなくなった。`member-status` / `notification` /
+`invalidate` の 3 フレームを流し、通知・仮眠セッション・チーム名の変更も
+リロード無しで届く（**Web では Expo プッシュが存在しないので、ここが唯一の
+即時配信経路**）。詳細は [team-feature.md §11](./team-feature.md) と
+[notifications.md](./notifications.md)。
 最新の点検結果と残タスクは [implementation-checklist.md](./implementation-checklist.md)。
 
 ---
