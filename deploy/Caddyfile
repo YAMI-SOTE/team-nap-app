@@ -1,0 +1,11 @@
+# Reverse proxy for the public VPS deployment.
+# Caddy obtains + renews a Let's Encrypt certificate automatically and
+# proxies WebSocket (/api/v1/realtime) transparently — no extra config.
+#
+# {$API_DOMAIN} comes from the environment (see deploy/compose.prod.yaml,
+# which reads it from the repo-root .env).
+
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy backend:3000
+}
