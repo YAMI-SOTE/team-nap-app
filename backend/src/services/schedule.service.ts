@@ -245,11 +245,15 @@ export async function getNextFreeSlot(
     select: { userId: true },
   });
 
-  let availableMemberCount = 0;
-  for (const m of members) {
-    const free = await getFreeTimesForDate(m.userId, dateISO, currentTime);
-    if (windowIsFree(free, slotStart)) availableMemberCount += 1;
-  }
+  // One query per member, all in flight together — sequential awaits here
+  // made Home's free-slot card scale linearly with team size (same shape
+  // `getTeamFreeSlots` below already avoids).
+  const freePerMember = await Promise.all(
+    members.map((m) => getFreeTimesForDate(m.userId, dateISO, currentTime)),
+  );
+  const availableMemberCount = freePerMember.filter((free) =>
+    windowIsFree(free, slotStart),
+  ).length;
 
   return {
     start: slot.start,

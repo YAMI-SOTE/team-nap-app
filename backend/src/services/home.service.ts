@@ -58,26 +58,10 @@ export async function getHomeSummary(
   const membership = await prisma.teamMembership.findUnique({
     where: { userId },
   });
-  const hasTeam = membership !== null;
-
-  let nextFree: HomeSummaryResponse["nextFree"] = null;
-  const now = jstNow();
-  const freeSlot = hasTeam
-    ? await getNextFreeSlot(userId, now.date, now.time)
-    : null;
-  if (hasTeam && freeSlot) {
-    const untilStart = timeUntil(freeSlot.start, new Date());
-    nextFree = {
-      start: freeSlot.start,
-      end: freeSlot.end,
-      hoursUntilStart: untilStart.hours,
-      minutesUntilStartRemainder: untilStart.minutes,
-      availableMemberCount: freeSlot.availableMemberCount,
-    };
-  }
 
   // Solo account → no team score, no team AI advice, personal greeting only.
-  if (!hasTeam) {
+  // Returning here also skips the free-slot lookup, which is team-scoped.
+  if (membership === null) {
     return {
       todayLabel: jstTodayLabel(new Date()),
       headline: ["今日も", "おつかれさまです"],
@@ -89,9 +73,30 @@ export async function getHomeSummary(
     };
   }
 
+  // Independent reads — the free slot and the weekly score share no data,
+  // so don't make the screen wait for them one after the other.
+  const now = jstNow();
+  const [freeSlot, week] = await Promise.all([
+    getNextFreeSlot(userId, now.date, now.time),
+    teamWeek(membership.teamId),
+  ]);
+
+  let nextFree: HomeSummaryResponse["nextFree"] = null;
+  if (freeSlot) {
+    const untilStart = timeUntil(freeSlot.start, new Date());
+    nextFree = {
+      start: freeSlot.start,
+      end: freeSlot.end,
+      hoursUntilStart: untilStart.hours,
+      minutesUntilStartRemainder: untilStart.minutes,
+      availableMemberCount: freeSlot.availableMemberCount,
+    };
+  }
+
   // Real weekly team score from the members' NapRecord rows.
-  const teamScore = (await teamWeek(membership.teamId)).teamScore;
+  const teamScore = week.teamScore;
   const teamEvaluation = evaluateTeamScore(teamScore);
+  // Cached / canned copy — resolves immediately, never blocks on Ollama.
   const homeComments = await generateHomeComments({
     teamScore,
     teamEvaluation,
