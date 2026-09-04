@@ -4,13 +4,17 @@ import {
   getRestRecommendation,
   type RestDecisionResponse,
 } from "@/services/rest";
+import { useAuth } from "@/features/auth/AuthContext";
 
 export function useRestRecommendation() {
+  const { status } = useAuth();
   const [data, setData] = useState<RestDecisionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (status !== "signedIn") return;
+
     let active = true;
 
     async function loadRestRecommendation() {
@@ -45,7 +49,7 @@ export function useRestRecommendation() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [status]);
 
   return {
     data,
