@@ -62,6 +62,42 @@ const envSchema = z.object({
   // Optional substring filter for the tracer, e.g. "/teams" to trace only
   // team routes. Empty = trace every route.
   DEBUG_API_FLOW_SCOPE: z.string().min(1).optional(),
+
+  // --- Google OAuth + Calendar --------------------------------------------
+  // All optional. The whole feature stays dormant (Google login rejected
+  // with a clear message, calendar sync falls back to the sample set)
+  // until at least CLIENT_ID + TOKEN_ENC_KEY are set. See
+  // docs/google-integration.md.
+  //
+  // The Web OAuth client (has a secret, server-only). Also the default
+  // `aud` for id_token verification.
+  GOOGLE_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+  // Native client ids (public, no secret — PKCE protects the exchange).
+  GOOGLE_OAUTH_IOS_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_OAUTH_ANDROID_CLIENT_ID: z.string().min(1).optional(),
+  // Comma / whitespace separated allow-list of redirect URIs the client
+  // may present to POST /auth/google.
+  GOOGLE_OAUTH_REDIRECT_URIS: z.string().default(""),
+  // 32-byte key for AES-256-GCM token encryption, as base64 or hex.
+  // Read directly from process.env by src/lib/secret-box.ts; declared
+  // here only so it is documented + validated on boot.
+  GOOGLE_TOKEN_ENC_KEY: z.string().min(1).optional(),
+  // Space-separated OAuth scopes requested. Calendar read is the minimum
+  // that still lets the free-slot logic see real events.
+  GOOGLE_OAUTH_SCOPES: z
+    .string()
+    .default(
+      "openid email profile https://www.googleapis.com/auth/calendar.events.readonly",
+    ),
+  // Public https origin of THIS API, used as the events.watch callback
+  // base. Push-channel registration is skipped when unset.
+  PUBLIC_BASE_URL: z.string().url().optional(),
+  // Shared secret Google echoes back in the X-Goog-Channel-Token header
+  // of every webhook call; the endpoint drops calls that don't match.
+  GOOGLE_WEBHOOK_TOKEN: z.string().min(1).optional(),
+  // Background incremental-sync cadence in minutes (0 disables the job).
+  GOOGLE_CALENDAR_SYNC_MINUTES: z.coerce.number().int().min(0).default(15),
 });
 
 const parsed = envSchema.safeParse(process.env);

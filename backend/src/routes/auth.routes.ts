@@ -6,6 +6,8 @@ import {
   confirmPasswordResetController,
   debugController,
   deleteAccountController,
+  googleAuthController,
+  googleLinkController,
   listSessionsController,
   loginController,
   logoutController,
@@ -20,6 +22,7 @@ import { authenticate } from "../middleware/authenticate.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
   changePasswordBody,
+  googleAuthBody,
   loginBody,
   passwordResetConfirmBody,
   passwordResetRequestBody,
@@ -34,6 +37,11 @@ const router = Router();
 router.post("/signup", validate({ body: signUpBody }), signUpController);
 router.post("/login", validate({ body: loginBody }), loginController);
 router.post(
+  "/google",
+  validate({ body: googleAuthBody }),
+  googleAuthController,
+);
+router.post(
   "/password-reset/request",
   validate({ body: passwordResetRequestBody }),
   requestPasswordResetController,
@@ -45,6 +53,12 @@ router.post(
 );
 
 // Session-scoped.
+router.post(
+  "/google/link",
+  authenticate,
+  validate({ body: googleAuthBody }),
+  googleLinkController,
+);
 router.get("/me", authenticate, meController);
 router.patch(
   "/me",

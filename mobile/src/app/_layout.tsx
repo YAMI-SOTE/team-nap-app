@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
 import { NotificationsProvider } from "@/features/notifications/NotificationsProvider";
 import { RealtimeProvider } from "@/features/realtime/RealtimeProvider";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
+import { useForegroundCalendarSync } from "@/hooks/useForegroundCalendarSync";
 import WebFrame from "@/components/WebFrame";
 import BootOverlay from "@/components/BootOverlay";
 // Side-effect: injects global CSS on web (focus-ring reset, color-scheme).
@@ -22,6 +23,8 @@ function RootNavigator() {
   // Redirect on every navigation according to the session (also catches a
   // directly-typed URL on web).
   useProtectedRoute();
+  // Keep Google Calendar events fresh on foreground (throttled, silent).
+  useForegroundCalendarSync();
 
   return (
     <>

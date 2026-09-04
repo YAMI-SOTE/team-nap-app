@@ -25,8 +25,19 @@ import {
 
 export default function CalendarSettingsScreen() {
   const router = useRouter();
-  const { data, loading, saving, error, syncNow, disconnectGoogle, connectDevice } =
-    useCalendarSettings();
+  const {
+    data,
+    loading,
+    saving,
+    error,
+    googleAuthAvailable,
+    linkGoogle,
+    syncNow,
+    disconnectGoogle,
+    connectDevice,
+  } = useCalendarSettings();
+
+  const googleConnected = data?.google.connected ?? false;
 
   return (
     <View style={styles.root}>
@@ -73,28 +84,45 @@ export default function CalendarSettingsScreen() {
 
             <Hairline />
 
-            <View style={styles.syncRow}>
-              <Text style={styles.syncMeta}>
-                最終更新: {data?.google.lastSyncedLabel ?? "未同期"}
-              </Text>
-              <Pressable
-                onPress={syncNow}
-                accessibilityRole="button"
-                hitSlop={6}
-              >
-                <Text style={styles.syncAction}>
-                  {error ? "再試行" : "今すぐ同期"}
-                </Text>
-              </Pressable>
-            </View>
+            {googleConnected ? (
+              <>
+                <View style={styles.syncRow}>
+                  <Text style={styles.syncMeta}>
+                    最終更新: {data?.google.lastSyncedLabel ?? "未同期"}
+                  </Text>
+                  <Pressable
+                    onPress={syncNow}
+                    accessibilityRole="button"
+                    hitSlop={6}
+                  >
+                    <Text style={styles.syncAction}>
+                      {error ? "再試行" : "今すぐ同期"}
+                    </Text>
+                  </Pressable>
+                </View>
 
-            <Pressable
-              onPress={disconnectGoogle}
-              accessibilityRole="button"
-              hitSlop={6}
-            >
-              <Text style={styles.disconnect}>連携を解除</Text>
-            </Pressable>
+                <Pressable
+                  onPress={disconnectGoogle}
+                  accessibilityRole="button"
+                  hitSlop={6}
+                >
+                  <Text style={styles.disconnect}>連携を解除</Text>
+                </Pressable>
+              </>
+            ) : googleAuthAvailable ? (
+              <PillButton
+                variant="outline"
+                label="Google と連携"
+                onPress={linkGoogle}
+                loading={saving}
+                textStyle={styles.connectText}
+                style={styles.connectButton}
+              />
+            ) : (
+              <Text style={styles.syncMeta}>
+                この環境では Google 連携は利用できません
+              </Text>
+            )}
           </Card>
 
           {error ? (

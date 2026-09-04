@@ -6,6 +6,10 @@ import {
   getCalendarIntegration,
   syncGoogleCalendar,
 } from "@/services/settings";
+import {
+  isGoogleAuthConfigured,
+  linkGoogleAccount,
+} from "@/services/googleAuth";
 
 import type { CalendarIntegrationResponse } from "@/types/api";
 
@@ -58,11 +62,30 @@ export function useCalendarSettings() {
     }
   }
 
+  /** Run the Google OAuth consent flow, then reload the integration row. */
+  async function linkGoogle() {
+    setSaving(true);
+    setError(null);
+    try {
+      await linkGoogleAccount();
+      setData(await getCalendarIntegration());
+    } catch (err) {
+      // A plain cancel isn't worth a red banner.
+      if (err instanceof Error && err.name === "GoogleAuthCancelled") return;
+      setError(err instanceof Error ? err.message : "連携に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     data,
     loading,
     saving,
     error,
+    /** Whether a Google client id is configured for this platform. */
+    googleAuthAvailable: isGoogleAuthConfigured(),
+    linkGoogle,
     syncNow: () => runAction(syncGoogleCalendar),
     disconnectGoogle: () => runAction(disconnectGoogleCalendar),
     connectDevice: () => runAction(connectDeviceCalendar),

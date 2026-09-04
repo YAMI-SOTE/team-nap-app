@@ -465,3 +465,66 @@ export async function clearGoogleEvents(userId: string): Promise<void> {
     where: { userId, source: "google" },
   });
 }
+
+/**
+ * Apply a batch of individual Google Calendar changes (used by the real
+ * incremental sync in `google-calendar.service`). Upserts `changes` and
+ * removes `deletions`, matching on `externalId`. Manual events are never
+ * touched. With `prune: true` (a full resync) any `source: "google"` row
+ * not in `changes` is also removed.
+ */
+export async function applyGoogleEventChanges(
+  userId: string,
+  changes: Array<EventDraft & { externalId: string }>,
+  deletions: string[],
+  opts: { prune?: boolean } = {},
+): Promise<{ imported: number; deleted: number }> {
+  const keep = changes.map((c) => c.externalId);
+  const ops = [];
+
+  if (opts.prune) {
+    ops.push(
+      prisma.calendarEvent.deleteMany({
+        where: {
+          userId,
+          source: "google",
+          ...(keep.length > 0 ? { externalId: { notIn: keep } } : {}),
+        },
+      }),
+    );
+  }
+  if (deletions.length > 0) {
+    ops.push(
+      prisma.calendarEvent.deleteMany({
+        where: { userId, source: "google", externalId: { in: deletions } },
+      }),
+    );
+  }
+  for (const e of changes) {
+    ops.push(
+      prisma.calendarEvent.upsert({
+        where: { userId_externalId: { userId, externalId: e.externalId } },
+        update: {
+          title: e.title,
+          date: e.date,
+          start: e.start,
+          end: e.end,
+          allDay: e.allDay,
+        },
+        create: {
+          userId,
+          source: "google",
+          externalId: e.externalId,
+          title: e.title,
+          date: e.date,
+          start: e.start,
+          end: e.end,
+          allDay: e.allDay,
+        },
+      }),
+    );
+  }
+
+  await prisma.$transaction(ops);
+  return { imported: changes.length, deleted: deletions.length };
+}
