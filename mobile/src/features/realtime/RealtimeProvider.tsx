@@ -6,6 +6,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 
 import { useAuth } from "@/features/auth/AuthContext";
 import { realtime } from "@/services/realtime";
@@ -57,6 +58,18 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     return () => {
       active = false;
     };
+  }, [status]);
+
+  // Coming back to the foreground is the moment presence is most likely
+  // to be wrong: the socket died while the app was suspended, so the team
+  // still sees this member as 作業中 and this member sees a stale roster.
+  // Reconnect immediately instead of waiting out the backoff.
+  useEffect(() => {
+    if (status !== "signedIn") return;
+    const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
+      if (next === "active") realtime.ensureConnected();
+    });
+    return () => sub.remove();
   }, [status]);
 
   const value = useMemo(

@@ -16,7 +16,7 @@ import {
   todayISO,
 } from "../lib/datetime.js";
 import { restScore } from "../lib/rest-score.js";
-import { deriveStatus } from "./team-presence.service.js";
+import { deriveMemberStatus } from "./team-presence.service.js";
 import type { MemberStatus } from "../types/domain.js";
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -208,7 +208,7 @@ export async function teamWeek(
       userId: m.userId,
       name: m.user.name?.trim() || null,
       avatar: m.user.avatar ?? null,
-      status: deriveStatus(m.activity, m.lastSeenAt),
+      status: deriveMemberStatus(m.userId, m.activity, m.lastSeenAt),
     })),
     naps,
     weekDays: week.days,

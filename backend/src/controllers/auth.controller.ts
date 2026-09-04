@@ -11,6 +11,7 @@ import {
   signUp,
   updateProfile,
 } from "../services/auth.service.js";
+import { dropUserPresence } from "../realtime/hub.js";
 import {
   confirmReset,
   requestReset,
@@ -107,7 +108,10 @@ export async function debugController(req: Request, res: Response) {
 }
 
 export async function logoutController(req: Request, res: Response) {
-  await revokeSession(requireUserId(req), requireSessionId(req));
+  const userId = requireUserId(req);
+  await revokeSession(userId, requireSessionId(req));
+  // Signing out means signing out of the roster too, not just the API.
+  await dropUserPresence(userId);
   res.status(204).end();
 }
 

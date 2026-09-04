@@ -35,10 +35,40 @@ class RealtimeClient {
   private manuallyClosed = false;
 
   connect(token: string): void {
-    if (this.token === token && this.ws) return;
+    if (this.token === token && this.isLive()) return;
     this.token = token;
     this.manuallyClosed = false;
     this.open();
+  }
+
+  /**
+   * Reopen right now if the socket is not actually live.
+   *
+   * Call this when the app returns to the foreground: a suspended app can
+   * come back holding a socket that is closed (or a zombie the OS killed
+   * without firing `onclose`), and the backoff timer may be minutes away
+   * from its next attempt. Presence is only as good as this socket, so on
+   * foreground we retry immediately rather than waiting it out.
+   */
+  ensureConnected(): void {
+    if (this.manuallyClosed || !this.token || this.isLive()) return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.attempt = 0;
+    this.ws?.close();
+    this.ws = null;
+    this.open();
+  }
+
+  /** True only while the socket is open or still handshaking. */
+  private isLive(): boolean {
+    return (
+      this.ws !== null &&
+      (this.ws.readyState === 0 /* CONNECTING */ ||
+        this.ws.readyState === 1) /* OPEN */
+    );
   }
 
   disconnect(): void {

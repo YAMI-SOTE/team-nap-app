@@ -255,8 +255,12 @@ model TeamMembership {
   role              String         @default("member")
   joinedAt          DateTime       @default(now())
   /// Last authenticated request / WS pong from this member. Bumped at most
-  /// once every ~90s (touchLastSeen). Older than OFFLINE_AFTER → the
-  /// roster shows them "offline" regardless of `activity`.
+  /// once every ~90s (touchLastSeen). Older than OFFLINE_AFTER_MS → the
+  /// roster shows them "offline" regardless of `activity` (a `resting`
+  /// member gets the longer RESTING_EXPIRES_AFTER_MS window, so a locked
+  /// phone still reads as 仮眠中 mid-nap). An open realtime socket
+  /// overrides this entirely; the epoch (1970) is the marker for
+  /// "explicitly signed out". See services/team-presence.service.ts.
   lastSeenAt        DateTime       @default(now())
 
   // A user belongs to at most one team; enforced additionally in the service.
