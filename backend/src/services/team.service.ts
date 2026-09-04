@@ -6,7 +6,7 @@ import { isUniqueViolation } from "../lib/prisma-errors.js";
 import { step } from "../lib/api-flow.js";
 import { todayISO } from "../lib/datetime.js";
 import { addNotification } from "./notifications.service.js";
-import { deriveStatus, teamIdOf } from "./team-presence.service.js";
+import { deriveMemberStatus, teamIdOf } from "./team-presence.service.js";
 import { teamWeek } from "./team-nap-stats.service.js";
 import { broadcastTeamMembers, closeUserSockets } from "../realtime/hub.js";
 import type { Member, MemberStatus, WeeklyBarState } from "../types/domain.js";
@@ -60,11 +60,6 @@ export type TeamSettingsResponse = {
   canManage: boolean;
   members: TeamSettingsMember[];
 };
-
-/** Activity is stored as `online | resting`; "offline" is not modelled. */
-export function mapActivity(activity: MemberActivity): MemberStatus {
-  return activity === "resting" ? "resting" : "working";
-}
 
 function initial(name: string | null): string {
   return name?.trim().slice(0, 1).toUpperCase() || "M";
@@ -128,7 +123,7 @@ function toSettings(
     id: m.userId,
     label: initial(m.user.name),
     name: m.user.name?.trim() || null,
-    status: deriveStatus(m.activity, m.lastSeenAt),
+    status: deriveMemberStatus(m.userId, m.activity, m.lastSeenAt),
     avatar: m.user.avatar ?? null,
     role: m.role === "owner" ? "owner" : "member",
     isSelf: m.userId === callerUserId,
@@ -395,7 +390,13 @@ export async function getMyStatus(
   if (!membership) {
     throw HttpError.notFound("チームに参加していません");
   }
-  return { status: deriveStatus(membership.activity, membership.lastSeenAt) };
+  return {
+    status: deriveMemberStatus(
+      userId,
+      membership.activity,
+      membership.lastSeenAt,
+    ),
+  };
 }
 
 /**
