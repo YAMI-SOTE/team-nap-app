@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  __resetHomeCommentCache,
+  generateHomeComments,
+  homeFallbackComments,
+  parseHomeComments,
   personalFallbackComment,
   teamFallbackComment,
   type PersonalRestData,
@@ -98,5 +102,69 @@ describe("teamFallbackComment", () => {
         assert.ok(out.length > 0);
         assert.ok(!out.includes("undefined"));
       }
+  });
+});
+
+describe("homeFallbackComments", () => {
+  it("covers every evaluation without undefined", () => {
+    for (const e of ["good", "normal", "needs_improvement"] as const) {
+      const out = homeFallbackComments(e);
+      assert.equal(out.headline[0], "今日のチームは");
+      assert.ok(out.headline[1].length > 0);
+      assert.ok(out.headline[1].length <= 14);
+      assert.ok(!JSON.stringify(out).includes("undefined"));
+    }
+  });
+});
+
+describe("parseHomeComments", () => {
+  it("takes the JSON object out of a chatty response", () => {
+    const out = parseHomeComments(
+      'はい: {"headline":"いい感じです","aiAdvice":"良い状態です。"} 以上',
+      "good",
+    );
+    assert.deepEqual(out.headline, ["今日のチームは", "いい感じです"]);
+    assert.equal(out.aiAdvice, "良い状態です。");
+  });
+
+  it("keeps the canned headline when the model overruns 14 chars", () => {
+    const out = parseHomeComments(
+      JSON.stringify({
+        headline: "とてもとてもとてもとても長い見出しです",
+        aiAdvice: "良い状態です。",
+      }),
+      "good",
+    );
+    // Over-long headline is dropped, but the advice the model wrote stays.
+    assert.equal(out.headline[1], "いい調子です");
+    assert.equal(out.aiAdvice, "良い状態です。");
+  });
+
+  it("falls back on malformed / empty / non-JSON output", () => {
+    const canned = homeFallbackComments("normal");
+    for (const bad of [
+      "no json here",
+      "{ not valid json",
+      JSON.stringify({ headline: "", aiAdvice: "x" }),
+      JSON.stringify({ headline: "ok", aiAdvice: "   " }),
+      JSON.stringify({ headline: 42, aiAdvice: "x" }),
+    ]) {
+      assert.deepEqual(parseHomeComments(bad, "normal"), canned);
+    }
+  });
+});
+
+describe("generateHomeComments", () => {
+  it("returns immediately without waiting on the model", async () => {
+    __resetHomeCommentCache();
+    const startedAt = Date.now();
+    const out = await generateHomeComments({
+      teamScore: 80,
+      teamEvaluation: "good",
+    });
+    // A cold cache serves the canned copy; the model runs behind the
+    // response, so Home is never held open for it.
+    assert.deepEqual(out, homeFallbackComments("good"));
+    assert.ok(Date.now() - startedAt < 100);
   });
 });
