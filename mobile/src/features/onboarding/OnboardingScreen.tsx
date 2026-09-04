@@ -20,6 +20,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
+import { isConnectionError } from "@/services/api";
 import { type AvatarId } from "@/constants/avatars";
 import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -297,8 +298,20 @@ export default function OnboardingScreen() {
       });
       await refresh();
       router.replace("/home");
-    } catch {
-      setFinishError("設定を保存できませんでした。通信環境をご確認ください。");
+    } catch (error) {
+      // Only blame the network when the request actually failed to reach
+      // the server. A rejection carries a reason the user can act on —
+      // picking 就寝 15:00 with 起床 07:30 is a 16.5h window, which the
+      // backend refuses with a message saying exactly that. Showing
+      // "check your connection" for it left the user retrying a working
+      // network with no way to discover the real problem.
+      setFinishError(
+        isConnectionError(error)
+          ? "設定を保存できませんでした。通信環境をご確認ください。"
+          : error instanceof Error && error.message
+            ? error.message
+            : "設定を保存できませんでした。",
+      );
       setFinishing(false);
     }
   };
