@@ -5,6 +5,7 @@ import {
   getTeamSummary,
 } from "@/services/team";
 import { isConnectionError } from "@/services/api";
+import { useAuth } from "@/features/auth/AuthContext";
 
 import type {
   HomeMemberStatusResponse,
@@ -17,6 +18,7 @@ type TeamScreenData = {
 };
 
 export function useTeamSummary() {
+  const { status } = useAuth();
   const [data, setData] = useState<TeamScreenData | null>(null);
   const [hasTeam, setHasTeam] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,8 @@ export function useTeamSummary() {
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
+    if (status !== "signedIn") return;
+
     let active = true;
     setLoading(true);
     setError(null);
@@ -63,7 +67,7 @@ export function useTeamSummary() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, status]);
 
   return { data, hasTeam, loading, error, connectionError, reload };
 }

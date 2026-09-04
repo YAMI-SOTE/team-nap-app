@@ -4,6 +4,7 @@ import {
   getHomeMemberStatus,
   getHomeSummary,
 } from "@/services/home";
+import { useAuth } from "@/features/auth/AuthContext";
 
 import type {
   HomeMemberStatusResponse,
@@ -16,11 +17,16 @@ type HomeScreenData = {
 };
 
 export function useHomeSummary() {
+  const { status } = useAuth();
   const [data, setData] = useState<HomeScreenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Only fetch once we actually have a session — otherwise the request
+    // 401s and (before this guard) would tear the session down.
+    if (status !== "signedIn") return;
+
     let active = true;
 
     async function loadHomeSummary() {
@@ -56,7 +62,7 @@ export function useHomeSummary() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [status]);
 
   return {
     data,

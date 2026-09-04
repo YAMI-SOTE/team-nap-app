@@ -2,9 +2,10 @@ import { config } from "@/constants/config";
 
 /**
  * Bearer token for authenticated requests. `AuthContext` keeps this in
- * sync with the stored session; requests made before sign-in fall back to
- * the legacy `X-User-Id` header so the not-yet-authenticated screens
- * (home / schedule / stats) keep working.
+ * sync with the stored session. Requests made without a token hit the API
+ * unauthenticated (and get a 401) — the route guard makes sure protected
+ * screens only mount once a session exists, so that path shouldn't be
+ * reached in normal use.
  */
 let authToken: string | null = null;
 let unauthorizedHandler: (() => void) | null = null;
@@ -44,10 +45,9 @@ async function request<T>(
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
+  const sentBearer = Boolean(authToken);
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
-  } else {
-    headers["X-User-Id"] = config.userId;
   }
 
   let response: Response;
@@ -61,7 +61,11 @@ async function request<T>(
     throw new ApiError(0, "サーバーに接続できません");
   }
 
-  if (response.status === 401) {
+  // Only a 401 on a request we actually authenticated means "your session
+  // died". A 401 on an unauthenticated request (a screen that fetched
+  // before sign-in / before the stored token was restored) must NOT wipe
+  // the session.
+  if (response.status === 401 && sentBearer) {
     unauthorizedHandler?.();
   }
 

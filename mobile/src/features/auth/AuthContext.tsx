@@ -40,6 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
   const bootstrapped = useRef(false);
+  // Live mirror of `status` for callbacks that must read the current value
+  // without being re-created (the 401 handler).
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const clearLocal = useCallback(() => {
     setAuthToken(null);
@@ -81,11 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearLocal]);
 
-  // A 401 on any request means the session is gone — drop to signed-out
-  // without another round-trip.
+  // A 401 on an authenticated request means the session is gone — drop to
+  // signed-out without another round-trip. Ignore it while we're still
+  // "loading" or already "signedOut": a screen that fetched before the
+  // stored token was restored must not wipe a valid session.
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      clearLocal();
+      if (statusRef.current === "signedIn") clearLocal();
     });
     return () => setUnauthorizedHandler(null);
   }, [clearLocal]);

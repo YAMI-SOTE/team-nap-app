@@ -4,6 +4,14 @@ const OLLAMA_URL = env.OLLAMA_URL;
 const OLLAMA_MODEL = env.OLLAMA_MODEL;
 
 /**
+ * Home renders on first paint, so its AI copy gets a much shorter budget
+ * than nap advice (which the user waits on a dedicated screen for). Past
+ * this, fall back to the canned home copy. Capped at the global timeout
+ * so it can only ever be shorter, never longer.
+ */
+const HOME_AI_TIMEOUT_MS = Math.min(env.OLLAMA_TIMEOUT_MS, 6000);
+
+/**
  * The LLM only rephrases evaluation codes the backend already computed, so
  * whenever Ollama is unreachable / slow / gives junk we can compose a
  * faithful Japanese sentence from the same codes. These are the fallbacks
@@ -363,7 +371,10 @@ ${JSON.stringify(data, null, 2)}
 
   let response: string;
   try {
-    response = await callGemma(prompt);
+    // Home is an interactive first-paint path — never make the screen wait
+    // the full OLLAMA_TIMEOUT_MS. If the model can't answer quickly, serve
+    // the canned copy (still correct, just less bespoke).
+    response = await callGemma(prompt, HOME_AI_TIMEOUT_MS);
   } catch {
     // Ollama unavailable / slow → serve the canned copy instead of failing.
     return {
