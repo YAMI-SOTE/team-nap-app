@@ -4,12 +4,12 @@ const OLLAMA_URL = env.OLLAMA_URL;
 const OLLAMA_MODEL = env.OLLAMA_MODEL;
 
 /**
- * Home renders on first paint, so its AI copy gets a much shorter budget
- * than nap advice (which the user waits on a dedicated screen for). Past
- * this, fall back to the canned home copy. Capped at the global timeout
- * so it can only ever be shorter, never longer.
+ * How long a generated Home line stays fresh. Past this the next Home
+ * request still gets the cached copy immediately and triggers a refresh
+ * in the background — nobody ever waits on the model (see
+ * `generateHomeComments`).
  */
-const HOME_AI_TIMEOUT_MS = Math.min(env.OLLAMA_TIMEOUT_MS, 6000);
+const HOME_COMMENT_TTL_MS = 10 * 60_000;
 
 /**
  * The LLM only rephrases evaluation codes the backend already computed, so
@@ -289,10 +289,139 @@ export type HomeAiComments = {
   aiAdvice: string;
 };
 
+const HOME_FALLBACK_HEADLINE: Record<HomeAiData["teamEvaluation"], string> = {
+  good: "いい調子です",
+  normal: "まずまずです",
+  needs_improvement: "もうひと息です",
+};
+
+const HOME_FALLBACK_ADVICE: Record<HomeAiData["teamEvaluation"], string> = {
+  good: "チーム全体として良い状態です。",
+  normal: "チーム全体として標準的な状態です。",
+  needs_improvement: "チーム全体として改善の余地があります。",
+};
+
+/** Canned Home copy — always correct, just not bespoke. */
+export function homeFallbackComments(
+  teamEvaluation: HomeAiData["teamEvaluation"],
+): HomeAiComments {
+  return {
+    headline: ["今日のチームは", HOME_FALLBACK_HEADLINE[teamEvaluation]],
+    aiAdvice: HOME_FALLBACK_ADVICE[teamEvaluation],
+  };
+}
+
+type CachedHomeComments = { comments: HomeAiComments; expiresAt: number };
+
+/**
+ * The Home copy is only allowed to rephrase `teamEvaluation` (the prompt
+ * forbids reading anything into the raw score), so there are exactly three
+ * distinct answers for the whole deployment — worth keeping instead of
+ * regenerating per user, per load.
+ */
+const homeCommentCache = new Map<
+  HomeAiData["teamEvaluation"],
+  CachedHomeComments
+>();
+/** One in-flight generation per evaluation, so a burst can't stampede Ollama. */
+const homeCommentInFlight = new Set<HomeAiData["teamEvaluation"]>();
+
+/** Test seam — drops the cached copy so a case starts from a cold cache. */
+export function __resetHomeCommentCache(): void {
+  homeCommentCache.clear();
+  homeCommentInFlight.clear();
+}
+
+/**
+ * Home copy for the team's current evaluation. **Never waits on Ollama.**
+ *
+ * Home is the app's first paint, and `GET /home/summary` is the request it
+ * blocks on. Generating here inline cost every single load a full model
+ * round-trip (~1.5s locally on `gemma3:1b`; past the old 6s budget — and so
+ * the canned copy anyway — on the `gemma4:e2b` default, which needs ~24s
+ * warm). Instead: serve what we have (cached line, else canned copy) and
+ * refresh out of band, so the model cost is paid once per TTL by nobody.
+ */
 export async function generateHomeComments(
   data: HomeAiData,
 ): Promise<HomeAiComments> {
-  const prompt = `
+  const cached = homeCommentCache.get(data.teamEvaluation);
+
+  // Stale is still better than canned, so serve it and refresh behind the
+  // response rather than holding Home open for a regeneration.
+  if (!cached || cached.expiresAt <= Date.now()) {
+    void refreshHomeComments(data);
+  }
+
+  return cached?.comments ?? homeFallbackComments(data.teamEvaluation);
+}
+
+/**
+ * Regenerate one evaluation's copy into the cache. Nobody is waiting on
+ * this, so it gets the full `OLLAMA_TIMEOUT_MS` — a slow model now lands a
+ * real line for the *next* load instead of timing out into canned copy on
+ * every load. Never rejects.
+ */
+async function refreshHomeComments(data: HomeAiData): Promise<void> {
+  if (homeCommentInFlight.has(data.teamEvaluation)) return;
+  homeCommentInFlight.add(data.teamEvaluation);
+
+  try {
+    const response = await callGemma(homePrompt(data));
+    const comments = parseHomeComments(response, data.teamEvaluation);
+    homeCommentCache.set(data.teamEvaluation, {
+      comments,
+      expiresAt: Date.now() + HOME_COMMENT_TTL_MS,
+    });
+  } catch (error) {
+    // Ollama down / slow / junk output — Home keeps serving the canned
+    // copy and we simply try again on the next request.
+    console.error("Home AI comment refresh failed:", error);
+  } finally {
+    homeCommentInFlight.delete(data.teamEvaluation);
+  }
+}
+
+/**
+ * Pull the `{ headline, aiAdvice }` object out of a model response,
+ * falling back to the canned copy for anything malformed or over-long.
+ */
+export function parseHomeComments(
+  response: string,
+  teamEvaluation: HomeAiData["teamEvaluation"],
+): HomeAiComments {
+  const jsonStart = response.indexOf("{");
+  const jsonEnd = response.lastIndexOf("}");
+  if (jsonStart === -1 || jsonEnd < jsonStart) {
+    return homeFallbackComments(teamEvaluation);
+  }
+
+  let parsed: { headline?: unknown; aiAdvice?: unknown };
+  try {
+    parsed = JSON.parse(response.slice(jsonStart, jsonEnd + 1)) as typeof parsed;
+  } catch {
+    return homeFallbackComments(teamEvaluation);
+  }
+
+  const headline =
+    typeof parsed.headline === "string" ? parsed.headline.trim() : "";
+  const aiAdvice =
+    typeof parsed.aiAdvice === "string" ? parsed.aiAdvice.trim() : "";
+  if (!headline || !aiAdvice) {
+    return homeFallbackComments(teamEvaluation);
+  }
+
+  return {
+    headline: [
+      "今日のチームは",
+      headline.length <= 14 ? headline : HOME_FALLBACK_HEADLINE[teamEvaluation],
+    ],
+    aiAdvice,
+  };
+}
+
+function homePrompt(data: HomeAiData): string {
+  return `
 あなたは休息支援アプリのHOME画面に表示する
 短いコメントの文章作成を担当します。
 
@@ -357,78 +486,6 @@ aiAdvice:
 【入力データ】
 ${JSON.stringify(data, null, 2)}
 `;
-
-  const fallbackHeadline: Record<HomeAiData["teamEvaluation"], string> = {
-    good: "いい調子です",
-    normal: "まずまずです",
-    needs_improvement: "もうひと息です",
-  };
-  const fallbackAdvice: Record<HomeAiData["teamEvaluation"], string> = {
-    good: "チーム全体として良い状態です。",
-    normal: "チーム全体として標準的な状態です。",
-    needs_improvement: "チーム全体として改善の余地があります。",
-  };
-
-  let response: string;
-  try {
-    // Home is an interactive first-paint path — never make the screen wait
-    // the full OLLAMA_TIMEOUT_MS. If the model can't answer quickly, serve
-    // the canned copy (still correct, just less bespoke).
-    response = await callGemma(prompt, HOME_AI_TIMEOUT_MS);
-  } catch {
-    // Ollama unavailable / slow → serve the canned copy instead of failing.
-    return {
-      headline: ["今日のチームは", fallbackHeadline[data.teamEvaluation]],
-      aiAdvice: fallbackAdvice[data.teamEvaluation],
-    };
-  }
-
-  try {
-    const jsonStart = response.indexOf("{");
-    const jsonEnd = response.lastIndexOf("}");
-
-    if (
-      jsonStart === -1 ||
-      jsonEnd === -1 ||
-      jsonEnd < jsonStart
-    ) {
-      throw new Error("Home AI response does not contain JSON");
-    }
-
-    const jsonText = response.slice(jsonStart, jsonEnd + 1);
-
-    const parsed = JSON.parse(jsonText) as {
-      headline?: string;
-      aiAdvice?: string;
-    };
-
-    if (
-      typeof parsed.headline !== "string" ||
-      typeof parsed.aiAdvice !== "string" ||
-      !parsed.headline.trim() ||
-      !parsed.aiAdvice.trim()
-    ) {
-      throw new Error("Invalid home AI response");
-    }
-
-    const generatedHeadline = parsed.headline.trim();
-
-    const headline =
-      generatedHeadline.length <= 14
-        ? generatedHeadline
-        : fallbackHeadline[data.teamEvaluation];
-
-    return {
-      headline: ["今日のチームは", headline],
-      aiAdvice: parsed.aiAdvice.trim(),
-    };
-  } catch {
-    // Malformed model output → canned copy rather than a 500.
-    return {
-      headline: ["今日のチームは", fallbackHeadline[data.teamEvaluation]],
-      aiAdvice: fallbackAdvice[data.teamEvaluation],
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------
