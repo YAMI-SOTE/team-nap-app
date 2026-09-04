@@ -260,7 +260,7 @@ start:
 ${JSON.stringify(data, null, 2)}
 `;
 
-  return callGemma(prompt);
+  return callGemma(prompt, 60_000);
 }
 
 // ---------------------------------------------------------------------------
@@ -424,11 +424,14 @@ ${JSON.stringify(data, null, 2)}
 // Ollama / Gemma
 // ---------------------------------------------------------------------------
 
-async function callGemma(prompt: string): Promise<string> {
+async function callGemma(
+  prompt: string,
+  timeoutMs = env.OLLAMA_TIMEOUT_MS,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
-    env.OLLAMA_TIMEOUT_MS,
+    timeoutMs,
   );
 
   let response: Response;
