@@ -301,6 +301,120 @@ CPU-only では `gemma4:e2b` は文字化けする既知問題もある（PR #58
 | Google ログインだけ失敗 | リダイレクト URI（Vercel の URL）が backend の許可リスト と Google Console の両方に登録済みか。 |
 | 途中から重い / 落ちる | `docker stats`。`gemma4:e2b` を使っていないか。使っていれば `gemma3:1b` へ。 |
 
+### フロントが API に繋がらないとき（詳細な切り分け）
+
+原因はほぼ次の 3 層のどれか。**上から順に**確認する。
+
+```text
+① ビルドに API URL が入っているか   →  ② API が公開で生きているか   →  ③ ブラウザがブロックしていないか
+   (Vercel の環境変数 + 再デプロイ)       (トンネル / backend コンテナ)      (mixed content / CORS / 証明書)
+```
+
+#### ① ビルドに `EXPO_PUBLIC_API_URL` が焼き込まれているか（いちばん多い）
+
+`EXPO_PUBLIC_*` は**ビルド時に静的に埋め込まれる**。実行時の設定変更やランタイム
+`.env` は効かない。
+
+1. 公開ページを開く → DevTools → **Network** タブ → 何か操作（ログイン等）。
+2. リクエストの宛先を見る:
+   - `http://localhost:3000/...` や `http://10.x...` に飛んでいる
+     → **環境変数が未設定のままビルドされた**（ローカル用の値が残っている）。
+   - `undefined/auth/login` や、リクエストが即エラー（`ApiError` / 「接続先が
+     設定されていません」）→ 環境変数が**空**。
+   - `https://instance-...ts.net/api/v1/...` に飛んでいる → ① は OK。② へ。
+
+**直し方**
+
+1. Vercel → プロジェクト → **Settings → Environment Variables**。
+   - `EXPO_PUBLIC_API_URL` = `https://<公開APIホスト>/api/v1`
+     （末尾の `/api/v1` 必須・末尾スラッシュ**なし**）
+   - スコープは **Production と Preview の両方**にチェック（Preview URL で
+     試しているのに Production にしか入れていない、が定番ミス）。
+2. **必ず再デプロイ**。環境変数を足しただけでは反映されない。
+   Deployments → 最新 → **Redeploy**（ビルドキャッシュは使わない方が確実）。
+   または `git commit --allow-empty -m "redeploy" && git push`。
+3. 再度ページを開き、Network の宛先が新しい URL になっているか確認。
+   ビルド成果物に URL が入ったかは、公開ページの JS を開いて
+   `ts.net` などで検索しても確認できる。
+
+> `mobile/.env` は Vercel では**読まれない**。値は必ずダッシュボードで設定する。
+
+#### ② API 単体が「公開で」到達できるか
+
+**Tailscale / VPN を切った端末**（スマホのモバイル回線など）で:
+
+```bash
+curl -i https://<公開APIホスト>/api/v1/health
+```
+
+| 結果 | 意味 / 対応 |
+| --- | --- |
+| `200` + `{"status":"ok",...}` | ② は OK。③ へ。 |
+| つながらない / タイムアウト / `curl: (7)` | 公開経路が死んでいる。Tailscale Funnel なら VPS で `tailscale funnel status`（`/` が `http://127.0.0.1:3000` を指しているか）。指してなければ `sudo tailscale funnel --bg 3000`。Cloudflare Tunnel なら `journalctl -u cloudflared -f`。 |
+| `502` / `503` | 経路は生きているが backend が落ちている。VPS で `docker compose ps` / `docker compose logs --tail=50 backend`。ローカル疎通 `curl http://127.0.0.1:3000/api/v1/health`。 |
+| `404`（HTML が返る） | パスが違う。`/api/v1/health` になっているか（`/health` 単体ではない）。トンネルがルート `/` を丸ごと `:3000` に渡しているか。 |
+| 証明書エラー（`curl` で `-k` が要る） | TLS 未整備。Funnel は自動発行なので出ないはず。案 C の Caddy なら `certificate obtained` が出るまで待つ／80 番が事業者ファイアウォールで塞がれていないか。 |
+
+`curl` が通ったのにブラウザから繋がらないなら、原因は必ず ③。
+
+#### ③ ブラウザ側のブロック
+
+DevTools の **Console** と **Network** を必ず見る。エラー文で切り分く:
+
+| Console / Network の見え方 | 原因 | 直し方 |
+| --- | --- | --- |
+| `Mixed Content: ... was loaded over HTTPS but requested an insecure ... http://` | `EXPO_PUBLIC_API_URL` が `http://` になっている（または API ホストが HTTP のみ） | 値を `https://` に。API を HTTPS で公開（§2）。 |
+| `blocked by CORS policy` / `No 'Access-Control-Allow-Origin'` | backend が CORS ヘッダを返していない。※ 素の構成は `app.use(cors())` で全許可なので、これが出る＝**backend がエラーページを返している**（＝実は ② の 502/404）か、CORS を独自に絞った | まず ② を再確認。CORS を絞ったなら許可リストに Vercel ドメインを追加。 |
+| `net::ERR_CERT_...` | API の証明書が無効 | ② の証明書行を参照。 |
+| リクエストは `200` だが画面が動かない | API ではなく**フロントのルーティング**（SPA リライト未設定 → 直リンクで白画面）。`mobile/vercel.json` の `rewrites` が効いているか | §3.2。`vercel.json` が `mobile/` 直下にあるか、Root Directory が `mobile` か。 |
+| `401` ばかり返る | トークン未保存 / 期限切れ。ログインからやり直す。web は localStorage にトークンを持つのでシークレットウィンドウで検証。 | — |
+
+#### REST は通るが WebSocket（在席リアルタイム）だけ落ちる
+
+症状: ログインやデータ取得は動くが、在席ドット・ナッジが即時反映されない。
+
+1. DevTools → Network → **WS** フィルタ。
+   `wss://<APIホスト>/api/v1/realtime?token=...` が **101 Switching Protocols**
+   になっているか。
+2. `ws://`（`s` 無し）で出ている → mixed content。`EXPO_PUBLIC_API_URL` が
+   `https://` か確認（`realtime.ts` は先頭 `http`→`ws` 置換なので、`https` なら
+   自動で `wss`）。
+3. `101` にならず落ちる → 公開経路が Upgrade を通していない。
+   Tailscale Funnel / Cloudflare Tunnel / Caddy はいずれも既定で WS 対応。
+   Cloudflare 使用時はダッシュボードの Network → **WebSockets** が ON か。
+4. 接続はするがすぐ切れる → backend の `authenticate` がトークンを弾いている。
+   まず REST で `GET /api/v1/auth/me` が通るトークンか確認。
+
+#### 「設定したのに直らない」チェック
+
+- Vercel の環境変数を足した後、**Redeploy したか**（自動では反映されない）。
+- 見ている URL は **Production か Preview か**。環境変数のスコープと一致しているか。
+- ブラウザキャッシュ / Service Worker。ハードリロード（Cmd+Shift+R）か
+  シークレットウィンドウで確認。
+- 値のタイプミス: `https://` / `/api/v1` あり / 末尾スラッシュなし。
+- API URL を変えたら **EAS 側**（`eas env:set --environment preview ...`）も
+  更新して再ビルドしないと、ネイティブアプリは古い URL のまま。
+
+#### 最短の自己診断（コピペ）
+
+```bash
+# 1) API は公開で生きているか（Tailscale を切った端末で）
+curl -i https://<APIホスト>/api/v1/health
+
+# 2) CORS プリフライトが通るか（Vercel のドメインを Origin に）
+curl -i -X OPTIONS https://<APIホスト>/api/v1/auth/login \
+  -H "Origin: https://<vercelドメイン>" \
+  -H "Access-Control-Request-Method: POST"
+#   → 204/200 + Access-Control-Allow-Origin ヘッダが返れば OK
+
+# 3) 実リクエスト
+curl -i -X POST https://<APIホスト>/api/v1/auth/login \
+  -H "Origin: https://<vercelドメイン>" -H "content-type: application/json" \
+  -d '{"email":"x@example.com","password":"wrong"}'
+#   → 401 + 日本語エラー JSON が返れば、API 経路は完全に生きている
+#     （あとは①のビルド埋め込みの問題）
+```
+
 ### ログ / 復旧
 
 ```bash
