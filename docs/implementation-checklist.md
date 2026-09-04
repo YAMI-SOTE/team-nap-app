@@ -657,7 +657,9 @@ Component へ整理する（`mobile/src/components/` / `components/ui/`）。
 * [x] Schedule Delete（`DELETE /schedule/events/:id`）
 * [x] Schedule API（per-user。他ユーザーの id は 404）
 * [x] Schedule DB persistence（`CalendarEvent`。PR #38/#39）
-* [x] Google カレンダー取り込み（`/settings/calendar/google/sync`。OAuth なし・サンプル）
+* [x] Google カレンダー取り込み（`/settings/calendar/google/sync`。`GoogleAccount` 接続時は実 OAuth 増分同期、未接続はサンプル）
+* [x] Google サインイン（`POST /auth/google` / `/auth/google/link`。code+PKCE、id_token JWKS 検証、トークン AES-256-GCM 保存。要 Console 設定 → [google-integration.md](google-integration.md)）
+* [x] カレンダー実同期の周辺（`events.watch` webhook / 15 分 cron / 前景デバウンス同期）
 
 ## Sleep
 

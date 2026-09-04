@@ -12,25 +12,60 @@ datasource db {
 }
 
 model User {
-  id           String           @id @default(uuid())
-  email        String           @unique
-  name         String?
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  name                String?
   // Chosen avatar id ("cat" | "man" | "woman" — a placeholder set, see
   // mobile/src/constants/avatars.ts). Null → initials fallback.
-  avatar       String?
+  avatar              String?
   // scrypt hash ("scrypt$<saltHex>$<hashHex>"). Null for users created by
   // the seed / legacy `ensureUser` path or a future OAuth-only sign-in.
-  passwordHash String?
-  createdAt    DateTime         @default(now())
-  memberships  TeamMembership[]
-  sessions     Session[]
+  passwordHash        String?
+  /// Google `sub` (stable account id). Set when the user signs in with
+  /// Google or links it from settings. Unique, nullable — password-only
+  /// users have none. Kept even if the calendar is later disconnected, so
+  /// "Sign in with Google" keeps working independently of `GoogleAccount`.
+  googleId            String?              @unique
+  createdAt           DateTime             @default(now())
+  memberships         TeamMembership[]
+  sessions            Session[]
   passwordResetTokens PasswordResetToken[]
-  onboarding   Onboarding?
-  naps         NapRecord[]
-  calendarEvents CalendarEvent[]
-  notifications Notification[]
-  napSession   NapSession?
-  pushTokens   PushToken[]
+  onboarding          Onboarding?
+  naps                NapRecord[]
+  calendarEvents      CalendarEvent[]
+  notifications       Notification[]
+  napSession          NapSession?
+  pushTokens          PushToken[]
+  googleAccount       GoogleAccount?
+}
+
+/// OAuth tokens + Calendar sync state for a user who connected their
+/// Google account. Split from `User` so "disconnect calendar" drops just
+/// this row while the account (and Google login) survive. `*TokenEnc`
+/// columns are AES-256-GCM blobs (src/lib/secret-box.ts) — the raw
+/// access / refresh tokens never touch the database.
+model GoogleAccount {
+  userId               String    @id
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleId             String    @unique
+  email                String
+  /// Space-separated scopes actually granted.
+  scope                String    @default("")
+  accessTokenEnc       String
+  accessTokenExpiresAt DateTime
+  /// Null when Google did not re-issue one (consent skipped) — the
+  /// previously stored value is kept in that case.
+  refreshTokenEnc      String?
+  calendarIds          String[]  @default(["primary"])
+  /// Calendar incremental-sync token; null forces a full resync.
+  syncToken            String?
+  /// events.watch push channel. Null when not watching / webhooks off.
+  watchChannelId       String?   @unique
+  watchResourceId      String?
+  watchExpiresAt       DateTime?
+  connectedAt          DateTime  @default(now())
+  lastSyncedAt         DateTime?
+  updatedAt            DateTime  @updatedAt
 }
 
 /// An Expo push token for one of the user's devices. Registered from the
@@ -101,12 +136,12 @@ model CalendarEvent {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
   title      String   @default("")
-  date       String   // "YYYY-MM-DD" (local calendar day)
-  start      String   // "HH:MM"
-  end        String   // "HH:MM"
+  date       String // "YYYY-MM-DD" (local calendar day)
+  start      String // "HH:MM"
+  end        String // "HH:MM"
   allDay     Boolean  @default(false)
   source     String   @default("manual") // "manual" | "google"
-  externalId String?  // id from the source system; null for manual events
+  externalId String? // id from the source system; null for manual events
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -122,9 +157,9 @@ model NapRecord {
   id           String   @id @default(uuid())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       String
-  date         String   // "YYYY-MM-DD"
-  start        String   // "HH:MM"
-  end          String   // "HH:MM"
+  date         String // "YYYY-MM-DD"
+  start        String // "HH:MM"
+  end          String // "HH:MM"
   minutes      Int
   wakeStars    Int      @default(0)
   focusDeltaPt Int      @default(0)
@@ -142,22 +177,22 @@ model NapRecord {
 /// calendar links) so they share one per-user row with onboarding rather
 /// than a global in-memory copy.
 model Onboarding {
-  userId               String    @id
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bedtime              String    @default("23:30")
-  wakeTime             String    @default("07:30")
-  napCutoffHour        Int       @default(15)
-  calendarConnected    Boolean   @default(false)
-  calendarDeviceConnected Boolean @default(false)
+  userId                  String    @id
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bedtime                 String    @default("23:30")
+  wakeTime                String    @default("07:30")
+  napCutoffHour           Int       @default(15)
+  calendarConnected       Boolean   @default(false)
+  calendarDeviceConnected Boolean   @default(false)
   // When the Google Calendar events were last pulled in. Null = never / disconnected.
-  calendarLastSyncedAt DateTime?
-  notificationsEnabled Boolean   @default(false)
-  notifyNapSuggestion     Boolean @default(true)
-  notifyNapEnd            Boolean @default(true)
-  notifyTeamNapSuggestion Boolean @default(true)
-  notifyWakeSupport       Boolean @default(true)
-  completedAt          DateTime?
-  updatedAt            DateTime  @updatedAt
+  calendarLastSyncedAt    DateTime?
+  notificationsEnabled    Boolean   @default(false)
+  notifyNapSuggestion     Boolean   @default(true)
+  notifyNapEnd            Boolean   @default(true)
+  notifyTeamNapSuggestion Boolean   @default(true)
+  notifyWakeSupport       Boolean   @default(true)
+  completedAt             DateTime?
+  updatedAt               DateTime  @updatedAt
 }
 
 /// Single-use, short-lived token for the "forgot password" flow. Like
@@ -193,14 +228,14 @@ model Session {
 }
 
 model Team {
-  id         String           @id @default(uuid())
-  name       String
-  inviteCode String           @unique
+  id                   String           @id @default(uuid())
+  name                 String
+  inviteCode           String           @unique
   /// inviteCode with case + separators stripped (normalizeCode), for an
   /// indexed lookup on join instead of scanning every team.
-  inviteCodeNormalized String  @unique @default("")
-  createdAt  DateTime         @default(now())
-  members    TeamMembership[]
+  inviteCodeNormalized String           @unique @default("")
+  createdAt            DateTime         @default(now())
+  members              TeamMembership[]
 }
 
 enum MemberActivity {

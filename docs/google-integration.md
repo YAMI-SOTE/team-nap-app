@@ -1,12 +1,25 @@
-# Google 連携 設計アウトライン（未実装）
+# Google 連携（実装済み）
 
-**現状**: Google ログインはスタブ（`mobile/src/services/authService.ts`
-`signInWithGoogle` が例外を投げる）。カレンダー連携は OAuth を持たず、
-`POST /settings/calendar/google/sync` が定型サンプル
-（`backend/src/services/google-calendar-sample.ts`）を取り込むだけ。
+1 回の同意で **ログイン** と **カレンダー読み取り** の両方を賄う。
+Authorization Code + PKCE。client secret はバックエンドのみが持つ。
 
-このドキュメントは「本物にするなら」の設計。1 回の同意で **ログイン** と
-**カレンダー読み取り** の両方を賄う。実装はまだ入れていない。
+## 実装状況
+
+| 部分 | 状態 | 主なファイル |
+| --- | --- | --- |
+| スキーマ | ✅ `User.googleId` + `GoogleAccount`（トークンは AES-256-GCM） | `prisma/schema.prisma`、migration `20260904000000_google_account` |
+| `POST /auth/google` | ✅ code 交換 + id_token 検証（JWKS / `node:crypto`）+ upsert/link + セッション発行 | `services/google-oauth.service.ts`、`services/google-auth.service.ts` |
+| `POST /auth/google/link` | ✅ ログイン中に連携追加（新セッション無し） | 同上 |
+| モバイル Sign-in | ✅ `expo-auth-session`（システムブラウザ）→ backend 交換。ログイン / 新規登録のボタンに配線済み | `services/googleAuth.ts`、`hooks/useLogin.ts` / `useSignUp.ts` |
+| カレンダー実同期 | ✅ 増分（`syncToken`）+ `410`→フル再同期 + トークン自動更新。`GoogleAccount` があれば実 API、無ければ従来のサンプル | `services/google-calendar.service.ts` |
+| events.watch webhook | ✅ `POST /webhooks/google-calendar`（`X-Goog-Channel-Token` 検証）→ 増分同期。`PUBLIC_BASE_URL` + `GOOGLE_WEBHOOK_TOKEN` 設定時のみ | `routes/webhooks.routes.ts`、`services/google-calendar.service.ts` |
+| 定期同期 cron | ✅ `GOOGLE_CALENDAR_SYNC_MINUTES`（既定 15、0 で無効） | `jobs/google-calendar-sync.job.ts` |
+| フォアグラウンド同期 | ✅ 起動 / 復帰時に 10 分デバウンスで増分（連携済みのみ） | `hooks/useForegroundCalendarSync.ts`、`POST /settings/calendar/google/refresh` |
+
+**まだ必要な作業**: Google Cloud Console でプロジェクト / OAuth クライアント /
+同意画面を作り、下記の環境変数を設定すること（§5）。未設定なら Google ログインは
+「現在ご利用いただけません」と返り、カレンダーは従来どおりサンプルにフォールバック
+する（アプリは壊れない）。
 
 関連: [auth.md](./auth.md) / [settings-architecture.md](./settings-architecture.md) /
 [db.md](./db.md)
@@ -130,34 +143,40 @@ model GoogleAccount {
 
 ---
 
-## 4. モバイル実装ポイント
+## 4. モバイル実装（`services/googleAuth.ts`）
 
-- `mobile/src/services/authService.ts` `signInWithGoogle()` を実装。
-  `expo-auth-session` の Google プロバイダ:
+`expo-auth-session` の低レベル `AuthRequest` を imperative に使用（フックでは
+ないので `signInWithGoogle()` を普通の async 関数として呼べる）:
 
-  ```ts
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId, androidClientId, webClientId,
-    scopes: ["openid", "email", "profile",
-             "https://www.googleapis.com/auth/calendar.events.readonly"],
-    responseType: "code",          // ID トークンではなく code
-    usePKCE: true,
-    extraParams: { access_type: "offline", prompt: "consent" },
-  });
-  ```
+```ts
+const request = new AuthSession.AuthRequest({
+  clientId,                       // platform 別（ios / android / web）
+  scopes: ["openid", "email", "profile",
+           "https://www.googleapis.com/auth/calendar.events.readonly"],
+  redirectUri,                    // makeRedirectUri({ scheme: "teamnap", path: "oauthredirect" })
+  responseType: AuthSession.ResponseType.Code,
+  usePKCE: true,
+  extraParams: { access_type: "offline", prompt: "consent" },
+});
+await request.makeAuthUrlAsync(DISCOVERY);
+const result = await request.promptAsync(DISCOVERY);
+// result.params.code + request.codeVerifier を
+// POST /auth/google { code, codeVerifier, redirectUri, clientId } へ。
+```
 
-  - `access_type=offline` + `prompt=consent` で **refresh_token を確実に**もらう。
-  - 成功したら `code` と `request.codeVerifier` を
-    `POST /auth/google { code, codeVerifier, redirectUri }` に渡し、返った
-    `{ token, user }` を `AuthContext.signIn()`。
-- ログイン / サインアップ画面の「Google でログイン」「Google で続ける」
-  ボタンは既にあるので、`signInWithGoogle` に配線するだけ。
-- Web は `expo-auth-session` がポップアップ / リダイレクトで処理。
-- redirect URI:
-  - dev: Expo proxy `https://auth.expo.io/@<owner>/team-nap`
-  - prod（EAS ビルド）: カスタムスキーム `teamnap://redirect` ＋ web は
-    デプロイ先 origin。Google Cloud Console の「承認済みリダイレクト URI」に
-    すべて登録。
+- `access_type=offline` + `prompt=consent` で refresh_token を確実にもらう。
+- 返った `{ token, user }` を `useLogin` / `useSignUp` が `AuthContext.signIn()`。
+  ログイン / 新規登録画面の Google ボタンは元から `submitWithGoogle` に配線済み。
+- Web は `expo-auth-session` がポップアップ / リダイレクトで処理
+  （`WebBrowser.maybeCompleteAuthSession()` をモジュール読み込み時に呼ぶ）。
+- **redirect URI**（このリポジトリの方針 = カスタムスキーム）:
+  - iOS / Android（EAS ビルド）: `teamnap://oauthredirect`
+    （アプリのスキームを `ASWebAuthenticationSession` が直接インターセプト。
+    Info.plist / intent-filter の追加は不要）。
+  - Web: アプリの origin（`makeRedirectUri` が返す。Web クライアントの
+    「承認済みリダイレクト URI」に登録）。
+  - バックエンドは受け取った `redirectUri` を `GOOGLE_OAUTH_REDIRECT_URIS`
+    許可リストと照合してから Google と交換する。
 
 ---
 
@@ -167,9 +186,15 @@ model GoogleAccount {
 2. スコープ: `openid` `email` `profile` ＋
    `.../auth/calendar.events.readonly`（イベント読み取りのみ・最小）。
    全カレンダー読むなら `.../auth/calendar.readonly`。
-3. **OAuth クライアント ID** を種類別に作成: Web / iOS / Android
-   （Expo は各プラットフォームの client ID を要求）。Web クライアントに
-   client secret が付く（サーバーのみ）。
+3. **OAuth クライアント ID** を種類別に作成: Web / iOS / Android。
+   - Web クライアント: `client_secret` が付く（サーバーのみ）。
+     「承認済みリダイレクト URI」に web の origin（例
+     `http://localhost:8081`、`http://localhost:19006`、デプロイ先）を登録。
+   - iOS クライアント: バンドル ID `app.teamnap.mobile`。
+   - Android クライアント: パッケージ名 `app.teamnap.mobile` ＋ 署名 SHA-1。
+   - 交換時は **id_token の `aud` が上記いずれかの client id** であればよい
+     （バックエンドは 3 つすべてを許容 audience にする）。ネイティブ
+     クライアントは secret 無し（PKCE で保護）。
 4. **同意画面の公開状態**:
    - Calendar は "sensitive scope" → 本番公開には **Google の審査**が要る
      （ブランド確認 ＋ 場合によりセキュリティ評価。数日〜数週間）。
@@ -177,18 +202,29 @@ model GoogleAccount {
      アカウントをテストユーザー（最大 100）に追加**する。これなら審査不要。
 5. Calendar API を有効化。
 
-環境変数（`backend/.env` / EAS）:
+環境変数（実際の名前は `backend/.env.example` / `mobile/.env.example` 参照）:
 
 ```env
-GOOGLE_OAUTH_CLIENT_ID=...            # web client
-GOOGLE_OAUTH_CLIENT_SECRET=...        # サーバーのみ
-GOOGLE_OAUTH_REDIRECT_URI=...
-GOOGLE_TOKEN_ENC_KEY=<32 byte base64> # refresh/access token の暗号化鍵
-# mobile 側（EXPO_PUBLIC_*、client ID は秘密ではない）
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...
-EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=...
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...
+# backend/.env — 最低 CLIENT_ID + TOKEN_ENC_KEY で有効化
+GOOGLE_OAUTH_CLIENT_ID=xxxx.apps.googleusercontent.com   # web client（id_token audience）
+GOOGLE_OAUTH_CLIENT_SECRET=xxxx                          # サーバーのみ
+GOOGLE_OAUTH_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_OAUTH_ANDROID_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_OAUTH_REDIRECT_URIS=teamnap://oauthredirect,http://localhost:8081
+GOOGLE_TOKEN_ENC_KEY=<32 byte base64>   # node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# webhook を使う場合のみ
+PUBLIC_BASE_URL=https://<api-host>
+GOOGLE_WEBHOOK_TOKEN=<long-random>
+GOOGLE_CALENDAR_SYNC_MINUTES=15         # 既定。0 で cron 無効
+
+# mobile/.env（EXPO_PUBLIC_*、client id は秘密ではない）
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxxx.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=xxxx.apps.googleusercontent.com
 ```
+
+EAS ビルドでは `mobile/.env` は読まれない。`eas env:set --environment preview
+--name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value ...` のように環境ごとに設定する。
 
 ---
 
@@ -278,13 +314,27 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...
 
 ---
 
-## 9. 実装順（推奨）
+## 9. 実装順（完了済み）
 
-1. `GoogleAccount` モデル + マイグレーション（`google-calendar-sample.ts` は残す）。
-2. `POST /auth/google`（code 交換 + id_token 検証 + upsert + トークン暗号化保存）
-   ＋ `session.service` でセッション発行。
-3. モバイル `signInWithGoogle` 実装 → ログイン / サインアップのボタンに配線。
-4. `google-calendar.service.ts`（イベント一覧・増分同期・トークン更新）。
-   `syncGoogleCalendar` を実 API 呼び出しに差し替え（`GoogleAccount` 有無で分岐）。
-5. フォアグラウンド同期 ＋ cron。必要なら `events.watch` の webhook。
-6. 実データ検証後、サンプル取り込み経路はシード専用に固定。
+1. ✅ `GoogleAccount` モデル + マイグレーション（`google-calendar-sample.ts` は
+   フォールバックとして継続）。
+2. ✅ `POST /auth/google`（code 交換 + id_token 検証 + upsert/link +
+   トークン暗号化保存）＋ `session.service` でセッション発行。
+3. ✅ モバイル `signInWithGoogle`（`services/googleAuth.ts`）→ ログイン /
+   サインアップのボタンに配線。
+4. ✅ `google-calendar.service.ts`（イベント一覧・増分同期・`410`→フル・
+   トークン更新）。`settings.service.syncGoogleCalendar` を `GoogleAccount`
+   有無で分岐。
+5. ✅ フォアグラウンド同期（`useForegroundCalendarSync` +
+   `/settings/calendar/google/refresh`）＋ 15 分 cron ＋ `events.watch` webhook。
+6. ⏳ 残: Google Cloud Console の設定（§5）と、実アカウントでの E2E 確認。
+   サンプル取り込みは `GoogleAccount` 未接続時のフォールバックとして残す方針
+   （シード専用への固定は将来）。
+
+### テスト
+
+- `src/lib/secret-box.test.ts` — AES-256-GCM の往復 / 改竄検知 / 鍵長。
+- `src/services/google-oauth.service.test.ts` — id_token クレーム検証（iss /
+  aud / exp / skew）。
+- `src/services/google-calendar.service.test.ts` — `mapGoogleEvent`（JST 変換 /
+  終日 / 日跨ぎクランプ / cancelled → 削除 / タイトル欠落）。

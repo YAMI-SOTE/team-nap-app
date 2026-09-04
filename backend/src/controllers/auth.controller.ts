@@ -16,6 +16,11 @@ import {
   requestReset,
 } from "../services/password-reset.service.js";
 import {
+  linkGoogleAccount,
+  signInWithGoogle,
+  type GoogleAuthInput,
+} from "../services/google-auth.service.js";
+import {
   listSessions,
   revokeAllSessions,
   revokeSession,
@@ -37,6 +42,23 @@ export async function signUpController(req: Request, res: Response) {
 export async function loginController(req: Request, res: Response) {
   const { email, password } = req.body as { email: string; password: string };
   res.status(200).json(await login({ email, password }, userAgentOf(req)));
+}
+
+export async function googleAuthController(req: Request, res: Response) {
+  res
+    .status(200)
+    .json(
+      await signInWithGoogle(req.body as GoogleAuthInput, userAgentOf(req)),
+    );
+}
+
+export async function googleLinkController(req: Request, res: Response) {
+  res.status(200).json({
+    user: await linkGoogleAccount(
+      requireUserId(req),
+      req.body as GoogleAuthInput,
+    ),
+  });
 }
 
 export async function requestPasswordResetController(

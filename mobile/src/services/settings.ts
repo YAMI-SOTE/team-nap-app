@@ -38,6 +38,18 @@ export function syncGoogleCalendar(): Promise<CalendarIntegrationResponse> {
   return api.post<CalendarIntegrationResponse>("/settings/calendar/google/sync", {});
 }
 
+/**
+ * Silent incremental refresh (foreground trigger). No-op on the backend
+ * unless a real Google account is connected — never imports the sample
+ * set, never flips the "connected" flag.
+ */
+export function refreshGoogleCalendar(): Promise<{ synced: boolean }> {
+  return api.post<{ synced: boolean }>(
+    "/settings/calendar/google/refresh",
+    {},
+  );
+}
+
 export function disconnectGoogleCalendar(): Promise<CalendarIntegrationResponse> {
   return api.post<CalendarIntegrationResponse>(
     "/settings/calendar/google/disconnect",

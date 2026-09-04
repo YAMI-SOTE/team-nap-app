@@ -13,12 +13,14 @@ import scheduleRoutes from "./schedule.routes.js";
 import settingsRoutes from "./settings.routes.js";
 import statsRoutes from "./stats.routes.js";
 import teamRoutes from "./team.routes.js";
+import webhookRoutes from "./webhooks.routes.js";
 
 const router = Router();
 
 // Public.
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
+router.use("/webhooks", webhookRoutes);
 
 // Everything below acts on behalf of the signed-in user.
 router.use(authenticate);

@@ -231,24 +231,32 @@ Vercel は静的配信するだけ。
 
 ### 3.1 プロジェクト設定（Vercel ダッシュボード）
 
-| 項目 | 値 |
-| --- | --- |
-| Root Directory | `mobile` （モノレポ。npm workspaces ではないので必須） |
-| Framework Preset | Other |
-| Build Command | `npx expo export -p web` |
-| Output Directory | `dist` |
-| Install Command | `npm install` |
-| Node.js Version | 20 以上 |
+| 項目 | 値 | 備考 |
+| --- | --- | --- |
+| Root Directory | `mobile` | **ここだけダッシュボードでしか設定できない。** モノレポ（npm workspaces ではない）なので必須。「Edit」で `mobile` フォルダを選ぶ |
+| Framework Preset | Other | |
+| Build Command | （空でよい） | `mobile/vercel.json` の `buildCommand` が使われる（`npx expo export -p web`） |
+| Output Directory | （空でよい） | 同上 → `dist` |
+| Install Command | （空でよい） | 同上 → `npm install` |
+| Node.js Version | 20 以上 | Settings → General。既定で可 |
 
-### 3.2 SPA フォールバック
+### 3.2 `mobile/vercel.json`（リポジトリにコミット済み）
 
-直リンク（`/home` など）で 404 にならないよう `mobile/vercel.json`:
+ビルド設定と SPA フォールバック（直リンク `/home` などで 404 にしない）を
+ファイルで固定している。Vercel は Root Directory 直下の `vercel.json` を読む:
 
 ```json
 {
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npx expo export -p web",
+  "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
 ```
+
+> 全許可のリライトだが、Vercel は**実在する静的ファイル**（`/_expo/static/...`
+> など）を先に返し、ファイルが無いパスだけ `index.html` に書き換えるので安全。
 
 ### 3.3 ビルド環境変数（Production + Preview 両方）
 
@@ -401,13 +409,11 @@ Promote。
 
 ## 9. まとめ（最短ルート）
 
-1. VPS で API を HTTPS 公開する（いずれか）:
-   - **VPS に直接**（案 C）: A レコード or `<IP>.sslip.io` → `ufw` で 22/80/443
-     → `cp deploy/.env.prod.example .env` で `API_DOMAIN` 設定 →
-     `docker compose -f compose.yaml -f deploy/compose.prod.yaml up -d --build`。
-   - トンネル: **案 A**（Cloudflare Tunnel）or **案 B**（Tailscale Funnel）。
-2. `curl https://<API_DOMAIN>/api/v1/health` が VPS の外から通ることを確認。
-3. Vercel: Root Directory=`mobile`（ビルド設定と SPA リライトは
-   `mobile/vercel.json`）、環境変数 `EXPO_PUBLIC_API_URL=https://<API_DOMAIN>/api/v1`。
+1. VPS: `OLLAMA_MODEL=gemma3:1b`、`NODE_ENV=production`、`compose.yaml` の
+   `db` / `ollama` の `ports:` を削除。
+2. VPS: **案 A**（Cloudflare Tunnel）で `https://api.example.com` を用意。
+3. Vercel: Root Directory=`mobile` を設定（ビルド設定と SPA リライトは
+   コミット済みの `mobile/vercel.json` が担う）、環境変数
+   `EXPO_PUBLIC_API_URL=https://api.example.com/api/v1` を Production + Preview に追加。
 4. `eas env:set --environment preview ...` でネイティブも同 API に。
 5. §7 のスモークチェックを携帯回線で通す。審査後に落とす。
