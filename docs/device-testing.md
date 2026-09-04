@@ -451,8 +451,10 @@ Backend のルートは `/api/v1` プレフィックス（`docs/backend.md`）�
 ## 7‑quater. リンクで配る（ハッカソン審査 / デモ）
 
 「審査員がリンクを開くだけ」を優先度順に。**どの方法でも Backend は公開
-HTTPS が前提**（Tailscale URL は審査員側にも Tailscale が要るので不可。
-`docs/setup.md`「本番デプロイ（VPS）」）。
+HTTPS が前提**（Tailscale URL は審査員側にも Tailscale が要るので不可）。
+Tailscale を管理専用に残したまま API を公開する具体策（Cloudflare Tunnel /
+Tailscale Funnel / Caddy）と、フロントを Vercel に分離する手順・当日ランブックは
+[split-deployment.md](./split-deployment.md)。
 
 | 方法 | 審査員の操作 | 対応 OS | 費用 / 前提 |
 | --- | --- | --- | --- |

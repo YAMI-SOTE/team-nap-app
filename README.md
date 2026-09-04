@@ -71,6 +71,7 @@ EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
 | --- | --- |
 | [architecture.md](docs/architecture.md) | 全体構成・レイヤリング・データモデル |
 | [setup.md](docs/setup.md) | 環境構築・起動・環境変数・トラブルシュート・VPS デプロイ |
+| [split-deployment.md](docs/split-deployment.md) | フロント Vercel + API VPS の分離公開構成（審査員向け） |
 | [backend.md](docs/backend.md) | Backend API（エンドポイント / リクエストフロー / 追加手順） |
 | [db.md](docs/db.md) | Prisma スキーマ・ER 図・マイグレーション |
 | [testing-guide.md](docs/testing-guide.md) / [test-account.md](docs/test-account.md) | 手動確認手順 / テストアカウント |
