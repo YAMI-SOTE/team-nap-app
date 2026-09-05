@@ -39,6 +39,13 @@ import { BellIcon, CalendarIcon, CaretDownIcon } from "@/components/icons";
  * シートの paddingBottom として内側で吸収する。
  */
 
+/**
+ * アイコンの当たり判定の下限。極端に低いウィンドウ（横向きの端末など）では
+ * 比例縮小だけだと 32px 程度まで落ちてタップしづらくなるため、ここで止める。
+ * 通常の縦画面では `px(72)` の方が大きいので影響しない。
+ */
+const MIN_TAP_TARGET = 44;
+
 /** Figma のフレーム寸法。すべての座標はこの座標系。 */
 const FRAME_W = 402;
 const FRAME_H = 874;
@@ -532,10 +539,22 @@ export default function OnboardingScreen() {
                     ) : null}
 
                     {slide.key === "avatar" ? (
-                      <View style={styles.avatarPickerRow}>
+                      <View
+                        style={[styles.avatarPickerRow, { marginTop: px(8) }]}
+                      >
+                        {/*
+                          Sized off the same scale as the rest of the slide.
+                          Left at its fixed 72px default it was the only
+                          element that did not shrink with the viewport, so
+                          on a short browser window the icons ended up
+                          dominating a sheet whose text had scaled down
+                          around them.
+                        */}
                         <AvatarPicker
                           selected={avatarId}
                           onSelect={setAvatarId}
+                          size={Math.max(MIN_TAP_TARGET, px(72))}
+                          gap={px(16)}
                           disabled={finishing}
                         />
                       </View>
@@ -772,7 +791,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   avatarPickerRow: {
-    marginTop: 8,
     alignSelf: "stretch",
   },
   timeRow: {
