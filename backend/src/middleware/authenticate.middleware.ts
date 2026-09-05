@@ -23,13 +23,14 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
   const result = await lookupSession(token);
   if (!result.ok) {
     step("error", `auth: session ${result.reason}`);
-    // A revoked session almost always means this account signed in on
-    // another device (see `createSession` — one device at a time), so say
-    // that instead of the generic "expired".
+    // A revoked session is one that was deliberately ended — signing out
+    // (here or from another device), a password reset, or the account
+    // being removed. It is never another device taking over: a second
+    // login is refused rather than displacing this one (`createSession`).
     next(
       HttpError.unauthorized(
         result.reason === "revoked"
-          ? "別の端末でログインされたため、サインアウトされました"
+          ? "このセッションは無効になっています。もう一度ログインしてください"
           : "セッションが無効または期限切れです",
       ),
     );

@@ -19,7 +19,6 @@ import {
 } from "../config/google.js";
 import { ensureOnboarding } from "./onboarding.service.js";
 import { createSession } from "./session.service.js";
-import { closeUserSockets } from "../realtime/hub.js";
 import {
   getPublicUser,
   type AuthResult,
@@ -190,8 +189,6 @@ export async function signInWithGoogle(
   await persistGoogleAccount(userId, identity, tokens);
   await ensureOnboarding(userId);
   const { token } = await createSession(userId, userAgent);
-  // Same single-device rule as email login (see `createSession`).
-  closeUserSockets(userId, "signed in on another device");
   bootstrapCalendar(userId);
   return { token, user: await getPublicUser(userId) };
 }

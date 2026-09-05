@@ -8,11 +8,16 @@ import { generateToken, hashToken } from "../lib/tokens.js";
  * hash is stored in `Session`. Tokens expire after `SESSION_TTL_HOURS`
  * and can be revoked individually or all at once.
  *
- * **One device at a time.** Issuing a session revokes every other live
- * session for that user, so an account is only ever signed in on the
- * device that logged in most recently. The enforcement lives in
+ * **One device at a time — the device already signed in keeps the account.**
+ * If a live session exists, issuing another one is refused with a 409
+ * rather than the newcomer taking over. The enforcement lives in
  * `createSession` rather than in each caller, so email login, sign-up and
  * Google login all get it — and so does anything added later.
+ *
+ * Ways out of a session you can no longer reach: sign out on that device,
+ * `POST /auth/logout-others` from it, or a password reset, which revokes
+ * every session (`password-reset.service`). Sessions also expire on their
+ * own after `SESSION_TTL_HOURS`.
  */
 
 export type IssuedSession = {
@@ -26,6 +31,19 @@ function ttlFromNow(): Date {
   return new Date(Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000);
 }
 
+/** Thrown when the account is already signed in somewhere else. */
+export const ALREADY_SIGNED_IN_MESSAGE =
+  "すでに別の端末でログインしています。その端末でサインアウトしてから、もう一度お試しください";
+
+/**
+ * Issue a session, or refuse if the account already has one.
+ *
+ * The check and the insert share one transaction so a single client
+ * cannot slip a second session past the check. Two clients logging in at
+ * the exact same moment could still both pass under the default
+ * isolation level; the result is the previous behaviour (two sessions),
+ * not a lost session, and the next sign-out clears it.
+ */
 export async function createSession(
   userId: string,
   userAgent?: string | null,
@@ -33,23 +51,22 @@ export async function createSession(
   const token = generateToken();
   const expiresAt = ttlFromNow();
 
-  // Revoke-then-create in one transaction: a caller must never end up
-  // with the old sessions killed but no new one issued, and two logins
-  // racing must not both survive.
-  const [, session] = await prisma.$transaction([
-    prisma.session.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    }),
-    prisma.session.create({
+  const session = await prisma.$transaction(async (tx) => {
+    const live = await tx.session.findFirst({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true },
+    });
+    if (live) throw HttpError.conflict(ALREADY_SIGNED_IN_MESSAGE);
+
+    return tx.session.create({
       data: {
         userId,
         tokenHash: hashToken(token),
         userAgent: userAgent?.slice(0, 255) ?? null,
         expiresAt,
       },
-    }),
-  ]);
+    });
+  });
 
   return { token, sessionId: session.id, expiresAt };
 }
