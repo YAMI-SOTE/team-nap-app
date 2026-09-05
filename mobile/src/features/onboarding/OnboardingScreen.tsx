@@ -349,7 +349,13 @@ export default function OnboardingScreen() {
   };
 
   // Figma(402x874) → 実寸のスケール。大きさ・余白はすべてこれを掛ける。
-  const s = size.width / FRAME_W;
+  //
+  // **縦横どちらの比率も超えない方を使う。** 以前は幅だけで拡大していたが、
+  // シートの高さは画面高から出していたので、Figma より横長のウィンドウ
+  // （＝ブラウザで幅 440 まで使えるが縦が足りない状態）だと、幅基準で
+  // 拡大した中身がシートに入りきらず「つぎへ」が下に切れていた。
+  // 実測: 438x819 で 3px、438x740 で 32px、440x640 で 70px はみ出していた。
+  const s = Math.min(size.width / FRAME_W, size.height / FRAME_H);
   const px = (v: number) => v * s;
 
   // セッション確定前は待つ（サインアウト時は上の useEffect が /signup へ送る）。
@@ -395,8 +401,9 @@ export default function OnboardingScreen() {
         {size.width === 0
           ? null
           : SLIDES.map((slide, slideIndex) => {
-              const illustrationHeight =
-                size.height * (slide.illustrationHeight / FRAME_H);
+              // イラスト領域もシートと同じスケールで出す。画面高の比で出すと
+              // 上のスケールと基準がずれ、その差がそのまま溢れになる。
+              const illustrationHeight = px(slide.illustrationHeight);
               const sheetHeight = size.height - illustrationHeight;
               // 猫がイラスト下端（＝シート上端）からどれだけはみ出すか。
               const catOverhang =
