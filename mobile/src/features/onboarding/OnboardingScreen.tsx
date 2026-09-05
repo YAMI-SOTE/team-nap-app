@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +20,7 @@ import { useRouter } from "expo-router";
 import { colors } from "@/theme/colors";
 import { useAuth } from "@/features/auth/AuthContext";
 import { completeOnboarding } from "@/services/authApi";
+import { isConnectionError } from "@/services/api";
 import { type AvatarId } from "@/constants/avatars";
 import AvatarPicker from "@/components/AvatarPicker";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -36,6 +38,13 @@ import { BellIcon, CalendarIcon, CaretDownIcon } from "@/components/icons";
  * その分だけシートと猫が上にせり上がって Figma とズレる。インセットは
  * シートの paddingBottom として内側で吸収する。
  */
+
+/**
+ * アイコンの当たり判定の下限。極端に低いウィンドウ（横向きの端末など）では
+ * 比例縮小だけだと 32px 程度まで落ちてタップしづらくなるため、ここで止める。
+ * 通常の縦画面では `px(72)` の方が大きいので影響しない。
+ */
+const MIN_TAP_TARGET = 44;
 
 /** Figma のフレーム寸法。すべての座標はこの座標系。 */
 const FRAME_W = 402;
@@ -231,8 +240,23 @@ export default function OnboardingScreen() {
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   // 実際に描画された枠を onLayout で測る。Dimensions.get('window') は Web で
-  // 実際の表示サイズとズレることがあるため、必ずこちらを正とする。
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  // 実際の表示サイズとズレることがあるため、測れたらそちらを正とする。
+  //
+  // ただし **初期値はウィンドウ寸法にしておく**。スライドは `size.width` が 0 の
+  // 間 1 枚も描画されないので、onLayout が来るまでこの画面は完全な白紙になる。
+  // 実際 Web ビルドではレイアウトイベントが届かず、オンボーディングが最後まで
+  // 何も表示されないケースを確認した（Home など onLayout に依存しない画面は
+  // 正常に描画される）。ウィンドウ寸法なら初回描画から実寸に十分近く、
+  // onLayout が来ればそこで上書きされる。
+  const windowSize = useWindowDimensions();
+  const [measured, setMeasured] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const size = measured ?? {
+    width: windowSize.width,
+    height: windowSize.height,
+  };
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -241,7 +265,7 @@ export default function OnboardingScreen() {
       height > 0 &&
       (width !== size.width || height !== size.height)
     ) {
-      setSize({ width, height });
+      setMeasured({ width, height });
     }
   };
 
@@ -250,7 +274,23 @@ export default function OnboardingScreen() {
     if (status === "signedOut") router.replace("/signup");
   }, [status, router]);
 
-  const finishOnboarding = async () => {
+  /**
+   * Answers chosen on the *same* tap that finishes onboarding.
+   *
+   * The last slide's button both records a choice and completes the flow.
+   * `setState` does not update the value visible to the current render, so
+   * reading the state here saved the value from *before* the tap — the
+   * user pressed the notification button and we stored
+   * `notificationsEnabled: false`. Since the backend refuses to send a
+   * push when that flag is false, every account onboarded this way had
+   * push silently disabled.
+   */
+  type FinalAnswers = Partial<{
+    calendarConnected: boolean;
+    notificationsEnabled: boolean;
+  }>;
+
+  const finishOnboarding = async (answers: FinalAnswers = {}) => {
     if (finishing) return;
     setFinishing(true);
     setFinishError(null);
@@ -258,21 +298,34 @@ export default function OnboardingScreen() {
       await completeOnboarding({
         bedtime: toClock(sleepTime),
         wakeTime: toClock(wakeTime),
-        calendarConnected,
-        notificationsEnabled,
+        calendarConnected: answers.calendarConnected ?? calendarConnected,
+        notificationsEnabled:
+          answers.notificationsEnabled ?? notificationsEnabled,
         avatar: avatarId,
       });
       await refresh();
       router.replace("/home");
-    } catch {
-      setFinishError("設定を保存できませんでした。通信環境をご確認ください。");
+    } catch (error) {
+      // Only blame the network when the request actually failed to reach
+      // the server. A rejection carries a reason the user can act on —
+      // picking 就寝 15:00 with 起床 07:30 is a 16.5h window, which the
+      // backend refuses with a message saying exactly that. Showing
+      // "check your connection" for it left the user retrying a working
+      // network with no way to discover the real problem.
+      setFinishError(
+        isConnectionError(error)
+          ? "設定を保存できませんでした。通信環境をご確認ください。"
+          : error instanceof Error && error.message
+            ? error.message
+            : "設定を保存できませんでした。",
+      );
       setFinishing(false);
     }
   };
 
-  const goToIndex = (nextIndex: number) => {
+  const goToIndex = (nextIndex: number, answers: FinalAnswers = {}) => {
     if (nextIndex >= SLIDES.length) {
-      void finishOnboarding();
+      void finishOnboarding(answers);
       return;
     }
     scrollRef.current?.scrollTo({ x: nextIndex * size.width, animated: true });
@@ -292,13 +345,24 @@ export default function OnboardingScreen() {
       return;
     }
     if (slide.key === "notification") {
+      // Carry the answer with the navigation: this is the last slide, so
+      // the same tap finishes onboarding and the state update would not
+      // be visible in time.
       setNotificationsEnabled(true);
+      goToIndex(index + 1, { notificationsEnabled: true });
+      return;
     }
     goToIndex(index + 1);
   };
 
   // Figma(402x874) → 実寸のスケール。大きさ・余白はすべてこれを掛ける。
-  const s = size.width / FRAME_W;
+  //
+  // **縦横どちらの比率も超えない方を使う。** 以前は幅だけで拡大していたが、
+  // シートの高さは画面高から出していたので、Figma より横長のウィンドウ
+  // （＝ブラウザで幅 440 まで使えるが縦が足りない状態）だと、幅基準で
+  // 拡大した中身がシートに入りきらず「つぎへ」が下に切れていた。
+  // 実測: 438x819 で 3px、438x740 で 32px、440x640 で 70px はみ出していた。
+  const s = Math.min(size.width / FRAME_W, size.height / FRAME_H);
   const px = (v: number) => v * s;
 
   // セッション確定前は待つ（サインアウト時は上の useEffect が /signup へ送る）。
@@ -321,7 +385,10 @@ export default function OnboardingScreen() {
         onConfirm={() => {
           setCalendarConnected(true);
           setCalendarPromptOpen(false);
-          goToIndex(index + 1);
+          // Carried explicitly for the same reason as the notification
+          // answer above — correct today because a slide follows, and
+          // still correct if the calendar step ever becomes the last one.
+          goToIndex(index + 1, { calendarConnected: true });
         }}
         onCancel={() => {
           setCalendarPromptOpen(false);
@@ -341,8 +408,9 @@ export default function OnboardingScreen() {
         {size.width === 0
           ? null
           : SLIDES.map((slide, slideIndex) => {
-              const illustrationHeight =
-                size.height * (slide.illustrationHeight / FRAME_H);
+              // イラスト領域もシートと同じスケールで出す。画面高の比で出すと
+              // 上のスケールと基準がずれ、その差がそのまま溢れになる。
+              const illustrationHeight = px(slide.illustrationHeight);
               const sheetHeight = size.height - illustrationHeight;
               // 猫がイラスト下端（＝シート上端）からどれだけはみ出すか。
               const catOverhang =
@@ -471,10 +539,22 @@ export default function OnboardingScreen() {
                     ) : null}
 
                     {slide.key === "avatar" ? (
-                      <View style={styles.avatarPickerRow}>
+                      <View
+                        style={[styles.avatarPickerRow, { marginTop: px(8) }]}
+                      >
+                        {/*
+                          Sized off the same scale as the rest of the slide.
+                          Left at its fixed 72px default it was the only
+                          element that did not shrink with the viewport, so
+                          on a short browser window the icons ended up
+                          dominating a sheet whose text had scaled down
+                          around them.
+                        */}
                         <AvatarPicker
                           selected={avatarId}
                           onSelect={setAvatarId}
+                          size={Math.max(MIN_TAP_TARGET, px(72))}
+                          gap={px(16)}
                           disabled={finishing}
                         />
                       </View>
@@ -519,11 +599,12 @@ export default function OnboardingScreen() {
 
                       <PillButton
                         variant="primary"
-                        label={
-                          slideIndex === SLIDES.length - 1
-                            ? "はじめる"
-                            : slide.primaryLabel
-                        }
+                        // Each slide names the action its button performs.
+                        // The last slide used to be overridden to
+                        // 「はじめる」, which only ever hid the notification
+                        // slide's own 「通知をオンにする」 — leaving a bell
+                        // icon above a button that did not say what it did.
+                        label={slide.primaryLabel}
                         onPress={() => handlePrimaryPress(slide)}
                         icon={slide.primaryIcon}
                         elevated={false}
@@ -710,7 +791,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   avatarPickerRow: {
-    marginTop: 8,
     alignSelf: "stretch",
   },
   timeRow: {
