@@ -7,6 +7,8 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 
 | ドキュメント | 内容 |
 | --- | --- |
+| [requirements.md](./requirements.md) | **ドラフト** — 背景・スコープ・機能要件 / 非機能要件（現行実装から逆算） |
+| [core-user-flow.md](./core-user-flow.md) | **ドラフト** — 画面マップと主要フロー（初回 / コアループ / チーム / 通知 / 統計 / 設定） |
 | [architecture.md](./architecture.md) | システム構成、Backend レイヤリング、Mobile 構成、データモデル一覧 |
 | [db.md](./db.md) | Prisma スキーマの各テーブル、ER 図、マイグレーション一覧、運用ルール |
 | [backend.md](./backend.md) | Backend API の全体像（エンドポイント、リクエストフロー、API フロートレース、追加手順） |
