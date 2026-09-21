@@ -5,31 +5,31 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 
 ## 全体像・設計
 
-| ドキュメント | 内容 |
-| --- | --- |
-| [requirements.md](./requirements.md) | **ドラフト** — 背景・スコープ・機能要件 / 非機能要件（現行実装から逆算） |
-| [core-user-flow.md](./core-user-flow.md) | **ドラフト** — 画面マップと主要フロー（初回 / コアループ / チーム / 通知 / 統計 / 設定） |
-| [architecture.md](./architecture.md) | システム構成、Backend レイヤリング、Mobile 構成、データモデル一覧 |
-| [db.md](./db.md) | Prisma スキーマの各テーブル、ER 図、マイグレーション一覧、運用ルール |
-| [backend.md](./backend.md) | Backend API の全体像（エンドポイント、リクエストフロー、API フロートレース、追加手順） |
-| [auth.md](./auth.md) | 認証・セッション・パスワード再設定・オンボーディング |
-| [team-feature.md](./team-feature.md) | チーム機能（作成 / 参加 / 在席 / ナッジ / 提案 / WebSocket / メンバー管理） |
-| [settings-architecture.md](./settings-architecture.md) | 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応 |
-| [ai-development.md](./ai-development.md) | AI コメント生成（Ollama / Gemma）の構成と編集ポイント |
-| [notifications.md](./notifications.md) | 通知フィード（Postgres 永続化）と Expo プッシュ通知 |
-| [google-integration.md](./google-integration.md) | **設計アウトライン（未実装）** — Google ログイン ＋ Google カレンダー連携 |
+| ドキュメント                                           | 内容                                                                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [requirements.md](./requirements.md)                   | **ドラフト** — 背景・スコープ・機能要件 / 非機能要件（現行実装から逆算）                 |
+| [core-user-flow.md](./core-user-flow.md)               | **ドラフト** — 画面マップと主要フロー（初回 / コアループ / チーム / 通知 / 統計 / 設定） |
+| [architecture.md](./architecture.md)                   | システム構成、Backend レイヤリング、Mobile 構成、データモデル一覧                        |
+| [db.md](./db.md)                                       | Prisma スキーマの各テーブル、ER 図、マイグレーション一覧、運用ルール                     |
+| [backend.md](./backend.md)                             | Backend API の全体像（エンドポイント、リクエストフロー、API フロートレース、追加手順）   |
+| [auth.md](./auth.md)                                   | 認証・セッション・パスワード再設定・オンボーディング                                     |
+| [team-feature.md](./team-feature.md)                   | チーム機能（作成 / 参加 / 在席 / ナッジ / 提案 / WebSocket / メンバー管理）              |
+| [settings-architecture.md](./settings-architecture.md) | 設定タブの Screen ↔ hook ↔ API ↔ `Onboarding` 行の対応                                   |
+| [ai-development.md](./ai-development.md)               | AI コメント生成（Ollama / Gemma）の構成と編集ポイント                                    |
+| [notifications.md](./notifications.md)                 | 通知フィード（Postgres 永続化）と Expo プッシュ通知                                      |
+| [google-integration.md](./google-integration.md)       | **設計アウトライン（未実装）** — Google ログイン ＋ Google カレンダー連携                |
 
 ## セットアップ・テスト
 
-| ドキュメント | 内容 |
-| --- | --- |
-| [setup.md](./setup.md) | 環境構築・起動（ローカル / Docker）、環境変数、トラブルシュート、VPS デプロイ |
-| [split-deployment.md](./split-deployment.md) | フロント（Vercel）と API（VPS）を分離した公開構成 — 審査員がブラウザから触れるようにする |
-| [testing-guide.md](./testing-guide.md) | 機能ごとの手動確認手順 |
-| [test-account.md](./test-account.md) | シード投入されるテストアカウントとパスワード |
-| [device-testing.md](./device-testing.md) | iPhone / Android 実機・複数アカウントでのテスト手順 |
-| [implementation-checklist.md](./implementation-checklist.md) | リポジトリ全体の実装点検チェックリストと残タスク |
-| [dependency-security.md](./dependency-security.md) | `npm audit` の対応方針・`overrides`・残存脆弱性の受容理由 |
+| ドキュメント                                                 | 内容                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [setup.md](./setup.md)                                       | 環境構築・起動（ローカル / Docker）、環境変数、トラブルシュート、VPS デプロイ            |
+| [split-deployment.md](./split-deployment.md)                 | フロント（Vercel）と API（VPS）を分離した公開構成 — 審査員がブラウザから触れるようにする |
+| [testing-guide.md](./testing-guide.md)                       | 機能ごとの手動確認手順                                                                   |
+| [test-account.md](./test-account.md)                         | シード投入されるテストアカウントとパスワード                                             |
+| [device-testing.md](./device-testing.md)                     | iPhone / Android 実機・複数アカウントでのテスト手順                                      |
+| [implementation-checklist.md](./implementation-checklist.md) | リポジトリ全体の実装点検チェックリストと残タスク                                         |
+| [dependency-security.md](./dependency-security.md)           | `npm audit` の対応方針・`overrides`・残存脆弱性の受容理由                                |
 
 ## 前提（共通の約束事）
 
@@ -49,3 +49,5 @@ Team Nap の設計・手順ドキュメントの索引。まず [architecture.md
 - **型の契約は手動同期。** Backend の `export type` と
   `mobile/src/types/api.ts` に同じ形を持つ。変更時は両方直す。
 - Google OAuth は対象外（カレンダー連携はサンプル取り込み）。
+
+A
