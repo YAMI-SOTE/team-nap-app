@@ -21,11 +21,39 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The server's `details` payload, when it sent one (zod field errors). */
+  details?: unknown;
+  constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.details = details;
   }
+}
+
+type FlattenedErrors = {
+  formErrors?: string[];
+  fieldErrors?: Record<string, string[] | undefined>;
+};
+
+/**
+ * The most specific message the server offered.
+ *
+ * A 400 from `validate` carries a generic `error` ("入力内容を確認して
+ * ください") plus `details.fieldErrors` holding the message that actually
+ * says what is wrong — e.g. "就寝から起床までが 16 時間以内になるよう
+ * 入力してください". Those messages are written for the user, so prefer
+ * them; without this the caller can only show the generic line and the
+ * user has no way to find out what to change.
+ */
+function bestMessage(fallback: string, body: unknown): string {
+  const details = (body as { details?: FlattenedErrors } | null)?.details;
+  const fromField = Object.values(details?.fieldErrors ?? {})
+    .flatMap((messages) => messages ?? [])
+    .find((message) => message.trim().length > 0);
+  if (fromField) return fromField;
+  const fromForm = details?.formErrors?.find((m) => m.trim().length > 0);
+  return fromForm ?? fallback;
 }
 
 /** True when the request never reached the server (offline / backend down). */
@@ -71,13 +99,16 @@ async function request<T>(
 
   if (!response.ok) {
     let message = "通信に失敗しました（" + response.status + "）";
+    let details: unknown;
     try {
       const body = await response.json();
       if (body?.error) message = body.error;
+      details = (body as { details?: unknown } | null)?.details;
+      message = bestMessage(message, body);
     } catch {
       // no JSON body
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, details);
   }
 
   if (response.status === 204) {

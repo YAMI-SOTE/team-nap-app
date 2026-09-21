@@ -9,6 +9,14 @@ type AvatarPickerProps = {
   onSelect: (id: AvatarId) => void;
   /** Diameter of each option in px. Default 72. */
   size?: number;
+  /**
+   * Space between the options. Defaults to 72's companion, 16.
+   *
+   * Scales with `size` at the call site: the onboarding slide sizes every
+   * other element off the viewport, so a fixed gap here would drift out of
+   * proportion exactly as a fixed `size` does.
+   */
+  gap?: number;
   disabled?: boolean;
 };
 
@@ -21,10 +29,15 @@ export default function AvatarPicker({
   selected,
   onSelect,
   size = 72,
+  gap = 16,
   disabled = false,
 }: AvatarPickerProps) {
+  // The ring and its inset are part of the circle's footprint, so they
+  // have to shrink with it or a small option is mostly border.
+  const ring = Math.max(1, Math.round((size / 72) * 2));
+
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { gap }]}>
       {AVATARS.map((avatar) => {
         const isSelected = avatar.id === selected;
         return (
@@ -41,6 +54,8 @@ export default function AvatarPicker({
                 width: size,
                 height: size,
                 borderRadius: size / 2,
+                borderWidth: ring,
+                padding: ring,
               },
               isSelected && styles.optionSelected,
             ]}
@@ -49,7 +64,7 @@ export default function AvatarPicker({
               source={avatar.source}
               style={[
                 styles.image,
-                { borderRadius: (size - 8) / 2 },
+                { borderRadius: (size - ring * 4) / 2 },
               ]}
               resizeMode="cover"
             />
@@ -64,14 +79,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 16,
   },
   option: {
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
     borderColor: "transparent",
-    padding: 2,
   },
   optionSelected: {
     borderColor: colors.borderBrand,
